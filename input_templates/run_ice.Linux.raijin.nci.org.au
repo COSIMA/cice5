@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+#PBS -S /bin/bash
+#PBS -P p66
+#PBS -q normal
+#PBS -l walltime=01:30:00
+#PBS -l ncpus=6
+#PBS -l mem=10GB
+#PBS -N ACCICE
+#PBS -l wd
+
+source $MODULESHOME/init/bash
+module load intel-fc/12.1.9.293      
+module load intel-cc/12.1.9.293      
+module load openmpi/1.6.3            
+module list
+
+if [ ! -d history ]; then
+    mkdir history
+fi
+if [ ! -d restart ]; then
+    mkdir restart
+fi
+
+export F_RECLUNIT=BYTE
+
+stamp=`date -u '+%y%m%d%H%M%S'`
+export ICE_LOG_FILE=ice.log.${stamp}
+
+export MPI_DSM_DISTRIBUTE
+mpirun -np 4 ../cice5.0_gx3.exe-4p-20140123 > $ICE_LOG_FILE 2>&1
+
+cp -p -f ice_diag.d ice_diag.d.${stamp}
+
+exit 0
+
