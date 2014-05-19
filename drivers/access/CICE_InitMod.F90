@@ -164,7 +164,8 @@
 #endif
       call init_state           ! initialize the ice state
       call init_transport       ! initialize horizontal transport
-!      call ice_HaloRestore_init ! restored boundary conditions
+!ars599: 08052014 remove markout HaloRestore_init
+      call ice_HaloRestore_init ! restored boundary conditions
 !ars599: 11042014: note:
 !	the "if (runtype == 'continue') then ! start from core restart file"
 !	from dhb599 might add in the new code "init_restart together with

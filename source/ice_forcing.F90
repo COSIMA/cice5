@@ -254,6 +254,13 @@
     ! initialize to annual climatology created from monthly data
     !-------------------------------------------------------------------
 
+!ars599: 10052014 try to use new code, so change ifndef to ifdef
+!	new code has no more "Tocnfrz"
+!ars599: 10052014 sss_data_type was set to clim in ice_in which is "wrong"
+!       should be defult. however why use the code after else if ?? should not
+!       need to use this part if not in clim run????
+!       ! Note: Restoring is done only if sss_data_type and/or 
+!       sst_data_type are set (not default) in namelist.
 #ifndef AusCOM
       if (trim(sss_data_type) == 'clim') then
 
@@ -317,8 +324,16 @@
 !            if (trim(Tfrzpt) == 'constant') then
 !               Tf (i,j,iblk) = Tocnfrz ! deg C
 !            else ! default:  Tfrzpt = 'linear_S'
-               Tf (i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
+!               Tf (i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
 !            endif
+!ars599 09052014 try to mimic original code line 293-297
+!	similar to old code mimic similar lines
+               if (ktherm == 2) then
+                  Tf(i,j,iblk) = sss(i,j,iblk) / (-18.48_dbl_kind &
+                               + ((18.48_dbl_kind/c1000) * sss(i,j,iblk)))
+               else
+                  Tf(i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
+               endif
          enddo
          enddo
       enddo
@@ -329,7 +344,10 @@
     ! initialize to data for current month
     !-------------------------------------------------------------------
 
-#ifndef AusCOM
+!ars599: 10052014 try to use new code, so change ifndef to ifdef
+!	new code has no more "Tocnfrz"
+#ifdef AusCOM
+!#ifndef AusCOM
       if (trim(sst_data_type) == 'clim') then
 
          if (nx_global == 320) then ! gx1

@@ -278,7 +278,8 @@
          enddo
          enddo
 
-#ifdef CICE_IN_NEMO
+!#ifdef CICE_IN_NEMO
+#ifdef AusCOM
        !---------------------------------------------------------------
        ! Scale frain and fsnow by ice concentration as these fields
        ! are supplied by NEMO multiplied by ice concentration

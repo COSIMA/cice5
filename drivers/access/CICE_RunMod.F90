@@ -51,9 +51,11 @@
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
       use ice_calendar, only: istep, istep1, time, dt, stop_now, calendar
+      use ice_forcing, only: get_forcing_atmo, get_forcing_ocn
 #ifdef AusCOM
 !ars599: 27032014 add in
-      use ice_calendar, only: month, mday
+      use ice_calendar, only: month, mday, istep, istep1, &
+	  time, dt, stop_now, calendar
       use ice_forcing, only: get_forcing_atmo, get_forcing_ocn, &
           get_forcing_atmo_ready
 #endif
@@ -66,7 +68,8 @@
 #ifdef AusCOM 
 !ars599: 27032014 add in
       use ice_timers, only: timer_from_ocn, timer_into_ocn, &
-          timer_from_atm, timer_into_atm
+          timer_from_atm, timer_into_atm, ice_timer_start, &
+          ice_timer_stop, timer_couple, timer_step
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
 
 
@@ -75,7 +78,9 @@
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
       integer (kind=int_kind) :: imon 
-      logical :: first_step = .true.  !1st time step of experiment or not
+!ars: 08052014 according to dhb599 fm changed, and mark out the one from OM
+!      logical :: first_step = .true.  !1st time step of experiment or not
+      logical :: need_i2o = .true.
 #endif
 
    !--------------------------------------------------------------------
@@ -453,15 +458,6 @@
          enddo ! iblk
          !$OMP END PARALLEL DO
 
-!ars599: 04092014: add in
-!	not sure should add inside the loop or not?
-#ifdef AusCOM
-         !need some time-mean ice fields 
-         !(so as to get i2o and i2a fields for next coupling interval) 
-         call time_average_fields_4_i2o
-         call time_average_fields_4_i2a 
-#endif
-
          call ice_timer_start(timer_bound)
          call ice_HaloUpdate (scale_factor,     halo_info, &
                               field_loc_center, field_type_scalar)
@@ -469,6 +465,16 @@
 
          call ice_timer_stop(timer_thermo) ! thermodynamics
          call ice_timer_stop(timer_column) ! column physics
+
+!ars599: 04092014: add in
+!	not sure should add inside the loop or not?
+!ars599: 09052014: move from after line 458 "enddo ! iblk" to here
+#ifdef AusCOM
+         !need some time-mean ice fields 
+         !(so as to get i2o and i2a fields for next coupling interval) 
+         call time_average_fields_4_i2o
+         call time_average_fields_4_i2a 
+#endif
 
       !-----------------------------------------------------------------
       ! write data
@@ -748,7 +754,9 @@
           fresh        , & ! fresh water flux to ocean         (kg/m2/s)
           fhocn            ! actual ocn/ice heat flx           (W/m**2)
 
-#ifdef CICE_IN_NEMO
+!ars599: 08052014 not sure but add auscom to try, copy from dhb599 fm
+!#ifdef CICE_IN_NEMO
+#ifdef AusCOM
 
       ! local variables
       integer (kind=int_kind) :: &
