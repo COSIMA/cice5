@@ -57,7 +57,7 @@
             filename = trim(filename0)
 #ifdef AusCOM
             write(nu_diag,*) 'XXX: restart_dir = ', restart_dir
-           !!! filename = trim(restart_dir)//trim(filename)
+            filename = trim(restart_dir)//trim(filename)
             write(nu_diag,*) 'XXX: restart file => ', filename
 #endif
             close(nu_rst_pointer)
@@ -174,7 +174,7 @@
          restart_file(1:lenstr(restart_file)),'.',idate
       if (my_task == master_task) then
         open(nu_rst_pointer,file=pointer_file)
-        write(nu_rst_pointer,'(a)') filename
+        write(nu_rst_pointer,'(a)') trim(filename) // '.nc'
         close(nu_rst_pointer)
       endif
 
@@ -211,9 +211,9 @@
       ! write pointer (path/file)
       if (my_task == master_task) then
          filename = trim(filename) // '.nc'
-         open(nu_rst_pointer,file=pointer_file)
-         write(nu_rst_pointer,'(a)') filename
-         close(nu_rst_pointer)
+!         open(nu_rst_pointer,file=pointer_file)
+!         write(nu_rst_pointer,'(a)') filename
+!         close(nu_rst_pointer)
 
          iflag = 0
          if (lcdf64) iflag = nf90_64bit_offset

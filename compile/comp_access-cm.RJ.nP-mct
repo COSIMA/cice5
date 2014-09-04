@@ -14,15 +14,29 @@ endif
 
 ### Change these to your own site and user directory! 
 ### You will need to create a Makefile Macro in bld
-
 ### Platform and its architecture ($HOST = xe)
-setenv ARCH raijin.nci.org.au
+setenv SITE raijin.nci.org.au
+setenv ARCH $SITE
+#setenv ARCH `uname -s`
+#setenv ARCH raijin.nci.org.au
+#echo ARCH: $ARCH
 
-set platform = $ARCH
-#----------------------------------------------------------------------
+# Set AusCOM home:
 setenv AusCOMHOME $cwd:h:h:h
 
-source ${AusCOMHOME}/utils/environs.${ARCH}
+set platform = $SITE
+#----------------------------------------------------------------------
+#
+# Users must ensure the correct environment file exists for their platform.
+#
+if( $platform == "raijin.nci.org.au" ) then
+source ${AusCOMHOME}/bin/environs.$platform  # environment variables and loadable modules
+else
+   echo Wrong machine! Please use proper script for platform $platform
+   exit
+endif
+
+#which ifort
 
 #----------------------------------------------------------------------
 
@@ -95,7 +109,7 @@ echo NXGLOB: $NXGLOB
 echo NYGLOB: $NYGLOB
 
 ### For multi-Layer ice (standard) configuration
-setenv N_ILYR 4
+setenv N_ILYR 1                # 4 for standard multi-layer ice. for ktherm=0, zero-layer thermodynamics
 
 # Recommendations:
 #   NTASK equals nprocs in ice_in
