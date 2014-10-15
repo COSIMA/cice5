@@ -11,8 +11,6 @@
       module ice_dyn_shared
 
       use ice_kinds_mod
-!ars599: 26032014 new code (CODE: dragio)
-!	use new code
       use ice_constants, only: c0, c1, p01, p001, dragio, rhow
       use ice_blocks, only: nx_block, ny_block
       use ice_domain_size, only: max_blocks
@@ -43,15 +41,13 @@
          yield_curve  ! 'ellipse' ('teardrop' needs further testing)
                                                                       ! 
       real (kind=dbl_kind), parameter, public :: &
-!ars599: 24032014
-!	not sure if that is right!!
-!ars599: 26032014 new code (CODE: dragio)
-!	use new code
+!ars599: 24092014 (CODE: petteri)
 !#if !defined(AusCOM) && !defined(ACCICE)
-!#ifndef AusCOM
+      ! tuning parameters, set in namelist
+#ifndef AusCOM
          dragw = dragio * rhow, &
                          ! drag coefficient for water on ice *rhow (kg/m^3)
-!#endif
+#endif
          eyc = 0.36_dbl_kind, &
                          ! coefficient for calculating the parameter E
 !ars599: 24032014
@@ -65,19 +61,14 @@
          m_min = p01     ! minimum ice mass (kg/m^2)
 
       real (kind=dbl_kind), public :: &
-!ars599: 24032014
-!	not sure if that is right!!
+!ars599: 24092014 (CODE: petteri)
 !#if defined(AusCOM) || defined(ACCICE)
 #ifdef AusCOM
        ! auscom1 has these in namelist
-!ars599: 24032014
-!	already defined in ice_constants
-!ars599: 26032014 new code (CODE: dragio)
-!	so mark out
 !         dragio   , & ! ice-ocn drag coefficient
          cosw     , & ! cos(ocean turning angle)  ! 
          sinw     , & ! sin(ocean turning angle)  ! 
-!         dragw    , & ! drag coefficient for water on ice *rhow (kg/m^3)
+         dragw    , & ! drag coefficient for water on ice *rhow (kg/m^3)
 #endif
          revp     , & ! 0 for classic EVP, 1 for revised EVP
          ecci     , & ! 1/e^2
@@ -700,15 +691,11 @@
       !-----------------------------------------------------------------
       ! integrate the momentum equation
       !-----------------------------------------------------------------
-!ars599: 24032014
-!	not sure if that is right!!
-!#if defined(AusCOM) || defined(ACCICE)
-!ars599: 26032014 new code (CODE: dragio)
-!	use new code
-!#ifdef AusCOM
-!         dragw = dragio * rhow
+!ars599: 24092014 (CODE: petteri)
+#ifdef AusCOM
+         dragw = dragio * rhow
 !                         ! drag coefficient for water on ice *rhow (kg/m^3)
-!#endif
+#endif
 
       do ij =1, icellu
          i = indxui(ij)

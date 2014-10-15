@@ -52,14 +52,11 @@
          Cdn_ocn_keel, & ! keel drag coefficient
          Cdn_atm_ocn     ! ratio drag atm / neutral drag atm
 
-!ars599: 24032014 (CODE OZ-ICE)
-!	and change to public parameter
-!#if defined(AusCOM) || defined(ACCICE)
-!      real (kind=dbl_kind) :: &
-!         iceruf             ! def. 0.0005_dbl_kind, ice surface roughness (m)
+!ars599: 24092014 (CODE: petteri)
+      ! tuning parameters, set in namelist
 #ifdef AusCOM
-      real (kind=dbl_kind), parameter, public :: &
-         iceruf    = 0.0005_dbl_kind ! ice surface roughness (m)
+      real (kind=dbl_kind), public :: &
+         iceruf    ! ice surface roughness (m)
 #endif
 
 !=======================================================================
@@ -677,8 +674,13 @@
 
       real (kind=dbl_kind), parameter :: &
          ocnruf   = 0.000327_dbl_kind, & ! ocean surface roughness (m)
+!ars599: 24092014 (CODE: petteri)
+#ifdef AusCOM
+         ocnrufi  = c1/ocnruf    ! inverse ocean roughness
+#else
          ocnrufi  = c1/ocnruf, & ! inverse ocean roughness
          icerufi  = c1/iceruf    ! inverse ice roughness
+#endif
 
       real (kind=dbl_kind), parameter :: &
          camax    = 0.02_dbl_kind , & ! Maximum for atmospheric drag
@@ -807,8 +809,14 @@
           sca = c1 - exp(-sHGB*distrdg(i,j)/tmp1) ! see Eq. 9
           ctecar = cra*p5
           ! hridge relative to sea level
+!ars599: 24092014 (CODE: petteri)
+#ifdef AusCOM
+          Cdn_atm_rdg(i,j) = ai * ctecar*tmp1/distrdg(i,j)*sca* &
+                     (log(tmp1/iceruf)/log(zref/iceruf))**c2
+#else
           Cdn_atm_rdg(i,j) = ai * ctecar*tmp1/distrdg(i,j)*sca* &
                      (log(tmp1*icerufi)/log(zref*icerufi))**c2
+#endif
           Cdn_atm_rdg(i,j) = min(Cdn_atm_rdg(i,j),camax)
 
           tmp1 = hkeel(i,j) - hdraft(i,j)
@@ -829,8 +837,14 @@
           scw = c1 - exp(-sHGB*dkeel(i,j)/tmp1) 
           ctecwk = crw*p5
           ! hkeel relative to sea level
+!ars599: 24092014 (CODE: petteri)
+#ifdef AusCOM
+          Cdn_ocn_keel(i,j) = ctecwk*ai*tmp1/dkeel(i,j)*scw* &
+                     (log(tmp1/iceruf)/log(zref/iceruf))**c2  
+#else
           Cdn_ocn_keel(i,j) = ctecwk*ai*tmp1/dkeel(i,j)*scw* &
                      (log(tmp1*icerufi)/log(zref*icerufi))**c2  
+#endif
           Cdn_ocn_keel(i,j) = max(min(Cdn_ocn_keel(i,j),cwmax),c0)
 !         Cdn_ocn_keel(i,j) = c0
   

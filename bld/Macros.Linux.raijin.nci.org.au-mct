@@ -26,7 +26,7 @@ FC         := mpif90
 ifeq ($(DEBUG), yes)
     FFLAGS     := -g -r8 -i4 -O0 -g -align all -w -ftz -convert big_endian -assume byterecl -no-vec -mcmodel=medium
 else
-    FFLAGS     := -r8 -i4 -O2 -align all -w -ftz -convert big_endian -assume byterecl -no-vec -mcmodel=medium
+    FFLAGS     := -g -traceback -fpe0 -r8 -i4 -O2 -align all -w -ftz -convert big_endian -assume byterecl -no-vec -mcmodel=medium
 endif
 MOD_SUFFIX := mod
 LD         := $(FC)

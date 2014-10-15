@@ -279,7 +279,13 @@
          enddo
 
 !#ifdef CICE_IN_NEMO
-#ifdef AusCOM
+!ars599: 08102014: while doing the OM run found this could cause some
+!        issue so might change back to NEMO rather than AusCOM
+!        need to double check
+!        10102014: according to spo599  need to keep this for CM
+!        so that will suggest to use ifdef ACCESS rather than AusCOM
+!#ifdef AusCOM
+#ifdef ACCESS
        !---------------------------------------------------------------
        ! Scale frain and fsnow by ice concentration as these fields
        ! are supplied by NEMO multiplied by ice concentration

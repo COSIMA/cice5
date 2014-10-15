@@ -16,8 +16,6 @@
       use ice_kinds_mod
       use ice_blocks, only: nx_block, ny_block
       use ice_domain_size, only: max_blocks, ncat, max_aero, max_nstrm, nilyr
-!ars599: 26032014 new code (CODE: dragio)
-!	use new code
       use ice_constants, only: c0, c1, c5, c10, c20, c180, dragio, &
           depressT, stefan_boltzmann, Tffresh, emissivity 
       use ice_atmo, only: formdrag, &

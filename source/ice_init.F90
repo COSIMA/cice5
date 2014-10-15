@@ -40,9 +40,6 @@
 
       use ice_age, only: restart_age
       use ice_broadcast, only: broadcast_scalar, broadcast_array
-!ars599: 26032014 new code (CODE: dragio)
-!	use new code add behind ice_constants and remove from ice_dyn_shared
-!	together with awtvdr, awtidr, awtvdf, awtidf, Tocnfrz
       use ice_constants, only: c0, c1, puny, dragio, &
           awtvdr, awtidr, awtvdf, awtidf, Tocnfrz
       use ice_diagnostics, only: diag_file, print_global, print_points, latpnt, lonpnt
@@ -76,17 +73,10 @@
       use ice_shortwave, only: albicev, albicei, albsnowv, albsnowi, ahmax, &
                                shortwave, albedo_type, R_ice, R_pnd, &
                                R_snw, dT_mlt, rsnw_mlt
-!ars599: 24032014 (CODE OZ-ICE)
-!	error #6580: Name in only-list does not exist
-!	again only set for AusCOM
+!ars599: 24092014 (CODE: petteri)
 !#if defined(AusCOM) || defined(ACCICE)
 #ifdef AusCOM
       ! AusCOM specific namelist parameters
-!ars599: 26032014
-!	new code seperate from ice_dyn_evp to ice_dyn_shared
-!      use ice_dyn_evp, only: cosw, sinw, dragio
-!ars599: 26032014 new code (CODE: dragio)
-!	use new code add behind ice_constants and remove from ice_dyn_shared
       use ice_dyn_shared, only: cosw, sinw
       use ice_shortwave, only: snowpatch, dT_mlt, dalb_mlt
       use ice_therm_vertical, only: chio
@@ -145,25 +135,29 @@
       namelist /thermo_nml/ &
         kitd,           ktherm,          conduct,                       &
         a_rapid_mode,   Rac_rapid_mode,  aspect_rapid_mode,             &
+!ars599: 24092014 (CODE: petteri)
+#ifdef AusCOM
+	chio,                                                           &
+#endif
         dSdt_slow_mode, phi_c_slow_mode, phi_i_mushy
 
       namelist /dynamics_nml/ &
         kdyn,           ndte,           revised_evp,    yield_curve,    &
         advection,                                                      &
+!ars599: 24092014 (CODE: petteri)
+#ifdef AusCOM
+        cosw,           sinw,            dragio,  iceruf,               &
+#endif
         kstrength,      krdg_partic,    krdg_redist,    mu_rdg
 
       namelist /shortwave_nml/ &
         shortwave,      albedo_type,                                    &
         albicev,        albicei,         albsnowv,      albsnowi,       &
-!ars599: 24032014 (CODE OZ-ICE)
+!ars599: 24092014 (CODE: petteri)
 !#if defined(AusCOM) || defined(ACCICE)
 #ifdef AusCOM
         snowpatch,      dT_mlt,          dalb_mlt,      awtvdr,         &
-!        awtidr,         awtvdf,          awtidf,        Tocnfrz,        &
         awtidr,         awtvdf,          awtidf,        Tocnfrz,        &
-!        cosw,           sinw,            dragio,        chio,           &
-!        iceruf,                                                         &
-        cosw,           sinw,             chio,                         &
 #endif
         ahmax,          R_ice,           R_pnd,         R_snw,          &
         dT_mlt,         rsnw_mlt
@@ -274,7 +268,7 @@
       albsnowv  = 0.98_dbl_kind   ! cold snow albedo, visible
       albsnowi  = 0.70_dbl_kind   ! cold snow albedo, near IR
       ahmax     = 0.3_dbl_kind    ! thickness above which ice albedo is constant (m)
-!ars599: 24032014 (CODE OZ-ICE)
+!ars599: 24092014 (CODE: petteri)
 !#if defined(AusCOM) || defined(ACCICE)
 !	mark out dT_mlt
 ! 4 Jan 2007 BPB  Following are appropriate for complete cloud
@@ -292,11 +286,11 @@
 !                                 ! albedo change
       dalb_mlt = -0.075_dbl_kind ! albedo change per dT_mlt change
                                  ! in temp for ice
-!      dragio   = 0.00536_dbl_kind! ice-ocn drag coefficient
+      dragio   = 0.00536_dbl_kind! ice-ocn drag coefficient
       Tocnfrz  = -1.8_dbl_kind   ! freezing temp of seawater (C),
                                  ! used as Tsfcn for open water
       chio     = 0.006_dbl_kind  ! unitless param for basal heat flx ala McPhee and Maykut
-!      iceruf    = 0.0005_dbl_kind ! ice surface roughness (m)
+      iceruf   = 0.0005_dbl_kind ! ice surface roughness (m)
 #endif
       atmbndy   = 'default'       ! or 'constant'
 
@@ -687,10 +681,10 @@
       call broadcast_scalar(awtidf,             master_task)
       call broadcast_scalar(cosw,               master_task)
       call broadcast_scalar(sinw,               master_task)
-!      call broadcast_scalar(dragio,             master_task)
+      call broadcast_scalar(dragio,             master_task)
       call broadcast_scalar(chio,               master_task)
       call broadcast_scalar(Tocnfrz,            master_task)
-!      call broadcast_scalar(iceruf,             master_task)
+      call broadcast_scalar(iceruf,             master_task)
 #endif
       call broadcast_scalar(atmbndy,            master_task)
       call broadcast_scalar(fyear_init,         master_task)

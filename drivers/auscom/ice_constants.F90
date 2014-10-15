@@ -26,24 +26,29 @@
          ! (Briegleb JGR 97 11475-11485  July 1992)
          emissivity= 0.95_dbl_kind    ,&! emissivity of snow and ice
          cp_ice    = 2106._dbl_kind   ,&! specific heat of fresh ice (J/kg/K)
+#ifdef AusCOM
+         cp_ocn    = 3989.24495292815_dbl_kind, & !<== mom4 constant!
+         !cp_ocn    = 3989._dbl_kind   ,&! specific heat of ocn    (J/kg/K)
+                                        ! freshwater value needed for enthalpy
+#else
          cp_ocn    = 4218._dbl_kind   ,&! specific heat of ocn    (J/kg/K)
                                         ! freshwater value needed for enthalpy
+#endif
          depressT  = 0.054_dbl_kind   ,&! Tf:brine salinity ratio (C/ppt)
-!ars599: 26032014 new code (CODE: dragio)
-!	use new code, mark out #ifndef AusCOM
-!#ifndef AusCOM
+#ifndef AusCOM
          dragio    = 0.00536_dbl_kind ,&! ice-ocn drag coefficient
-!#endif
+#endif
          albocn    = 0.06_dbl_kind      ! ocean albedo
 
       real (kind=dbl_kind), parameter, public :: &
          gravit    = 9.80616_dbl_kind    ,&! gravitational acceleration (m/s^2)
          omega     = 7.292e-5_dbl_kind   ,&! angular velocity of earth (rad/sec)
-         radius    = 6.37e6_dbl_kind       ! earth radius (m)
+         !radius    = 6.37e6_dbl_kind       ! earth radius (m)
+         radius    = 6.371e6_dbl_kind       ! <== mom4 constant
 
       real (kind=dbl_kind), parameter, public :: &
-         secday    = 86400.0_dbl_kind ,&! seconds in calendar day
-         viscosity_dyn = 1.79e-3_dbl_kind, & ! dynamic viscosity of brine (kg/m/s)
+        secday    = 86400.0_dbl_kind ,&! seconds in calendar day
+        viscosity_dyn = 1.79e-3_dbl_kind, & ! dynamic viscosity of brine (kg/m/s)
 #ifndef AusCOM
          Tocnfrz   = -1.8_dbl_kind    ,&! freezing temp of seawater (C),
                                         ! used as Tsfcn for open water
@@ -59,8 +64,10 @@
          Lfresh    = Lsub-Lvap        ,&! latent heat of melting of fresh ice (J/kg)
          Timelt    = 0.0_dbl_kind     ,&! melting temperature, ice top surface  (C)
          Tsmelt    = 0.0_dbl_kind     ,&! melting temperature, snow top surface (C)
-         ice_ref_salinity = 4._dbl_kind ,&! (ppt)
+         !ice_ref_salinity = 4._dbl_kind ,&! (ppt)
+         ice_ref_salinity = 5._dbl_kind ,&! (ppt) <== mom4 ice_salt_concentration constant
 !        ocn_ref_salinity = 34.7_dbl_kind,&! (ppt)
+!        rho_air   = 1.2_dbl_kind     ,&! ambient air density (kg/m^3)
          spval_dbl = 1.0e30_dbl_kind    ! special value (double precision)
 
       real (kind=real_kind), parameter, public :: &
@@ -73,7 +80,7 @@
 
          ! (Ebert, Schramm and Curry JGR 100 15965-15975 Aug 1995)
          kappav = 1.4_dbl_kind ,&! vis extnctn coef in ice, wvlngth<700nm (1/m)
-         !kappan = 17.6_dbl_kind,&! vis extnctn coef in ice, wvlngth<700nm (1/m)
+         kappan = 17.6_dbl_kind,&! vis extnctn coef in ice, wvlngth<700nm (1/m)
 
          ! kice is not used for mushy thermo
          kice   = 2.03_dbl_kind  ,&! thermal conductivity of fresh ice(W/m/deg)
@@ -92,6 +99,7 @@
       ! since this modules name is ice_constants
 !ars599: 26032014: change to public
       real (kind=dbl_kind), public :: &
+         dragio   , & ! ice-ocn drag coefficient
          Tocnfrz ! freezing temp of seawater (C),
                  ! used as Tsfcn for open water
 #endif
