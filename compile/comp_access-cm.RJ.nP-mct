@@ -86,10 +86,13 @@ if ( $ACCESS == 'yes' ) then
   echo CPL_INCS: $CPL_INCS
 endif
 
+### For multi-Layer ice (standard) configuration
+setenv N_ILYR 1                # 4 for standard multi-layer ice. for ktherm=0, zero-layer thermodynamics
+
 ### Location and name of the generated exectuable
 setenv DATESTR `date +%Y%m%d`
 setenv BINDIR $SYSTEMDIR/bin
-setenv EXE cice5_${CHAN}-mct.${DATESTR}.RJ_${nproc}p
+setenv EXE cice5_${CHAN}-mct.${DATESTR}.RJ_${nproc}p_${N_ILYR}lyr
 
 ### Where this model is compiled
 setenv OBJDIR $SRCDIR/compile/build_${CHAN}_{$nproc}p-mct
@@ -107,9 +110,6 @@ set NXGLOB = `echo $RES | sed s/x.\*//`
 set NYGLOB = `echo $RES | sed s/.\*x//`
 echo NXGLOB: $NXGLOB
 echo NYGLOB: $NYGLOB
-
-### For multi-Layer ice (standard) configuration
-setenv N_ILYR 1                # 4 for standard multi-layer ice. for ktherm=0, zero-layer thermodynamics
 
 # Recommendations:
 #   NTASK equals nprocs in ice_in
