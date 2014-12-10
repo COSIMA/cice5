@@ -79,8 +79,8 @@
 
   logical :: mpiflag
 
-  character(len=8) :: chiceout
-  character(len=2) :: chout
+  character(len=9) :: chiceout
+  character(len=3) :: chout
 
   !-----------------------------------
   ! 'define' the model global domain: 
@@ -175,7 +175,7 @@
   ! Open the process log file
   !if (my_task == 0 .or. ll_comparal) then
     il_out = 85 + my_task
-    write(chout,'(I2)')il_out
+    write(chout,'(I3.3)')il_out
     chiceout='iceout'//chout
     open(il_out,file=chiceout,form='formatted')
   
@@ -335,6 +335,8 @@
     cl_writ(n_i2a+13)='aice_io'
     cl_writ(n_i2a+14)='melt_io'
     cl_writ(n_i2a+15)='form_io'
+    cl_writ(n_i2a+16)='co2_i1'
+    cl_writ(n_i2a+17)='wnd_i1'
 
     do jf=1, jpfldout
       call prism_def_var_proto (il_var_id_out(jf),cl_writ(jf), il_part_id, &
@@ -363,6 +365,8 @@
     cl_read(n_a2i+5)='sslx_i'
     cl_read(n_a2i+6)='ssly_i'
     cl_read(n_a2i+7)='pfmice_i'
+    cl_read(n_a2i+8)='co2_oi'
+    cl_read(n_a2i+9)='co2fx_oi'
     !
     do jf=1, jpfldin
       call prism_def_var_proto (il_var_id_in(jf), cl_read(jf), il_part_id, &
@@ -613,6 +617,7 @@
     if (jf == n_a2i+5) sslx = vwork
     if (jf == n_a2i+6) ssly = vwork
     if (jf == n_a2i+7) pfmice = vwork
+    !ignore the 8th,9th dummy fields:co2_oi and co2flux_oi
 
   enddo
 
@@ -662,6 +667,8 @@
     !!!
     if (jf == n_i2a+14) vwork = scale * iomelt
     if (jf == n_i2a+15) vwork = scale * ioform
+    if (jf == n_i2a+16) vwork = 0. !dummy co2_i1 
+    if (jf == n_i2a+17) vwork = 0. !dummy wnd_i1
 
     if(.not. ll_comparal) then
       call gather_global(gwork, vwork, master_task, distrb_info)
