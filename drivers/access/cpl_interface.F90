@@ -17,6 +17,7 @@
   use ice_distribution, only : distrb, nprocsX, nprocsY
   use ice_gather_scatter
   use ice_constants
+  use ice_boundary, only : ice_HaloUpdate
   use ice_domain       !, only : distrb_info
   use ice_grid,        only : u2tgrid_vector
   use ice_grid,        only : ANGLE, ANGLET 
@@ -768,11 +769,7 @@
       !call flush(il_out)
 
       if (ll_comparal) then 
-        call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror) !vwork(2:,2:,my_task+1), 
-        call mpi_gatherv(vwork2d(l_ilo:l_ihi, l_jlo:l_jhi),1,sendsubarray,gwork,counts,disps,resizedrecvsubarray, &
-                     0,MPI_COMM_ICE,ierror)
-        call broadcast_array(gwork, 0)
-!         gwork(l_ilo:l_ihi, l_jlo:l_jhi) = vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)
+        call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)  
       else
         call prism_get_proto (il_var_id_in(jf), isteps, gwork, ierror)
       endif 
@@ -800,44 +797,54 @@
     if (.not. ll_comparal ) then
       call scatter_global(vwork,gwork,master_task,distrb_info, &
                         field_loc_center, field_type_scalar)
-    else
-      call unpack_global_dbl(vwork,gwork,master_task,distrb_info, &
-                        field_loc_center, field_type_scalar)
+!    else
+!      call unpack_global_dbl(vwork,gwork,master_task,distrb_info, &
+!                        field_loc_center, field_type_scalar)
     endif ! not ll_comparal
+
+#if (MXBLCKS != 1)
+#error The following code assumes that max_blocks == 1
+#endif
 
     !***Note following "select case" works only if cl_read(:) is defined at ALL ranks***!
     !-----------------------------------------------------------------------------------!
     select case (trim(cl_read(jf)))
-    case ('thflx_i');  um_thflx(:,:,:)  = vwork(:,:,:)
-    case ('pswflx_i'); um_pswflx(:,:,:) = vwork(:,:,:)
-    case ('runoff_i'); um_runoff(:,:,:) = vwork(:,:,:)
-    case ('wme_i');   um_wme(:,:,:) = vwork(:,:,:)
+    case ('thflx_i');
+        um_thflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1)=vwork2d(:,:)
+    case ('pswflx_i');
+        um_pswflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) =vwork2d(:,:)
+    case ('runoff_i');
+        um_runoff(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) =vwork2d(:,:)
+    case ('wme_i');
+        um_wme(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
 !    case ('rain_i');  um_rain(:,:,:) = vwork(:,:,:)
 !    case ('snow_i');  um_snow(:,:,:) = vwork(:,:,:)
 !---20100825 -- just be cauious: -------------------------
-    case ('rain_i');  um_rain(:,:,:) = max(0.0,vwork(:,:,:))
-    case ('snow_i');  um_snow(:,:,:) = max(0.0,vwork(:,:,:))
+    case ('rain_i');
+        um_rain(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) =max(0.0,vwork2d(:,:))
+    case ('snow_i');
+        um_snow(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) =max(0.0,vwork2d(:,:))
 !---------------------------------------------------------   
-    case ('evap_i');  um_evap(:,:,:) = vwork(:,:,:)
-    case ('lhflx_i'); um_lhflx(:,:,:) = vwork(:,:,:)
-    case ('tmlt01_i'); um_tmlt(:,:,1,:) = vwork(:,:,:) 
-    case ('tmlt02_i'); um_tmlt(:,:,2,:) = vwork(:,:,:)
-    case ('tmlt03_i'); um_tmlt(:,:,3,:) = vwork(:,:,:)
-    case ('tmlt04_i'); um_tmlt(:,:,4,:) = vwork(:,:,:)
-    case ('tmlt05_i'); um_tmlt(:,:,5,:) = vwork(:,:,:)
-    case ('bmlt01_i'); um_bmlt(:,:,1,:) = vwork(:,:,:)
-    case ('bmlt02_i'); um_bmlt(:,:,2,:) = vwork(:,:,:)
-    case ('bmlt03_i'); um_bmlt(:,:,3,:) = vwork(:,:,:)
-    case ('bmlt04_i'); um_bmlt(:,:,4,:) = vwork(:,:,:)
-    case ('bmlt05_i'); um_bmlt(:,:,5,:) = vwork(:,:,:)
-    case ('taux_i');  um_taux(:,:,:)  = vwork(:,:,:)
-    case ('tauy_i');  um_tauy(:,:,:)  = vwork(:,:,:)
-    case ('swflx_i'); um_swflx(:,:,:) = vwork(:,:,:)
-    case ('lwflx_i'); um_lwflx(:,:,:) = vwork(:,:,:)
-    case ('shflx_i'); um_shflx(:,:,:) = vwork(:,:,:)
-    case ('press_i'); um_press(:,:,:) = vwork(:,:,:)
-    case ('co2_ai'); um_co2(:,:,:) = vwork(:,:,:)
-    case ('wnd_ai'); um_wnd(:,:,:) = vwork(:,:,:)
+    case ('evap_i');um_evap(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
+    case ('lhflx_i');um_lhflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
+    case ('tmlt01_i');um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d(:,:) 
+    case ('tmlt02_i');um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d(:,:)
+    case ('tmlt03_i');um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d(:,:)
+    case ('tmlt04_i');um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d(:,:)
+    case ('tmlt05_i');um_tmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d(:,:)
+    case ('bmlt01_i');um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1,1) = vwork2d(:,:)
+    case ('bmlt02_i');um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,2,1) = vwork2d(:,:)
+    case ('bmlt03_i');um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,3,1) = vwork2d(:,:)
+    case ('bmlt04_i');um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,4,1) = vwork2d(:,:)
+    case ('bmlt05_i');um_bmlt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,5,1) = vwork2d(:,:)
+    case ('taux_i');um_taux(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1)  = vwork2d(:,:)
+    case ('tauy_i');um_tauy(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1)  = vwork2d(:,:)
+    case ('swflx_i');um_swflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
+    case ('lwflx_i');um_lwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
+    case ('shflx_i');um_shflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
+    case ('press_i');um_press(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
+    case ('co2_ai');um_co2(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
+    case ('wnd_ai');um_wnd(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d(:,:)
     end select 
 
     if (my_task == 0 .or. ll_comparal) then
@@ -846,6 +853,25 @@
     endif
 
   enddo
+
+    call ice_HaloUpdate(um_thflx, halo_info,field_loc_center,field_type_scalar)
+    call ice_HaloUpdate(um_pswflx, halo_info,field_loc_center,field_type_scalar)
+    call ice_HaloUpdate(um_runoff, halo_info,field_loc_center,field_type_scalar)
+    call ice_HaloUpdate(um_wme, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(um_rain, halo_info, field_loc_center,field_type_scalar)
+    call ice_HaloUpdate(um_snow, halo_info, field_loc_center,field_type_scalar)
+    call ice_HaloUpdate(um_evap, halo_info, field_loc_center,field_type_scalar)
+    call ice_HaloUpdate(um_lhflx, halo_info,field_loc_center,field_type_scalar)
+    call ice_HaloUpdate(um_tmlt, halo_info, field_loc_center,field_type_vector)
+    call ice_HaloUpdate(um_bmlt, halo_info, field_loc_center,field_type_vector)
+    call ice_HaloUpdate(um_taux, halo_info, field_loc_center,field_type_vector)
+    call ice_HaloUpdate(um_tauy, halo_info, field_loc_center,field_type_vector)
+    call ice_HaloUpdate(um_swflx, halo_info,field_loc_center,field_type_vector)
+    call ice_HaloUpdate(um_lwflx, halo_info,field_loc_center,field_type_vector)
+    call ice_HaloUpdate(um_shflx, halo_info,field_loc_center,field_type_vector)
+    call ice_HaloUpdate(um_press, halo_info,field_loc_center,field_type_vector)
+    call ice_HaloUpdate(um_co2, halo_info, field_loc_center, field_type_vector)
+    call ice_HaloUpdate(um_wnd, halo_info, field_loc_center, field_type_vector)
 
   IF (rotate_winds) THEN   !rotate_winds=.t. means oasis does not do the vector rotation.
 
@@ -928,10 +954,6 @@
       write(il_out,*) '*** receiving coupling fields No. ', jf, cl_read(jf)
       if(ll_comparal) then
         call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-        call mpi_gatherv(vwork2d(l_ilo:l_ihi, l_jlo:l_jhi),1,sendsubarray,gwork,counts,disps,resizedrecvsubarray, &
-                     0,MPI_COMM_ICE,ierror)
-        call broadcast_array(gwork, 0)
-!         gwork(l_ilo:l_ihi, l_jlo:l_jhi) = vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)
       else
         call prism_get_proto (il_var_id_in(jf), isteps, gwork, ierror)
       endif 
@@ -958,25 +980,44 @@
     if (.not. ll_comparal) then
       call scatter_global(vwork, gwork, master_task, distrb_info, &
                         field_loc_center, field_type_scalar)
-    else
-      call unpack_global_dbl(vwork, gwork, master_task, distrb_info, &
-                        field_loc_center, field_type_scalar)
+!    else
+!      call unpack_global_dbl(vwork, gwork, master_task, distrb_info, &
+!                        field_loc_center, field_type_scalar)
     endif 
 
     !Q: 'field_type_scalar' all right for 'vector' (ssu/ssv, sslx/ssly))?! 
     select case (trim(cl_read(jf)))
-    case ('sst_i'); ocn_sst = vwork
-    case ('sss_i'); ocn_sss = vwork 
-    case ('ssu_i'); ocn_ssu = vwork
-    case ('ssv_i'); ocn_ssv = vwork
-    case ('sslx_i'); ocn_sslx = vwork
-    case ('ssly_i'); ocn_ssly = vwork
-    case ('pfmice_i'); ocn_pfmice = vwork
-    case ('co2_oi'); ocn_co2 = vwork
-    case ('co2fx_oi'); ocn_co2fx = vwork
+    case ('sst_i'); 
+       ocn_sst(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d
+    case ('sss_i'); 
+       ocn_sss(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d 
+    case ('ssu_i'); 
+       ocn_ssu(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d
+    case ('ssv_i'); 
+       ocn_ssv(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d
+    case ('sslx_i'); 
+       ocn_sslx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d
+    case ('ssly_i'); 
+       ocn_ssly(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d
+    case ('pfmice_i');
+       ocn_pfmice(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) =vwork2d
+    case ('co2_oi'); 
+       ocn_co2(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost,1) = vwork2d
+    case ('co2fx_oi');
+       ocn_co2fx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) =vwork2d
     end select
 
   enddo
+
+  call ice_HaloUpdate(ocn_sst, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ocn_sss, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ocn_ssu, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ocn_ssv, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ocn_sslx, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ocn_ssly, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ocn_pfmice, halo_info,field_loc_center,field_type_scalar)
+  call ice_HaloUpdate(ocn_co2, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ocn_co2fx, halo_info, field_loc_center,field_type_scalar)
 
   !-------------------------------
   !if (chk_o2i_fields) then
@@ -1464,260 +1505,6 @@
 
   end subroutine decomp_def
 
-!============================================================================
-
-!============================================================================
- subroutine unpack_global_dbl(ARRAY, ARRAY_G, src_task, dst_dist, &
-                               field_loc, field_type)
-
-! !DESCRIPTION:
-!  This subroutine scatters a global-sized array to a distributed array.
-!
-! !REVISION HISTORY:
-!  same as module
-!
-! !REMARKS:
-!  This is the specific interface for double precision arrays
-!  corresponding to the generic interface scatter_global.
-
-! !USES:
-
-   include 'mpif.h'
-
-! !INPUT PARAMETERS:
-
-   integer (int_kind), intent(in) :: &
-     src_task       ! task from which array should be scattered
-
-   type (distrb), intent(in) :: &
-     dst_dist       ! distribution of resulting blocks
-
-   real (dbl_kind), dimension(:,:), intent(in) :: &
-     ARRAY_G        ! array containing global field on src_task
-
-   integer (int_kind), intent(in) :: &
-      field_type,               &! id for type of field (scalar, vector, angle)
-      field_loc                  ! id for location on horizontal grid
-                                 !  (center, NEcorner, Nface, Eface)
-
-! !OUTPUT PARAMETERS:
-
-   real (dbl_kind), dimension(:,:,:), intent(inout) :: &
-     ARRAY          ! array containing distributed field
-!EOP
-!BOC
-!-----------------------------------------------------------------------
-!
-!  local variables
-!
-!-----------------------------------------------------------------------
-
-   integer (int_kind) :: &
-     i,j,n,bid,          &! dummy loop indices
-     nrecvs,             &! actual number of messages received
-     isrc, jsrc,         &! source addresses
-     dst_block,          &! location of block in dst array
-     xoffset, yoffset,   &! offsets for tripole boundary conditions
-     yoffset2,           &!
-     isign,              &! sign factor for tripole boundary conditions
-     ierr                 ! MPI error flag
-
-   type (block) :: &
-     this_block  ! block info for current block
-
-   integer (int_kind), dimension(MPI_STATUS_SIZE) :: &
-     status
-
-   integer (int_kind), dimension(:), allocatable :: &
-     rcv_request     ! request array for receives
-
-   integer (int_kind), dimension(:,:), allocatable :: &
-     rcv_status      ! status array for receives
-
-   real (dbl_kind), dimension(:,:), allocatable :: &
-     msg_buffer      ! buffer for sending blocks
-
-!-----------------------------------------------------------------------
-!
-!  initialize return array to zero and set up tripole quantities
-!
-!-----------------------------------------------------------------------
-   ARRAY = c0
-
-   this_block = get_block(1,1) ! for the tripoleTflag - all blocks have it
-   if (this_block%tripoleTFlag) then
-     select case (field_loc)
-     case (field_loc_center)   ! cell center location
-        xoffset = 2
-        yoffset = 0
-     case (field_loc_NEcorner) ! cell corner (velocity) location
-        xoffset = 1
-        yoffset = -1
-     case (field_loc_Eface)    ! cell face location
-        xoffset = 1
-        yoffset = 0
-     case (field_loc_Nface)    ! cell face location
-        xoffset = 2
-        yoffset = -1
-     case (field_loc_noupdate) ! ghost cells never used - use cell center
-        xoffset = 1
-        yoffset = 1
-     end select
-   else
-     select case (field_loc)
-     case (field_loc_center)   ! cell center location
-        xoffset = 1
-        yoffset = 1
-     case (field_loc_NEcorner) ! cell corner (velocity) location
-        xoffset = 0
-        yoffset = 0
-     case (field_loc_Eface)    ! cell face location
-        xoffset = 0
-        yoffset = 1
-     case (field_loc_Nface)    ! cell face location
-        xoffset = 1
-        yoffset = 0
-     case (field_loc_noupdate) ! ghost cells never used - use cell center
-        xoffset = 1
-        yoffset = 1
-     end select
-   endif
-   select case (field_type)
-   case (field_type_scalar)
-      isign =  1
-   case (field_type_vector)
-      isign = -1
-   case (field_type_angle)
-      isign = -1
-   case (field_type_noupdate) ! ghost cells never used - use cell center
-      isign =  1
-   case default
-      call abort_ice('Unknown field type in scatter')
-   end select
-
-
-     !*** copy any local blocks
-
-     do n=1,nblocks_tot
-       if (dst_dist%blockLocation(n) == my_task+1) then
-         dst_block = dst_dist%blockLocalID(n)
-         this_block = get_block(n,n)
-
-         !*** if this is an interior block, then there is no
-         !*** padding or update checking required
-
-         if (this_block%iblock > 1         .and. &
-             this_block%iblock < nblocks_x .and. &
-             this_block%jblock > 1         .and. &
-             this_block%jblock < nblocks_y) then
-
-!            do j=1,ny_block
-!            do i=1,nx_block
-!               ARRAY(i,j,dst_block) = ARRAY_G(this_block%i_glob(i),&
-!                                              this_block%j_glob(j))
-!            end do
-!            end do
-            ARRAY(1:nx_block,1:ny_block,dst_block) =                              &
-                        ARRAY_G(this_block%i_glob(1):this_block%i_glob(nx_block), &
-                                this_block%j_glob(1):this_block%j_glob(ny_block))
-
-         !*** if this is an edge block but not a northern edge
-         !*** we only need to check for closed boundaries and
-         !*** padding (global index = 0)
-
-         else if (this_block%jblock /= nblocks_y) then
-
-            do j=1,ny_block
-               if (this_block%j_glob(j) /= 0) then
-                  do i=1,nx_block
-                     if (this_block%i_glob(i) /= 0) then
-                        ARRAY(i,j,dst_block) = ARRAY_G(this_block%i_glob(i),&
-                                                       this_block%j_glob(j))
-                     endif
-                  end do
-               endif
-            end do
-
-         !*** if this is a northern edge block, we need to check
-         !*** for and properly deal with tripole boundaries
-
-         else
-
-            do j=1,ny_block
-               if (this_block%j_glob(j) > 0) then ! normal boundary
-
-                  do i=1,nx_block
-                     if (this_block%i_glob(i) /= 0) then
-                        ARRAY(i,j,dst_block) = ARRAY_G(this_block%i_glob(i),&
-                                                       this_block%j_glob(j))
-                     endif
-                  end do
-
-               else if (this_block%j_glob(j) < 0) then  ! tripole
-                  ! for yoffset=0 or 1, yoffset2=0,0
-                  ! for yoffset=-1, yoffset2=0,1, for u-rows on T-fold grid
-                  do yoffset2=0,max(yoffset,0)-yoffset
-                    jsrc = ny_global + yoffset + yoffset2 + &
-                         (this_block%j_glob(j) + ny_global)
-                    do i=1,nx_block
-                      if (this_block%i_glob(i) /= 0) then
-                         isrc = nx_global + xoffset - this_block%i_glob(i)
-                         if (isrc < 1) isrc = isrc + nx_global
-                         if (isrc > nx_global) isrc = isrc - nx_global
-                         ARRAY(i,j-yoffset2,dst_block) &
-                           = isign * ARRAY_G(isrc,jsrc)
-                      endif
-                    end do
-                  end do
-
-               endif
-            end do
-
-         endif
-       endif
-     end do
-
-   !-----------------------------------------------------------------
-   ! Ensure unused ghost cell values are 0
-   !-----------------------------------------------------------------
-
-   if (field_loc == field_loc_noupdate) then
-      do n=1,nblocks_tot
-         dst_block = dst_dist%blockLocalID(n)
-         this_block = get_block(n,n)
-
-         if (dst_block > 0) then
-
-         ! north edge
-         do j = this_block%jhi+1,ny_block
-         do i = 1, nx_block
-            ARRAY (i,j,dst_block) = c0
-         enddo
-         enddo
-         ! east edge
-         do j = 1, ny_block
-         do i = this_block%ihi+1,nx_block
-            ARRAY (i,j,dst_block) = c0
-         enddo
-         enddo
-         ! south edge
-         do j = 1, this_block%jlo-1
-         do i = 1, nx_block
-            ARRAY (i,j,dst_block) = c0
-         enddo
-         enddo
-         ! west edge
-         do j = 1, ny_block
-         do i = 1, this_block%ilo-1
-            ARRAY (i,j,dst_block) = c0
-         enddo
-         enddo
-
-         endif
-      enddo
-   endif
-
- end subroutine unpack_global_dbl
 !============================================================================
 
 !============================================================================
