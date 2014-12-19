@@ -498,7 +498,11 @@ if (limit_icemelt) then
 endif
 
 !(2) SST
+!make sure SST is 'all right' K==>C
 sst = ocn_sst
+if (maxval(sst).gt.200) then
+  sst = sst -273.15
+endif
 
 !(3) SSS
 sss = ocn_sss
