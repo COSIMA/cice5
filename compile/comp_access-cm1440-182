@@ -6,7 +6,10 @@ if ( $1 == '') then
   echo '*** Please issue the command like ***'
   echo '     > ./comp_auscom_cice.RJ.nP #nproc    ' 
   echo 'here #proc is the number of cpu to be used for CICE5 (e.g. 1, 2, 4, 6...)'
-  exit
+  set nproc = 192
+  echo *** $nproc processors will be used to run CICE5... ***
+  sleep 3
+  #exit
 else
   set nproc = $1
   echo *** $nproc processors will be used to run CICE5... ***
@@ -102,9 +105,6 @@ echo BLCKX: $BLCKX
 echo BLCKY: $BLCKY
 
 echo
-#192 : 96x2 
-setenv BLCKX     15 
-setenv BLCKY     540 
 #24 : 12x2 
 setenv BLCKX     120 
 setenv BLCKY     540 
@@ -117,6 +117,9 @@ setenv BLCKY     90
 #144 : 16x9
 setenv BLCKX     90
 setenv BLCKY     120
+#192 : 96x2 
+setenv BLCKX     15 
+setenv BLCKY     540 
 
 # may need to increase MXBLCKS with rake distribution or padding
 @ a = $NXGLOB * $NYGLOB ; @ b = $BLCKX * $BLCKY * $NTASK

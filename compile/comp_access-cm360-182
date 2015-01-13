@@ -3,10 +3,14 @@
 set echo on
 
 if ( $1 == '') then
+  set nproc=24
   echo '*** Please issue the command like ***'
   echo '     > ./comp_auscom_cice.RJ.nP #nproc    ' 
   echo 'here #proc is the number of cpu to be used for CICE5 (e.g. 1, 2, 4, 6...)'
-  exit
+  echo 
+  echo *** $nproc processors will be used to run CICE5... ***
+  sleep 3 
+#  exit
 else
   set nproc = $1
   echo *** $nproc processors will be used to run CICE5... ***
@@ -104,12 +108,19 @@ echo
 #192 : 96x2 
 setenv BLCKX     15 
 setenv BLCKY     540 
-#24 : 12x2 
-setenv BLCKX     120 
-setenv BLCKY     540 
 #16 : 8x2 
 setenv BLCKX     45 
 setenv BLCKY     150 
+#48: 8x6, max_blocks = 1
+setenv BLCKX     45       # x-dimension of blocks ( not including )
+setenv BLCKY     50       # y-dimension of blocks (  ghost cells  )
+#24: 8x3, max_blocks = 1
+setenv BLCKX     45       # x-dimension of blocks ( not including )
+setenv BLCKY     100       # y-dimension of blocks (  ghost cells  )
+#24 : 12x2 
+setenv BLCKX     30 
+setenv BLCKY     150 
+
 
 # may need to increase MXBLCKS with rake distribution or padding
 @ a = $NXGLOB * $NYGLOB ; @ b = $BLCKX * $BLCKY * $NTASK
