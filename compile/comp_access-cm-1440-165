@@ -108,12 +108,12 @@ setenv BLCKY     540
 #24 : 12x2 
 setenv BLCKX     120 
 setenv BLCKY     540 
-#16 : 8x2 
-setenv BLCKX     180 
-setenv BLCKY     540 
 #192 : 16x12 
 setenv BLCKX     90 
 setenv BLCKY     90 
+#16 : 8x2 
+setenv BLCKX     180 
+setenv BLCKY     540 
 
 # may need to increase MXBLCKS with rake distribution or padding
 @ a = $NXGLOB * $NYGLOB ; @ b = $BLCKX * $BLCKY * $NTASK

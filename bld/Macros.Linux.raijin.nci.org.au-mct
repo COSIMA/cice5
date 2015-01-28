@@ -30,7 +30,7 @@ else
 endif
 MOD_SUFFIX := mod
 LD         := $(FC)
-LDFLAGS    := $(FFLAGS) -v #-static-intel 
+LDFLAGS    := $(FFLAGS) -v -static-intel 
 
     CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) -DN_ILYR=$(N_ILYR) \
                 -DNUMIN=$(NUMIN) -DNUMAX=$(NUMAX) \
