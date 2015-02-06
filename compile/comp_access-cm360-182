@@ -108,9 +108,6 @@ echo
 #192 : 96x2 
 setenv BLCKX     15 
 setenv BLCKY     540 
-#16 : 8x2 
-setenv BLCKX     45 
-setenv BLCKY     150 
 #48: 8x6, max_blocks = 1
 setenv BLCKX     45       # x-dimension of blocks ( not including )
 setenv BLCKY     50       # y-dimension of blocks (  ghost cells  )
@@ -119,6 +116,9 @@ setenv BLCKX     45       # x-dimension of blocks ( not including )
 setenv BLCKY     100       # y-dimension of blocks (  ghost cells  )
 #24 : 12x2 
 setenv BLCKX     30 
+setenv BLCKY     150 
+#16 : 8x2 
+setenv BLCKX     45 
 setenv BLCKY     150 
 
 

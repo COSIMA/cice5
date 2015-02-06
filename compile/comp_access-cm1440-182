@@ -1,6 +1,7 @@
 #! /bin/csh -f
 
 set echo on
+#setenv DEBUG   yes       # set to yes for debug
 
 if ( $1 == '') then
   echo '*** Please issue the command like ***'
@@ -114,12 +115,18 @@ setenv BLCKY     120
 #16 : 8x2 
 setenv BLCKX     180 
 setenv BLCKY     540 
-#192 : 16x12 
-setenv BLCKX     90 
-setenv BLCKY     90 
 #192 : 96x2 
 setenv BLCKX     15 
 setenv BLCKY     540 
+#16 : 4x4 
+setenv BLCKX     360 
+setenv BLCKY     270 
+#192 : 16x12 
+setenv BLCKX     90 
+setenv BLCKY     90 
+##216 : 24x9 
+#setenv BLCKX     60 
+#setenv BLCKY     120 
 
 # may need to increase MXBLCKS with rake distribution or padding
 @ a = $NXGLOB * $NYGLOB ; @ b = $BLCKX * $BLCKY * $NTASK

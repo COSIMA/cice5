@@ -603,7 +603,7 @@ if (limit_icemelt) then
 endif
 
 !(2) SST
-sst = ocn_sst
+sst = ocn_sst -273.15
 
 !(3) SSS
 sss = ocn_sss
