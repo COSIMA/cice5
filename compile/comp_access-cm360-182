@@ -55,12 +55,12 @@ source ${SRCDIR}/compile/environs.$ARCH  # environment variables and loadable mo
 
 ### Location and names of coupling libraries and inclusions
 ### Location and names of coupling libraries
-setenv CPLLIBDIR /short/p66/hxy599/ACCESS/submodels/oasis3-mct_local/Linux-182/lib
+setenv CPLLIBDIR ~access/access-cm2/prebuild/oasis3-mct/Linux-182/lib
 setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.${CHAN} -lmct -lmpeu -lscrip'
 #echo CPLLIBS: ${CPLLIBS}
 
 ### Location of coupling inclusions
-setenv CPLINCDIR /short/p66/hxy599/ACCESS/submodels/oasis3-mct_local/Linux-182/build/lib
+setenv CPLINCDIR ~access/access-cm2/prebuild/oasis3-mct/Linux-182/build/lib
 setenv CPL_INCS '-I$(CPLINCDIR)/psmile.$(CHAN) -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
 #echo CPL_INCS: $CPL_INCS
  
