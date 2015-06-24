@@ -1,4 +1,4 @@
-! $Id: ice_calendar.F90 732 2013-09-19 18:19:31Z eclare $
+! $Id: ice_calendar.F90 943 2015-03-19 22:56:23Z eclare $
 !=======================================================================
 
 ! Calendar routines for managing time
@@ -29,7 +29,7 @@
       private
       save
 
-      public :: init_calendar, calendar
+      public :: init_calendar, calendar, time2sec, sec2time
 
       integer (kind=int_kind), public :: &
          days_per_year        , & ! number of days in one year
@@ -50,15 +50,13 @@
       data daymo365 /   31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/
       data daycal365/ 0,31, 59, 90,120,151,181,212,243,273,304,334,365/
 
-!ars599: 24032014 new code also has 366-day so mark out
-!#ifdef AusCOM
       ! 366-day year data (leap year)
       integer (kind=int_kind) :: &
          daymo366(12)         , & ! number of days in each month
          daycal366(13)            ! day number at end of month
       data daymo366 /   31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/
       data daycal366/ 0,31, 60, 91,121,152,182,213,244,274,305,335,366/
-!#end
+
       real (kind=dbl_kind), parameter :: &
 	days_per_4c = 146097.0_dbl_kind, &
 	days_per_c  = 36524.0_dbl_kind,  &
@@ -95,6 +93,7 @@
          yday           , & ! day of the year
          tday           , & ! absolute day number
          dayyr          , & ! number of days per year
+         nextsw_cday    , & ! julian day of next shortwave calculation
          basis_seconds      ! Seconds since calendar zero
 
       logical (kind=log_kind), public :: &
@@ -105,13 +104,14 @@
          use_leap_years , & ! use leap year functionality if true
          write_ic       , & ! write initial condition now
          dump_last      , & ! write restart file on last time step
+         force_restart_now, & ! force a restart now
          write_history(max_nstrm) ! write history now
 
       character (len=1), public :: &
          histfreq(max_nstrm), & ! history output frequency, 'y','m','d','h','1'
          dumpfreq               ! restart frequency, 'y','m','d'
 
-      character (len=char_len) :: calendar_type
+      character (len=char_len),public :: calendar_type
 
 !=======================================================================
 
@@ -141,6 +141,7 @@
                         ! real (dumped) or imagined (use to set calendar)
       stop_now = 0      ! end program execution if stop_now=1
       dt_dyn = dt/real(ndtd,kind=dbl_kind) ! dynamics et al timestep
+      force_restart_now = .false.
 
       ! Check that the number of days per year is set correctly when using
       ! leap years. If not, set days_per_year correctly and warn the user.
@@ -341,11 +342,13 @@
                 write_restart = 1
         case ("m", "M")
           if (new_month .and. mod(elapsed_months,dumpfreq_n)==0) &
-                write_restart=1
+                write_restart = 1
         case ("d", "D")
           if (new_day   .and. mod(elapsed_days, dumpfreq_n)==0) &
                 write_restart = 1
         end select
+
+        if (force_restart_now) write_restart = 1
       
       endif !  istep > 1
 

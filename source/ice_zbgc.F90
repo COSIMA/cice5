@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_zbgc.F90 778 2013-12-04 19:03:12Z njeffery $
+!  SVN:$Id: ice_zbgc.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 ! Biogeochemistry driver
@@ -87,17 +87,16 @@
       call get_fileunit(nu_nml)
 
       if (my_task == master_task) then
-         open (nu_nml, file=nml_filename, status='old',iostat=nml_error)
+         open (nu_nml, file=trim(nml_filename), status='old',iostat=nml_error)
          if (nml_error /= 0) then
             nml_error = -1
          else
             nml_error =  1
          endif 
 
+         print*,'Reading zbgc_nml'
          do while (nml_error > 0)
-            print*,'Reading zbgc_nml'
             read(nu_nml, nml=zbgc_nml,iostat=nml_error)
-            if (nml_error /= 0) exit
          end do
          if (nml_error == 0) close(nu_nml)
       endif
@@ -563,10 +562,10 @@
          ilo,ihi,jlo,jhi, & ! beginning and end of physical domain
          n               ! thickness category index
 
-      integer (kind=int_kind), save :: &
+      integer (kind=int_kind) :: &
          icells          ! number of cells with aicen > puny
 
-      integer (kind=int_kind), dimension(nx_block*ny_block), save :: &
+      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
          indxi, indxj    ! indirect indices for cells with aicen > puny
 
       real (kind=dbl_kind), dimension (nx_block*ny_block) :: &

@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_aerosol.F90 744 2013-09-27 22:53:24Z eclare $
+!  SVN:$Id: ice_aerosol.F90 820 2014-08-26 19:08:29Z eclare $
 !=======================================================================
 
 ! Aerosol tracer within sea ice
@@ -654,9 +654,11 @@
 
       character (len=3)       :: nchar
 
-      diag = .true.
-
       !-----------------------------------------------------------------
+
+      if (my_task == master_task) write(nu_diag,*) 'write_restart_aero (aerosols)'
+
+      diag = .true.
 
       do k = 1, n_aero
        write(nchar,'(i3.3)') k
@@ -702,7 +704,11 @@
 
       character (len=3)       :: nchar
 
-      if (my_task == master_task) write(nu_diag,*) 'aerosols'
+      !-----------------------------------------------------------------
+
+      if (my_task == master_task) write(nu_diag,*) 'read_restart_aero (aerosols)'
+
+      diag = .true.
 
       do k = 1, n_aero
        write(nchar,'(i3.3)') k

@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_therm_itd.F90 779 2013-12-10 18:11:47Z eclare $
+!  SVN:$Id: ice_therm_itd.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 ! Thermo calculations after call to coupler, related to ITD:
@@ -22,7 +22,7 @@
       use ice_kinds_mod
       use ice_constants
       use ice_communicate, only: my_task, master_task
-      use ice_domain_size, only: nilyr, nslyr, nblyr, ncat, max_aero, &
+      use ice_domain_size, only: nilyr, nslyr, ncat, max_aero, &
                                  n_aero, max_ntrcr
       use ice_fileunits, only: nu_diag
 
@@ -1246,20 +1246,7 @@
                               frzmlt,    frazil,     &
                               frz_onset, yday,       &
                               update_ocn_f,          &
-#ifdef AusCOM
-!ars599 orgiginal from cice4.1 according to dhb599 code
-!	however seems have to put it back if run as ACCICE
-!	so modifed as else-if
-!B: revisit this part later--
-!   this new version routine does include dummies fresh & fsalt...
-!   need change ?...?
-!ars599: 27032014
-!	error #6420: This array name is invalid in this context.
-!	so put them back
                               fresh,     fsalt,      &
-#else
-                              fresh,     fsalt,      &
-#endif
                               Tf,        sss,        &
                               salinz,    phi_init,   &
                               dSin0_frazil,          &
@@ -1383,16 +1370,6 @@
          dfresh       , & ! change in fresh
          dfsalt       , & ! change in fsalt
          Ti               ! frazil temperature
-
-#ifdef AusCOM
-!ars599 orgiginal from cice4.1 according to dhb599 code
-!      real (kind=dbl_kind), dimension(nx_block,ny_block), &
-!         intent(inout) :: &
-!         fresh     , & ! fresh water flux to ocean (kg/m^2/s)
-!         fsalt     , & ! salt flux to ocean (kg/m^2/s)
-!?         fresh_hist, & ! fresh water flux to ocean (kg/m^2/s)
-!?         fsalt_hist    ! salt flux to ocean (kg/m^2/s)
-#endif
       
       real (kind=dbl_kind), dimension (icells) :: &
          qi0new       , & ! frazil ice enthalpy
@@ -1530,8 +1507,10 @@
          vi0_init(ij) = vi0new(ij)          ! for bgc
 
          ! increment ice volume and energy
-         vice_init(ij) = vice_init(ij) + vi0new(ij)
-         eice_init(ij) = eice_init(ij) + vi0new(ij)*qi0new(ij)
+         if (l_conservation_check) then
+            vice_init(ij) = vice_init(ij) + vi0new(ij)
+            eice_init(ij) = eice_init(ij) + vi0new(ij)*qi0new(ij)
+         endif
 
          ! history diagnostics
          frazil(i,j) = vi0new(ij)
@@ -1548,21 +1527,6 @@
       !       is NOT included in fluxes fresh and fsalt.
       !-----------------------------------------------------------------
 
-!
-!20100413: back to original code and set update_ocn_f=.t. in namelist!
-!
-!#ifdef AusCOM
-!      if (.not. pop_icediag) then      ! for MOM4 frazil approach
-!         dfresh = -rhoi*vi0new(ij)/dt  !'cos MOM4 had not already adjusted itself
-!                                       ! based on frzmlt when calculating frazil.
-!         dfsalt = ice_ref_salinity*p001*dfresh
-!
-!         fresh(i,j)      = fresh(i,j)      + dfresh
-!!?         fresh_hist(i,j) = fresh_hist(i,j) + dfresh
-!         fsalt(i,j)      = fsalt(i,j)      + dfsalt
-!!?         fsalt_hist(i,j) = fsalt_hist(i,j) + dfsalt
-!      endif
-!#else
          if (update_ocn_f) then
             dfresh = -rhoi*vi0new(ij)/dt 
             dfsalt = ice_ref_salinity*p001*dfresh
@@ -1570,7 +1534,6 @@
             fresh(i,j)      = fresh(i,j)      + dfresh
             fsalt(i,j)      = fsalt(i,j)      + dfsalt
          endif
-!#endif
 
       !-----------------------------------------------------------------
       ! Decide how to distribute the new ice.

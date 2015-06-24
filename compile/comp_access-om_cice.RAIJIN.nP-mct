@@ -49,7 +49,6 @@ setenv DITTO    no        # reproducible diagnostics
 setenv THRD     no        # set to yes for OpenMP threading
 if ( $THRD == 'yes') setenv OMP_NUM_THREADS 2 # positive integer 
 
-setenv ACCESS    no       # set to yes for ACCESS couple run only
 setenv AusCOM   yes       # set to yes for AusCOM
 setenv OASIS3_MCT yes	  # oasis3-mct version
 setenv CHAN     MPI1	  # MPI1 or MPI2 (always MPI1!)
@@ -62,7 +61,7 @@ setenv SYSTEMDIR $AusCOMHOME
 echo SYSTEMDIR: $SYSTEMDIR
 
 ### Location of this model (source)
-setenv SRCDIR $cwd:h  #$SYSTEMDIR/submodels/cice5.0.4
+setenv SRCDIR $cwd:h  #$SYSTEMDIR/submodels/cice5.0.4_org
 echo SRCDIR: $SRCDIR
  
 ### Location and names of coupling libraries and inclusions
@@ -78,14 +77,10 @@ setenv CPL_INCS '-I$(CPLINCDIR)/psmile.$(CHAN) -I$(CPLINCDIR)/pio -I$(CPLINCDIR)
 #echo CPL_INCS: $CPL_INCS
 endif
  
-### For multi-Layer ice (standard) configuration
-### For multi-Layer ice (standard) configuration
-setenv N_ILYR 4                # 4 for standard multi-layer ice. for ktherm=0, zero-layer thermodynamics
-
 ### Location and name of the generated exectuable
 setenv DATESTR `date +%Y%m%d`
 setenv BINDIR $SYSTEMDIR/bin
-setenv EXE cice5_${CHAN}-mct.${DATESTR}.RJ_${nproc}p_${N_ILYR}lyr
+setenv EXE cice5_${CHAN}-mct.${DATESTR}.RJ_${nproc}p
 
 ### Where this model is compiled
 setenv OBJDIR $SRCDIR/compile/build_${CHAN}_{$nproc}p-mct
@@ -102,6 +97,9 @@ set NXGLOB = `echo $RES | sed s/x.\*//`
 set NYGLOB = `echo $RES | sed s/.\*x//`
 echo NXGLOB: $NXGLOB
 echo NYGLOB: $NYGLOB
+
+### For multi-Layer ice (standard) configuration
+setenv N_ILYR 1                # 4 for standard multi-layer ice. for ktherm=0, zero-layer thermodynamics
 
 # Recommendations:
 #   NTASK equals nprocs in ice_in

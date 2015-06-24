@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_shortwave.F90 767 2013-10-30 18:03:17Z eclare $
+!  SVN:$Id: ice_shortwave.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 ! The albedo and absorbed/transmitted flux parameterizations for
@@ -56,7 +56,6 @@
 #endif  
 
       implicit none
-      save
 
       private
       public :: init_shortwave, run_dEdd, shortwave_ccsm3
@@ -90,7 +89,7 @@
 
       ! category albedos
       real (kind=dbl_kind), &
-         dimension (nx_block,ny_block,ncat,max_blocks), public :: &
+         dimension (nx_block,ny_block,ncat,max_blocks), public, save :: &
          alvdrn      , & ! visible direct albedo           (fraction)
          alidrn      , & ! near-ir direct albedo           (fraction)
          alvdfn      , & ! visible diffuse albedo          (fraction)
@@ -98,7 +97,7 @@
 
       ! albedo components for history
       real (kind=dbl_kind), &
-         dimension (nx_block,ny_block,ncat,max_blocks), public :: &
+         dimension (nx_block,ny_block,ncat,max_blocks), public, save :: &
          albicen, &   ! bare ice 
          albsnon, &   ! snow 
          albpndn, &   ! pond 
@@ -106,30 +105,31 @@
 
       ! shortwave components
       real (kind=dbl_kind), &
-         dimension (nx_block,ny_block,nilyr,ncat,max_blocks), public :: &
+         dimension (nx_block,ny_block,nilyr,ncat,max_blocks), public, save :: &
          Iswabsn         ! SW radiation absorbed in ice layers (W m-2)
 
       real (kind=dbl_kind), &
-         dimension (nx_block,ny_block,nslyr,ncat,max_blocks), public :: &
+         dimension (nx_block,ny_block,nslyr,ncat,max_blocks), public, save :: &
          Sswabsn         ! SW radiation absorbed in snow layers (W m-2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,ncat,max_blocks), &
-         public :: &
+         public, save :: &
          fswsfcn     , & ! SW absorbed at ice/snow surface (W m-2)
          fswthrun    , & ! SW through ice to ocean            (W/m^2)
          fswintn         ! SW absorbed in ice interior, below surface (W m-2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,nilyr+1,ncat,max_blocks), &
-         public :: &
+         public, save :: &
          fswpenln        ! visible SW entering ice layers (W m-2)
 
       ! dEdd tuning parameters, set in namelist
       real (kind=dbl_kind), public :: &
-         R_ice , & ! sea ice tuning parameter; +1 > 1sig increase in albedo
-         R_pnd , & ! ponded ice tuning parameter; +1 > 1sig increase in albedo
-         R_snw , & ! snow tuning parameter; +1 > ~.01 change in broadband albedo
-         dT_mlt, & ! change in temp for non-melt to melt snow grain radius change (C)
-         rsnw_mlt  ! maximum melting snow grain radius (10^-6 m)
+         R_ice ,   & ! sea ice tuning parameter; +1 > 1sig increase in albedo
+         R_pnd ,   & ! ponded ice tuning parameter; +1 > 1sig increase in albedo
+         R_snw ,   & ! snow tuning parameter; +1 > ~.01 change in broadband albedo
+         dT_mlt,   & ! change in temp for non-melt to melt snow grain radius change (C)
+         rsnw_mlt, & ! maximum melting snow grain radius (10^-6 m)
+         kalg        ! algae absorption coefficient for 0.5 m thick layer
 
       real (kind=dbl_kind), parameter, public :: &
          hi_ssl = 0.050_dbl_kind, & ! ice surface scattering layer thickness (m)
@@ -187,21 +187,41 @@
       type (block) :: &
          this_block      ! block information for current block
 
-      !$OMP PARALLEL DO PRIVATE(iblk,i,j)
-      do iblk=1,nblocks
-      do j = 1, ny_block
-      do i = 1, nx_block
-         alvdf(i,j,iblk) = c0
-         alidf(i,j,iblk) = c0
-         alvdr(i,j,iblk) = c0
-         alidr(i,j,iblk) = c0
-         alvdr_ai(i,j,iblk) = c0
-         alidr_ai(i,j,iblk) = c0
-         alvdf_ai(i,j,iblk) = c0
-         alidf_ai(i,j,iblk) = c0
-      enddo
-      enddo
-      enddo
+      !$OMP PARALLEL DO PRIVATE(iblk,i,j,n)
+      do iblk = 1, nblocks
+         do j = 1, ny_block
+         do i = 1, nx_block
+            alvdf(i,j,iblk) = c0
+            alidf(i,j,iblk) = c0
+            alvdr(i,j,iblk) = c0
+            alidr(i,j,iblk) = c0
+            alvdr_ai(i,j,iblk) = c0
+            alidr_ai(i,j,iblk) = c0
+            alvdf_ai(i,j,iblk) = c0
+            alidf_ai(i,j,iblk) = c0
+         enddo
+         enddo
+
+         ! Initialize
+         do n = 1, ncat
+         do j = 1, ny_block
+         do i = 1, nx_block
+            alvdrn(i,j,n,iblk) = c0
+            alidrn(i,j,n,iblk) = c0
+            alvdfn(i,j,n,iblk) = c0
+            alidfn(i,j,n,iblk) = c0
+            fswsfcn(i,j,n,iblk) = c0
+            fswintn(i,j,n,iblk) = c0
+            fswthrun(i,j,n,iblk) = c0
+         enddo   ! i
+         enddo   ! j
+         enddo   ! ncat
+
+         fswpenln(:,:,:,:,iblk) = c0
+         Iswabsn(:,:,:,:,iblk) = c0
+         Sswabsn(:,:,:,:,iblk) = c0
+
+      enddo   ! iblk
       !$OMP END PARALLEL DO
 
       if (trim(shortwave) == 'dEdd') then ! delta Eddington
@@ -211,7 +231,7 @@
          call init_orbit       ! initialize orbital parameters
 #endif
          !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block)
-         do iblk=1,nblocks
+         do iblk = 1, nblocks
 
             this_block = get_block(blocks_ice(iblk),iblk)         
             ilo = this_block%ilo
@@ -235,7 +255,8 @@
                           Sswabsn(:,:,:,:,iblk), Iswabsn(:,:,:,:,iblk),   &
                           albicen(:,:,:,iblk),   albsnon(:,:,:,iblk),     &
                           albpndn(:,:,:,iblk),   apeffn(:,:,:,iblk),      &
-                          dhsn(:,:,:,iblk),      ffracn(:,:,:,iblk))
+                          dhsn(:,:,:,iblk),      ffracn(:,:,:,iblk),      &
+                          initonly = .true.       )
 
          enddo
          !$OMP END PARALLEL DO
@@ -243,7 +264,7 @@
       else                     ! basic (ccsm3) shortwave
 
          !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block)
-         do iblk=1,nblocks
+         do iblk = 1, nblocks
 
             this_block = get_block(blocks_ice(iblk),iblk)         
             ilo = this_block%ilo
@@ -304,8 +325,8 @@
       !-----------------------------------------------------------------
 
       !$OMP PARALLEL DO PRIVATE(iblk,i,j,n,ilo,ihi,jlo,jhi,this_block, &
-      !$OMP                     ij,icells,cszn)
-      do iblk=1,nblocks
+      !$OMP                     ij,icells,cszn,indxi,indxj)
+      do iblk = 1, nblocks
          this_block = get_block(blocks_ice(iblk),iblk)         
          ilo = this_block%ilo
          ihi = this_block%ihi
@@ -420,7 +441,7 @@
          swidf        ! sw down, near IR, diffuse (W/m^2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,ncat), &
-         intent(out) :: &
+         intent(inout) :: &
          alvdrn   , & ! visible, direct, avg   (fraction)
          alidrn   , & ! near-ir, direct, avg   (fraction)
          alvdfn   , & ! visible, diffuse, avg  (fraction)
@@ -432,7 +453,7 @@
          albsn        ! snow albedo
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,nilyr+1,ncat), &
-           intent(out) :: &
+           intent(inout) :: &
          fswpenl      ! SW entering ice layers (W m-2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block), &
@@ -440,11 +461,11 @@
          coszen       ! cosine(zenith angle)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,nilyr,ncat), &
-           intent(out) :: &
+           intent(inout) :: &
          Iswabs       ! SW absorbed in particular layer (W m-2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,nslyr,ncat), &
-           intent(out) :: &
+           intent(inout) :: &
          Sswabs       ! SW absorbed in particular layer (W m-2)
 
       ! local variables
@@ -667,16 +688,10 @@
       ! local variables
 
       real (kind=dbl_kind), parameter :: &
-!ars599: 24032014
-!	not sure if that is right!!
-!	use new code cuz dT_mlt is change to dT_melt
-!#if !defined(AusCOM) && !defined(ACCICE)
-!#ifndef AusCOM
          dT_melt    = c1          , & ! change in temp to give dalb_mlt 
                                      ! albedo change
          dalb_mlt  = -0.075_dbl_kind, & ! albedo change per dT_melt change
                                      ! in temp for ice
-!#endif
          dalb_mltv = -p1         , & ! albedo vis change per dT_melt change
                                      ! in temp for snow
          dalb_mlti = -p15            ! albedo nir change per dT_melt change
@@ -1229,12 +1244,13 @@
                           Sswabsn,  Iswabsn,   &
                           albicen,  albsnon,   &
                           albpndn,  apeffn,    &
-                          dhsn,     ffracn)
+                          dhsn,     ffracn,    &
+                          initonly     )
 
       use ice_calendar, only: dt
       use ice_meltpond_cesm, only: hs0
       use ice_meltpond_topo, only: hp1
-      use ice_meltpond_lvl, only: hs1, pndaspect, snowinfil
+      use ice_meltpond_lvl, only: hs1, pndaspect
       use ice_orbital, only: compute_coszen
       use ice_state, only: ntrcr, nt_Tsfc, nt_alvl, nt_apnd, nt_hpnd, nt_ipnd, &
                            tr_pond_cesm, tr_pond_lvl, tr_pond_topo
@@ -1270,7 +1286,7 @@
       real(kind=dbl_kind), dimension(nx_block,ny_block), intent(out) :: &
            coszen   ! cosine solar zenith angle, < 0 for sun below horizon 
 
-      real(kind=dbl_kind), dimension(nx_block,ny_block,ncat), intent(out) :: &
+      real(kind=dbl_kind), dimension(nx_block,ny_block,ncat), intent(inout) :: &
            alvdrn,   & ! visible direct albedo (fraction)
            alvdfn,   & ! near-ir direct albedo (fraction)
            alidrn,   & ! visible diffuse albedo (fraction)
@@ -1283,14 +1299,17 @@
            albpndn,  & ! albedo pond 
            apeffn      ! effective pond area used for radiation calculation
 
-      real(kind=dbl_kind), dimension(nx_block,ny_block,nslyr,ncat), intent(out) :: &
+      real(kind=dbl_kind), dimension(nx_block,ny_block,nslyr,ncat), intent(inout) :: &
            Sswabsn     ! SW radiation absorbed in snow layers (W m-2)
 
-      real(kind=dbl_kind), dimension(nx_block,ny_block,nilyr,ncat), intent(out) :: &
+      real(kind=dbl_kind), dimension(nx_block,ny_block,nilyr,ncat), intent(inout) :: &
            Iswabsn     ! SW radiation absorbed in ice layers (W m-2) 
 
-      real(kind=dbl_kind), dimension(nx_block,ny_block,nilyr+1,ncat), intent(out) :: &
+      real(kind=dbl_kind), dimension(nx_block,ny_block,nilyr+1,ncat), intent(inout) :: &
            fswpenln    ! visible SW entering ice layers (W m-2)
+
+      logical (kind=log_kind), optional :: &
+           initonly    ! flag to indicate init only, default is false
 
       ! local temporary variables
 
@@ -1329,8 +1348,16 @@
          spn         , & ! snow depth on refrozen pond (m)
          tmp             ! 0 or 1
 
+      logical (kind=log_kind) :: &
+         linitonly       ! local initonly value
+
       real (kind=dbl_kind), parameter :: & 
          argmax = c10    ! maximum argument of exponential
+
+      linitonly = .false.
+      if (present(initonly)) then
+         linitonly = initonly
+      endif
 
       exp_min = exp(-argmax)
 
@@ -1405,16 +1432,17 @@
 
                fpn(i,j) = c0  ! fraction of ice covered in pond
                hpn(i,j) = c0  ! pond depth over fpn
+
                ! refrozen pond lid thickness avg over ice
                ! allow snow to cover pond ice
                ipn = trcrn(i,j,nt_alvl,n) * trcrn(i,j,nt_apnd,n) &
                                           * trcrn(i,j,nt_ipnd,n)
                dhs = dhsn(i,j,n) ! snow depth difference, sea ice - pond
-               if (ipn > puny .and. &
+               if (.not. linitonly .and. ipn > puny .and. &
                    dhs < puny .and. fsnow(i,j)*dt > hs_min) &
                    dhs = hsn(i,j) - fsnow(i,j)*dt ! initialize dhs>0
                spn = hsn(i,j) - dhs   ! snow depth on pond ice
-               if (ipn*spn < puny) dhs = c0
+               if (.not. linitonly .and. ipn*spn < puny) dhs = c0
                dhsn(i,j,n) = dhs ! save: constant until reset to 0
 
                ! not using ipn assumes that lid ice is perfectly clear
@@ -1437,7 +1465,7 @@
 
                ! infiltrate snow
                hp = hpn(i,j)
-               if (snowinfil .and. hp > puny) then
+               if (hp > puny) then
                   hs = hsn(i,j)
                   rp = rhofresh*hp/(rhofresh*hp + rhos*hs)
                   if (rp < p15) then
@@ -1454,7 +1482,7 @@
                   endif
                   fsn(i,j) = min(fsn(i,j), c1-fpn(i,j))
 
-               endif ! snowinfil
+               endif ! hp > puny
 
                ! endif    ! masking by lid ice
                apeffn(i,j,n) = fpn(i,j) ! for history
@@ -1467,7 +1495,7 @@
                j = indxj(ij)
                ! Lid effective if thicker than hp1
                if (trcrn(i,j,nt_apnd,n)*aicen(i,j,n) > puny .and. &
-                    trcrn(i,j,nt_ipnd,n) < hp1) then
+                   trcrn(i,j,nt_ipnd,n) < hp1) then
                   fpn(i,j) = trcrn(i,j,nt_apnd,n)
                else
                   fpn(i,j) = c0
@@ -1478,6 +1506,11 @@
                   fpn(i,j) = c0
                   hpn(i,j) = c0
                endif
+
+               ! If ponds are present snow fraction reduced to
+               ! non-ponded part dEdd scheme 
+               fsn(i,j) = min(fsn(i,j), c1-fpn(i,j))
+
                apeffn(i,j,n) = fpn(i,j)
             enddo
          else
@@ -1487,7 +1520,7 @@
                                          trcrn(:,:,nt_Tsfc,n),       &
                                          fsn,                 fpn,   &
                                          hpn)
-            apeffn(:,:,n) = fpn(i,j) ! for history
+            apeffn(:,:,n) = fpn(:,:) ! for history
             fpn = c0
             hpn = c0
          endif
@@ -1604,7 +1637,7 @@
          swidf       ! sw down, near IR, diffuse (W/m^2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block), &
-         intent(out) :: &
+         intent(inout) :: &
          alvdr   , & ! visible, direct, albedo (fraction) 
          alvdf   , & ! visible, diffuse, albedo (fraction) 
          alidr   , & ! near-ir, direct, albedo (fraction) 
@@ -1614,15 +1647,15 @@
          fswthru     ! SW through snow/bare ice/ponded ice into ocean (W m-2)
  
       real (kind=dbl_kind), dimension (nx_block,ny_block,nilyr+1), &
-         intent(out) :: &
+         intent(inout) :: &
          fswpenl     ! visible SW entering ice layers (W m-2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,nslyr), &
-         intent(out) :: &
+         intent(inout) :: &
          Sswabs      ! SW absorbed in snow layer (W m-2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,nilyr), &
-         intent(out) :: &
+         intent(inout) :: &
          Iswabs      ! SW absorbed in ice layer (W m-2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block), &
@@ -2469,9 +2502,6 @@
          rhoi   = 917.0_dbl_kind,& ! pure ice mass density (kg/m3)
          fr_max = 1.00_dbl_kind, & ! snow grain adjustment factor max
          fr_min = 0.80_dbl_kind, & ! snow grain adjustment factor min
-      ! algae absorption coefficient for 0.5 m thick layer
-         kalg   = 0.60_dbl_kind, & ! for 0.5 m path of 75 mg Chl a / m2
-!cesm turns kalg off         kalg   = 0.00_dbl_kind, & ! for 0.5 m path of 75 mg Chl a / m2
       ! tuning parameters
       ! ice and pond scat coeff fractional change for +- one-sigma in albedo
          fp_ice = 0.15_dbl_kind, & ! ice fraction of scat coeff for + stn dev in alb
@@ -3447,17 +3477,6 @@
  
 !-----------------------------------------------------------------------
 
-      ! initialize all layer apparent optical properties to 0
-      do k = 0, klev
-         rdir  (k) = c0
-         rdif_a(k) = c0
-         rdif_b(k) = c0
-         tdir  (k) = c0
-         tdif_a(k) = c0
-         tdif_b(k) = c0
-         trnlay(k) = c0
-      enddo
-
       ! initialize all output to 0
       do ij = 1, icells_DE
          i = indxi_DE(ij)
@@ -3509,8 +3528,17 @@
          j = indxj_DE(ij)
 
         ! begin main level loop
-        do k=0,klev
+        do k = 0, klev
  
+           ! initialize all layer apparent optical properties to 0
+           rdir  (k) = c0
+           rdif_a(k) = c0
+           rdif_b(k) = c0
+           tdir  (k) = c0
+           tdif_a(k) = c0
+           tdif_b(k) = c0
+           trnlay(k) = c0
+
            ! compute next layer Delta-eddington solution only if total transmission
            ! of radiation to the interface just above the layer exceeds trmin.
       

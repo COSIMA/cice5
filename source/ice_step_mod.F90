@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_step_mod.F90 746 2013-09-28 22:47:56Z eclare $
+!  SVN:$Id: ice_step_mod.F90 936 2015-03-17 15:46:44Z eclare $
 !=======================================================================
 !
 !  Contains CICE component driver routines common to all drivers.
@@ -33,10 +33,12 @@
       subroutine prep_radiation (dt, iblk)
 
       use ice_blocks, only: block, get_block, nx_block, ny_block
+      use ice_communicate, only: my_task
       use ice_domain, only: blocks_ice
-      use ice_domain_size, only: ncat, nilyr
+      use ice_domain_size, only: ncat, nilyr, nslyr
+      use ice_fileunits, only: nu_diag
       use ice_flux, only: scale_factor, swvdr, swvdf, swidr, swidf, &
-          alvdr_ai, alvdf_ai, alidr_ai, alidf_ai, fswfac
+          alvdr_ai, alvdf_ai, alidr_ai, alidf_ai, fswfac, coszen
       use ice_shortwave, only: fswsfcn, fswintn, fswthrun, fswpenln, &
                                Sswabsn, Iswabsn
       use ice_state, only: aice, aicen
@@ -67,7 +69,7 @@
       type (block) :: &
          this_block      ! block information for current block
 
-      call ice_timer_start(timer_sw)      ! shortwave
+      call ice_timer_start(timer_sw,iblk)      ! shortwave
 
          this_block = get_block(blocks_ice(iblk),iblk)         
          ilo = this_block%ilo
@@ -127,14 +129,18 @@
                                     = scale_factor(i,j,iblk)*fswpenln(i,j,k,n,iblk)
                enddo       !k
 
-               Sswabsn(i,j,:,n,iblk) = &
-                       scale_factor(i,j,iblk)*Sswabsn(i,j,:,n,iblk)
-               Iswabsn(i,j,:,n,iblk) = &
-                       scale_factor(i,j,iblk)*Iswabsn(i,j,:,n,iblk)
+               do k=1,nslyr
+                  Sswabsn(i,j,k,n,iblk) = &
+                       scale_factor(i,j,iblk)*Sswabsn(i,j,k,n,iblk)
+               enddo
+               do k=1,nilyr
+                  Iswabsn(i,j,k,n,iblk) = &
+                       scale_factor(i,j,iblk)*Iswabsn(i,j,k,n,iblk)
+               enddo
             enddo
          enddo                  ! ncat
 
-      call ice_timer_stop(timer_sw)     ! shortwave
+      call ice_timer_stop(timer_sw,iblk)     ! shortwave
 
       end subroutine prep_radiation
 
@@ -152,7 +158,7 @@
       use ice_atmo, only: calc_strair, &
           atmbndy, atmo_boundary_const, atmo_boundary_layer, &
           formdrag, neutral_drag_coeffs, &
-          Cdn_ocn, Cdn_ocn_skin, Cdn_ocn_floe, Cdn_ocn_keel, Cdn_atm_ocn, &
+          Cdn_ocn, Cdn_ocn_skin, Cdn_ocn_floe, Cdn_ocn_keel, Cdn_atm_ratio, &
           Cdn_atm, Cdn_atm_skin, Cdn_atm_floe, Cdn_atm_rdg, Cdn_atm_pond, &
           hfreebd, hdraft, hridge, distrdg, hkeel, dkeel, lfloe, dfloe
       use ice_blocks, only: block, get_block, nx_block, ny_block
@@ -164,10 +170,10 @@
       use ice_fileunits, only: nu_diag
       use ice_flux, only: frzmlt, sst, Tf, strocnxT, strocnyT, rside, &
           meltsn, melttn, meltbn, congeln, snoicen, dsnown, uatm, vatm, &
-          wind, rhoa, potT, Qa, zlvl, strax, stray, flatn, fsurfn, fcondtopn, &
+          wind, rhoa, potT, Qa, zlvl, strax, stray, flatn, fsensn, fsurfn, fcondtopn, &
           flw, fsnow, fpond, sss, mlt_onset, frz_onset, faero_atm, faero_ocn, &
           frain, Tair, coszen, strairxT, strairyT, fsurf, fcondtop, fsens, &
-          flat, fswabs, flwout, evap, Tref, Qref, fresh, fsalt, fhocn, &
+          flat, fswabs, flwout, evap, Tref, Qref, Uref, fresh, fsalt, fhocn, &
           fswthru, meltt, melts, meltb, meltl, congel, snoice, &
           set_sfcflux, merge_fluxes
       use ice_firstyear, only: update_FYarea
@@ -183,7 +189,7 @@
           vice, vicen, vsno, vsnon, ntrcr, trcrn, &
           nt_apnd, nt_hpnd, nt_ipnd, nt_alvl, nt_vlvl, nt_Tsfc, &
           tr_iage, nt_iage, tr_FY, nt_FY, tr_aero, tr_pond, tr_pond_cesm, &
-          tr_pond_lvl, nt_qice, nt_sice, tr_pond_topo
+          tr_pond_lvl, nt_qice, nt_sice, tr_pond_topo, uvel, vvel
       use ice_therm_shared, only: calc_Tsfc
       use ice_therm_vertical, only: frzmlt_bottom_lateral, thermo_vertical
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_ponds
@@ -201,15 +207,14 @@
          ilo,ihi,jlo,jhi, & ! beginning and end of physical domain
          n               ! thickness category index
 
-      integer (kind=int_kind), save :: &
+      integer (kind=int_kind) :: &
          icells          ! number of cells with aicen > puny
 
-      integer (kind=int_kind), dimension(nx_block*ny_block), save :: &
+      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
          indxi, indxj    ! indirect indices for cells with aicen > puny
 
       ! 2D coupler variables (computed for each category, then aggregated)
       real (kind=dbl_kind), dimension (nx_block,ny_block) :: &
-         fsensn      , & ! surface downward sensible heat     (W/m^2)
          fswabsn     , & ! shortwave absorbed by ice          (W/m^2)
          flwoutn     , & ! upward LW at surface               (W/m^2)
          evapn       , & ! flux of vapor, atmos to ice   (kg m-2 s-1)
@@ -218,8 +223,9 @@
          fhocnn      , & ! fbot corrected for leftover energy (W/m^2)
          strairxn    , & ! air/ice zonal  stress,             (N/m^2)
          strairyn    , & ! air/ice meridional stress,         (N/m^2)
-         Cdn_atm_ocn_n,& ! drag coefficient ratio
+         Cdn_atm_ratio_n,& ! drag coefficient ratio
          Trefn       , & ! air tmp reference level                (K)
+         Urefn       , & ! air speed reference level            (m/s)
          Qrefn           ! air sp hum reference level         (kg/kg)
 
       ! other local variables
@@ -323,14 +329,16 @@
                                  sst   (:,:,  iblk), Tf    (:,:,  iblk), &
                                  strocnxT(:,:,iblk), strocnyT(:,:,iblk), &
                                  Tbot,               fbot,               &
-                                 rside (:,:,  iblk) )
+                                 rside (:,:,  iblk), Cdn_ocn (:,:,iblk) )
 
       !-----------------------------------------------------------------
       ! Update the neutral drag coefficients to account for form drag
       ! Oceanic and atmospheric drag coefficients
       !-----------------------------------------------------------------
 
+
          if (formdrag) then
+
             call neutral_drag_coeffs &
                        (nx_block,       ny_block,                      &
                         ilo, ihi,       jlo, jhi,                      &
@@ -351,7 +359,7 @@
                         distrdg     (:,:,iblk), hkeel       (:,:,iblk),&
                         dkeel       (:,:,iblk), lfloe       (:,:,iblk),&
                         dfloe       (:,:,iblk), ncat)
-            endif 
+         endif 
 
          do n = 1, ncat
 
@@ -368,6 +376,8 @@
       !-----------------------------------------------------------------
 
             icells = 0
+            indxi = 0
+            indxj = 0
             do j = jlo, jhi
             do i = ilo, ihi
                if (aicen(i,j,n,iblk) > puny) then
@@ -416,7 +426,11 @@
                                    Trefn,          Qrefn,          &
                                    worka,          workb,          &
                                    lhcoef,         shcoef,         &
-                                   Cdn_atm(:,:,iblk), Cdn_atm_ocn_n)
+                                   Cdn_atm(:,:,iblk),              &
+                                   Cdn_atm_ratio_n,                &
+                                   uice=uvel(:,:,iblk),            &
+                                   vice=vvel(:,:,iblk),            &
+                                   Uref=Urefn                      )
                endif ! atmbndy
 
             else
@@ -424,6 +438,7 @@
                ! Initialize for safety
                Trefn (:,:)  = c0
                Qrefn (:,:)  = c0
+               Urefn (:,:)  = c0
                lhcoef(:,:)  = c0
                shcoef(:,:)  = c0
 
@@ -488,6 +503,7 @@
                                 indxi,     indxj,     &
                                 aicen    (:,:,n,iblk),&
                                 flatn    (:,:,n,iblk),&
+                                fsensn   (:,:,n,iblk),&
                                 fsurfn   (:,:,n,iblk),&
                                 fcondtopn(:,:,n,iblk) )
             endif
@@ -511,7 +527,7 @@
                                 Iswabsn(:,:,:,n,iblk),                    &
                                 fsurfn(:,:,n,iblk),                       &
                                 fcondtopn(:,:,n,iblk),                    &
-                                fsensn,              flatn(:,:,n,iblk),   &
+                                fsensn(:,:,n,iblk),  flatn(:,:,n,iblk),   &
                                 flwoutn,                                  &
                                 evapn,               freshn,              &
                                 fsaltn,              fhocnn,              &
@@ -528,14 +544,18 @@
                                istep1, my_task, iblk
             write (nu_diag,*) 'category n = ', n
             write (nu_diag,*) 'Global block:', this_block%block_id
-            if (istop > 0 .and. jstop > 0) &
-                 write(nu_diag,*) 'Global i and j:', &
-                                  this_block%i_glob(istop), &
-                                  this_block%j_glob(jstop) 
-                 write(nu_diag,*) 'Lat, Lon:', &
-                                 TLAT(istop,jstop,iblk)*rad_to_deg, &
-                                 TLON(istop,jstop,iblk)*rad_to_deg
-         
+            if (istop > 0 .and. jstop > 0) then
+               write(nu_diag,*) 'Global i and j:', &
+                                this_block%i_glob(istop), &
+                                this_block%j_glob(jstop) 
+               write(nu_diag,*) 'Lat, Lon:', &
+                                TLAT(istop,jstop,iblk)*rad_to_deg, &
+                                TLON(istop,jstop,iblk)*rad_to_deg
+               write(nu_diag,*) 'aice:', &
+                                aice(istop,jstop,iblk)
+               write(nu_diag,*) 'n: ',n, 'aicen: ', &
+                                aicen(istop,jstop,n,iblk)
+            endif
             call abort_ice ('ice: Vertical thermo error')
          endif
 
@@ -582,7 +602,8 @@
       ! the surface fluxes are merged, below.
       !-----------------------------------------------------------------
 
-         call ice_timer_start(timer_ponds)
+         call ice_timer_start(timer_ponds,iblk)
+
          if (tr_pond) then
 
             if (tr_pond_cesm) then
@@ -648,7 +669,7 @@
             endif
 
          endif
-         call ice_timer_stop(timer_ponds)
+         call ice_timer_stop(timer_ponds,iblk)
 
       !-----------------------------------------------------------------
       ! Increment area-weighted fluxes.
@@ -660,16 +681,16 @@
                             aicen_init(:,:,n,iblk),                   &
                             flw(:,:,iblk),      coszen(:,:,iblk),     &
                             strairxn,           strairyn,             &
-                            Cdn_atm_ocn_n,                            &
+                            Cdn_atm_ratio_n,                          &
                             fsurfn(:,:,n,iblk), fcondtopn(:,:,n,iblk),&
-                            fsensn,             flatn(:,:,n,iblk),    &
+                            fsensn(:,:,n,iblk), flatn(:,:,n,iblk),    &
                             fswabsn,            flwoutn,              &
                             evapn,                                    &
                             Trefn,              Qrefn,                &
                             freshn,             fsaltn,               &
                             fhocnn,             fswthrun(:,:,n,iblk), &
                             strairxT(:,:,iblk), strairyT  (:,:,iblk), &
-                            Cdn_atm_ocn(:,:,iblk),              &
+                            Cdn_atm_ratio(:,:,iblk),                  &
                             fsurf   (:,:,iblk), fcondtop  (:,:,iblk), &
                             fsens   (:,:,iblk), flat      (:,:,iblk), &
                             fswabs  (:,:,iblk), flwout    (:,:,iblk), &
@@ -682,14 +703,15 @@
                             snoicen(:,:,n,iblk),                      &
                             meltt   (:,:,iblk),  melts   (:,:,iblk),  &
                             meltb   (:,:,iblk),                       &
-                            congel  (:,:,iblk),  snoice  (:,:,iblk))
+                            congel  (:,:,iblk),  snoice  (:,:,iblk),  &
+                            Uref=Uref(:,:,iblk), Urefn=Urefn          )
 
          enddo                  ! ncat
 
       !-----------------------------------------------------------------
       ! Calculate ponds from the topographic scheme
       !-----------------------------------------------------------------
-         call ice_timer_start(timer_ponds)
+         call ice_timer_start(timer_ponds,iblk)
          if (tr_pond_topo) then
             call compute_ponds_topo(nx_block, ny_block,                        &
                                     ilo, ihi, jlo, jhi,                        &
@@ -699,14 +721,14 @@
                                     vsno (:,:,iblk), vsnon(:,:,:,iblk),        &
                                     potT (:,:,iblk), meltt(:,:,  iblk),        &
                                     fsurf(:,:,iblk), fpond(:,:,  iblk),        &
-                                    trcrn(:,:,nt_Tsfc,:,iblk),                 &
+                                    trcrn(:,:,nt_Tsfc,:,iblk), Tf(:,:,  iblk), &
                                     trcrn(:,:,nt_qice:nt_qice+nilyr-1,:,iblk), &
                                     trcrn(:,:,nt_sice:nt_sice+nilyr-1,:,iblk), &
                                     trcrn(:,:,nt_apnd,:,iblk),                 &
                                     trcrn(:,:,nt_hpnd,:,iblk),                 &
                                     trcrn(:,:,nt_ipnd,:,iblk))
          endif
-         call ice_timer_stop(timer_ponds)
+         call ice_timer_stop(timer_ponds,iblk)
 
       end subroutine step_therm1
 
@@ -791,7 +813,7 @@
       ! thickness categories.
       !-----------------------------------------------------------------
 
-         call ice_timer_start(timer_catconv)    ! category conversions
+         call ice_timer_start(timer_catconv,iblk)    ! category conversions
 
       !-----------------------------------------------------------------
       ! Compute fractional ice area in each grid cell.
@@ -848,7 +870,7 @@
 
          endif  ! kitd = 1
 
-         call ice_timer_stop(timer_catconv)    ! category conversions
+         call ice_timer_stop(timer_catconv,iblk)    ! category conversions
 
       !-----------------------------------------------------------------
       ! Add frazil ice growing in leads.
@@ -982,12 +1004,12 @@
 
       use ice_blocks, only: nx_block, ny_block
       use ice_domain, only: nblocks
-      use ice_flux, only: daidtt, dvidtt
+      use ice_flux, only: daidtt, dvidtt, dagedtt
       use ice_grid, only: tmask
       use ice_itd, only: aggregate
       use ice_state, only: aicen, trcrn, vicen, vsnon, ntrcr, &
                            aice,  trcr,  vice,  vsno, aice0, trcr_depend, &
-                           bound_state
+                           bound_state, tr_iage, nt_iage
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_bound
 
       real (kind=dbl_kind), intent(in) :: &
@@ -1031,6 +1053,10 @@
          do i = 1, nx_block
             daidtt(i,j,iblk) = (aice(i,j,iblk) - daidtt(i,j,iblk)) / dt
             dvidtt(i,j,iblk) = (vice(i,j,iblk) - dvidtt(i,j,iblk)) / dt
+            if (tr_iage) then
+               if (trcr(i,j,nt_iage,iblk) > c0) &
+                  dagedtt(i,j,iblk)= (trcr(i,j,nt_iage,iblk)-dagedtt(i,j,iblk)-dt)/dt
+            endif
          enddo
          enddo
 
@@ -1059,11 +1085,11 @@
       use ice_dyn_evp, only: evp
       use ice_dyn_eap, only: eap
       use ice_dyn_shared, only: kdyn
-      use ice_flux, only: daidtd, dvidtd, init_history_dyn
+      use ice_flux, only: daidtd, dvidtd, init_history_dyn, dagedtd
       use ice_grid, only: tmask
       use ice_itd, only: aggregate
       use ice_state, only: nt_qsno, trcrn, vsnon, aicen, vicen, ntrcr, &
-          aice, trcr, vice, vsno, aice0, trcr_depend, bound_state
+          aice, trcr, vice, vsno, aice0, trcr_depend, bound_state, tr_iage, nt_iage
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_column, &
           timer_ridge, timer_bound
       use ice_transport_driver, only: advection, transport_upwind, transport_remap
@@ -1158,6 +1184,8 @@
          do i = ilo,ihi
             dvidtd(i,j,iblk) = (vice(i,j,iblk) - dvidtd(i,j,iblk)) /dt
             daidtd(i,j,iblk) = (aice(i,j,iblk) - daidtd(i,j,iblk)) /dt
+            if (tr_iage) &
+               dagedtd(i,j,iblk)= (trcr(i,j,nt_iage,iblk)-dagedtd(i,j,iblk))/dt
          enddo
          enddo
 
@@ -1336,20 +1364,25 @@
       subroutine step_radiation (dt, iblk)
 
       use ice_blocks, only: block, get_block, nx_block, ny_block
-      use ice_domain, only: blocks_ice
+      use ice_domain, only: blocks_ice, nblocks
       use ice_domain_size, only: ncat
       use ice_flux, only: swvdr, swvdf, swidr, swidf, coszen, fsnow
       use ice_grid, only: TLAT, TLON, tmask
       use ice_meltpond_lvl, only: ffracn, dhsn
+      use ice_meltpond_topo, only: hp1 
       use ice_shortwave, only: fswsfcn, fswintn, fswthrun, fswpenln, &
                                Sswabsn, Iswabsn, shortwave, &
                                albicen, albsnon, albpndn, &
                                alvdrn, alidrn, alvdfn, alidfn, &
                                run_dedd, shortwave_ccsm3, apeffn
-!ars599: 27032014
+!ars599: 27032014: 22042015 need ifdef
+#ifdef AusCOM
       use ice_shortwave, only : ocn_albedo2D
-      use ice_state, only: aicen, vicen, vsnon, trcrn, nt_Tsfc
+#endif
+      use ice_state, only: aicen, vicen, vsnon, trcrn, nt_Tsfc, &
+                           nt_apnd, nt_ipnd, nt_hpnd, tr_pond_topo 
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_sw
+      use ice_therm_shared, only: calc_Tsfc
 
       real (kind=dbl_kind), intent(in) :: &
          dt      ! time step
@@ -1367,7 +1400,7 @@
       type (block) :: &
          this_block      ! block information for current block
 
-      call ice_timer_start(timer_sw)      ! shortwave
+      call ice_timer_start(timer_sw,iblk)      ! shortwave
 
       ! Initialize
       do n = 1, ncat
@@ -1393,9 +1426,11 @@
       jlo = this_block%jlo
       jhi = this_block%jhi
 
-      if (trim(shortwave) == 'dEdd') then ! delta Eddington
 
-         call run_dEdd(ilo, ihi, jlo, jhi,                             &
+      if (calc_Tsfc) then
+        if (trim(shortwave) == 'dEdd') then ! delta Eddington
+ 
+          call run_dEdd(ilo, ihi, jlo, jhi,                            &
                        aicen(:,:,:,iblk),     vicen(:,:,:,iblk),       &
                        vsnon(:,:,:,iblk),     trcrn(:,:,:,:,iblk),     &
                        TLAT(:,:,iblk),        TLON(:,:,iblk),          &
@@ -1412,9 +1447,9 @@
                        albpndn(:,:,:,iblk),   apeffn(:,:,:,iblk),      &
                        dhsn(:,:,:,iblk),      ffracn(:,:,:,iblk))
          
-      else  ! .not. dEdd
+        else  ! .not. dEdd
 
-         call shortwave_ccsm3(nx_block, ny_block,                       &
+          call shortwave_ccsm3(nx_block, ny_block,                      &
                               ilo, ihi, jlo, jhi,                       &
                               aicen(:,:,:,iblk),   vicen(:,:,:,iblk),   &
                               vsnon(:,:,:,iblk),                        &
@@ -1435,10 +1470,53 @@
                               coszen(:,:,iblk),                         &
                               ocn_albedo2D(:,:,iblk))
 #endif
+        endif   ! shortwave
 
-      endif   ! shortwave
+      else    ! .not. calc_Tsfc
 
-      call ice_timer_stop(timer_sw)     ! shortwave
+      ! Calculate effective pond area for HadGEM
+
+      if (tr_pond_topo) then
+         do n = 1, ncat
+           apeffn(:,:,n,iblk) = c0 
+           do j = 1, ny_block
+             do i = 1, nx_block
+               if (aicen(i,j,n,iblk) > puny) then
+               ! Lid effective if thicker than hp1
+                 if (trcrn(i,j,nt_apnd,n,iblk)*aicen(i,j,n,iblk) > puny .and. &
+                     trcrn(i,j,nt_ipnd,n,iblk) < hp1) then
+                     apeffn(i,j,n,iblk) = trcrn(i,j,nt_apnd,n,iblk)
+                 else
+                   apeffn(i,j,n,iblk) = c0
+                 endif
+                 if (trcrn(i,j,nt_apnd,n,iblk) < puny) apeffn(i,j,n,iblk) = c0
+               endif
+             enddo 
+           enddo
+         enddo  ! ncat
+ 
+      endif ! tr_pond_topo
+
+        ! Initialize for safety
+        do n = 1, ncat
+          do j = 1, ny_block
+            do i = 1, nx_block
+              alvdrn(i,j,n,iblk) = c0
+              alidrn(i,j,n,iblk) = c0
+              alvdfn(i,j,n,iblk) = c0
+              alidfn(i,j,n,iblk) = c0
+              fswsfcn(i,j,n,iblk) = c0
+              fswintn(i,j,n,iblk) = c0
+              fswthrun(i,j,n,iblk) = c0
+            enddo   ! i
+          enddo   ! j
+        enddo   ! ncat
+        Iswabsn(:,:,:,:,iblk) = c0
+        Sswabsn(:,:,:,:,iblk) = c0
+
+      endif    ! calc_Tsfc
+
+      call ice_timer_stop(timer_sw,iblk)     ! shortwave
 
       end subroutine step_radiation
 

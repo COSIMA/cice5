@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_transport_driver.F90 732 2013-09-19 18:19:31Z eclare $
+!  SVN:$Id: ice_transport_driver.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 ! Drivers for remapping and upwind ice transport
@@ -293,6 +293,7 @@
     !       Here we assume that aice0 is up to date.
     !-------------------------------------------------------------------
 
+!      !$OMP PARALLEL DO PRIVATE(iblk)
 !      do iblk = 1, nblocks
 !         call aggregate_area (nx_block, ny_block,
 !                              iblk,     &
@@ -300,6 +301,7 @@
 !                              aice (:,:,  iblk),     &
 !                              aice0(:,:,  iblk)) 
 !      enddo
+!      !$OMP END PARALLEL DO
 
     !-------------------------------------------------------------------
     ! Ghost cell updates for state variables.
@@ -584,13 +586,17 @@
     !-------------------------------------------------------------------
 
       if (l_monotonicity_check) then
-         !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block,n)
+         !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block,n,l_stop,istop,jstop)
          do iblk = 1, nblocks
             this_block = get_block(blocks_ice(iblk),iblk)         
             ilo = this_block%ilo
             ihi = this_block%ihi
             jlo = this_block%jlo
             jhi = this_block%jhi
+
+            l_stop = .false.
+            istop = 0
+            jstop = 0
 
             do n = 1, ncat
                call check_monotonicity      &
@@ -702,7 +708,7 @@
                            field_loc_Nface, field_type_vector)
       call ice_timer_stop(timer_bound)
 
-      !$OMP PARALLEL DO PRIVATE(iblk,i,j,ilo,ihi,jlo,jhi,this_block)
+      !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block)
       do iblk = 1, nblocks
          this_block = get_block(blocks_ice(iblk),iblk)         
          ilo = this_block%ilo

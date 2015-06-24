@@ -51,7 +51,7 @@
       use ice_exit, only: abort_ice
       use ice_fileunits, only: nu_diag
       use ice_gather_scatter, only: gather_global
-      use ice_grid, only: TLON, TLAT, ULON, ULAT, hm, tarea, uarea, &
+      use ice_grid, only: TLON, TLAT, ULON, ULAT, hm, bm, tarea, uarea, &
           dxu, dxt, dyu, dyt, HTN, HTE, ANGLE, ANGLET, &
           lont_bounds, latt_bounds, lonu_bounds, latu_bounds
 #ifdef AusCOM
@@ -362,6 +362,12 @@
           status = nf90_put_att(ncid, varid, 'units', coord_var(i)%units)
           if (status /= nf90_noerr) call abort_ice( &
                   'Error defining units for '//coord_var(i)%short_name)
+          status = nf90_put_att(ncid,varid,'missing_value',spval)
+          if (status /= nf90_noerr) call abort_ice( &
+             'Error defining missing_value for '//coord_var(i)%short_name)
+          status = nf90_put_att(ncid,varid,'_FillValue',spval)
+          if (status /= nf90_noerr) call abort_ice( &
+             'Error defining _FillValue for '//coord_var(i)%short_name)
           if (coord_var(i)%short_name == 'ULAT') then
              status = nf90_put_att(ncid,varid,'comment', &
                   'Latitude of NE corner of T grid cell')
@@ -396,7 +402,7 @@
            endif
         enddo
 
-        ! Attributes for tmask defined separately, since it has no units
+        ! Attributes for tmask, blkmask defined separately, since they have no units
         if (igrd(n_tmask)) then
            status = nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid)
            if (status /= nf90_noerr) call abort_ice( &
@@ -407,9 +413,29 @@
            if (status /= nf90_noerr) call abort_ice('ice Error: tmask units') 
            status = nf90_put_att(ncid,varid,'comment', '0 = land, 1 = ocean')
            if (status /= nf90_noerr) call abort_ice('ice Error: tmask comment') 
+           status = nf90_put_att(ncid,varid,'missing_value',spval)
+           if (status /= nf90_noerr) call abort_ice('Error defining missing_value for tmask')
+           status = nf90_put_att(ncid,varid,'_FillValue',spval)
+           if (status /= nf90_noerr) call abort_ice('Error defining _FillValue for tmask')
         endif
 
-        do i = 2, nvar       ! note: n_tmask=1
+        if (igrd(n_blkmask)) then
+           status = nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid)
+           if (status /= nf90_noerr) call abort_ice( &
+                         'ice: Error defining var blkmask')
+           status = nf90_put_att(ncid,varid, 'long_name', 'ice grid block mask') 
+           if (status /= nf90_noerr) call abort_ice('ice Error: blkmask long_name') 
+           status = nf90_put_att(ncid, varid, 'coordinates', 'TLON TLAT')
+           if (status /= nf90_noerr) call abort_ice('ice Error: blkmask units') 
+           status = nf90_put_att(ncid,varid,'comment', 'mytask + iblk/100')
+           if (status /= nf90_noerr) call abort_ice('ice Error: blkmask comment') 
+           status = nf90_put_att(ncid,varid,'missing_value',spval)
+           if (status /= nf90_noerr) call abort_ice('Error defining missing_value for blkmask')
+           status = nf90_put_att(ncid,varid,'_FillValue',spval)
+           if (status /= nf90_noerr) call abort_ice('Error defining _FillValue for blkmask')
+        endif
+
+        do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
           if (igrd(i)) then
              status = nf90_def_var(ncid, var(i)%req%short_name, &
                                    nf90_float, dimid(1:2), varid)
@@ -424,6 +450,12 @@
              status = nf90_put_att(ncid, varid, 'coordinates', var(i)%coordinates)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining coordinates for '//var(i)%req%short_name)
+             status = nf90_put_att(ncid,varid,'missing_value',spval)
+             if (status /= nf90_noerr) call abort_ice( &
+                'Error defining missing_value for '//var(i)%req%short_name)
+             status = nf90_put_att(ncid,varid,'_FillValue',spval)
+             if (status /= nf90_noerr) call abort_ice( &
+                'Error defining _FillValue for '//var(i)%req%short_name)
           endif
         enddo
 
@@ -437,14 +469,18 @@
                                    nf90_float,dimid_nverts, varid)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining variable '//var_nverts(i)%short_name)
-             status = & 
-             nf90_put_att(ncid,varid, 'long_name', var_nverts(i)%long_name)
+             status = nf90_put_att(ncid,varid, 'long_name', var_nverts(i)%long_name)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining long_name for '//var_nverts(i)%short_name)
-             status = &
-             nf90_put_att(ncid, varid, 'units', var_nverts(i)%units)
+             status = nf90_put_att(ncid, varid, 'units', var_nverts(i)%units)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining units for '//var_nverts(i)%short_name)
+             status = nf90_put_att(ncid,varid,'missing_value',spval)
+             if (status /= nf90_noerr) call abort_ice( &
+                'Error defining missing_value for '//var_nverts(i)%short_name)
+             status = nf90_put_att(ncid,varid,'_FillValue',spval)
+             if (status /= nf90_noerr) call abort_ice( &
+                'Error defining _FillValue for '//var_nverts(i)%short_name)
           endif
         enddo
 
@@ -472,7 +508,7 @@
                'Error defining cell measures for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'missing_value',spval)
             if (status /= nf90_noerr) call abort_ice( &
-               'Error defining mising_value for '//avail_hist_fields(n)%vname)
+               'Error defining missing_value for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'_FillValue',spval)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining _FillValue for '//avail_hist_fields(n)%vname)
@@ -531,7 +567,7 @@
                'Error defining cell measures for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'missing_value',spval)
             if (status /= nf90_noerr) call abort_ice( &
-               'Error defining mising_value for '//avail_hist_fields(n)%vname)
+               'Error defining missing_value for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'_FillValue',spval)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining _FillValue for '//avail_hist_fields(n)%vname)
@@ -582,7 +618,7 @@
                'Error defining cell measures for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'missing_value',spval)
             if (status /= nf90_noerr) call abort_ice( &
-               'Error defining mising_value for '//avail_hist_fields(n)%vname)
+               'Error defining missing_value for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'_FillValue',spval)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining _FillValue for '//avail_hist_fields(n)%vname)
@@ -619,7 +655,7 @@
                'Error defining cell measures for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'missing_value',spval)
             if (status /= nf90_noerr) call abort_ice( &
-               'Error defining mising_value for '//avail_hist_fields(n)%vname)
+               'Error defining missing_value for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'_FillValue',spval)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining _FillValue for '//avail_hist_fields(n)%vname)
@@ -658,7 +694,7 @@
                'Error defining cell measures for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'missing_value',spval)
             if (status /= nf90_noerr) call abort_ice( &
-               'Error defining mising_value for '//avail_hist_fields(n)%vname)
+               'Error defining missing_value for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'_FillValue',spval)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining _FillValue for '//avail_hist_fields(n)%vname)
@@ -711,7 +747,7 @@
                'Error defining cell measures for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'missing_value',spval)
             if (status /= nf90_noerr) call abort_ice( &
-               'Error defining mising_value for '//avail_hist_fields(n)%vname)
+               'Error defining missing_value for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'_FillValue',spval)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining _FillValue for '//avail_hist_fields(n)%vname)
@@ -764,7 +800,7 @@
                'Error defining cell measures for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'missing_value',spval)
             if (status /= nf90_noerr) call abort_ice( &
-               'Error defining mising_value for '//avail_hist_fields(n)%vname)
+               'Error defining missing_value for '//avail_hist_fields(n)%vname)
             status = nf90_put_att(ncid,varid,'_FillValue',spval)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining _FillValue for '//avail_hist_fields(n)%vname)
@@ -806,11 +842,7 @@
         if (status /= nf90_noerr) call abort_ice( &
                       'ice Error: global attribute contents')
 
-#ifdef AusCOM
-        title  = 'sea ice model: Community Ice Code (AusCOM/CICE4.1)'
-#else
-        title  = 'sea ice model: CICE'
-#endif
+        title  = 'Los Alamos Sea Ice Model (CICE) Version 5'
         status = nf90_put_att(ncid,nf90_global,'source',title)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice Error: global attribute source')
@@ -854,6 +886,10 @@
         status = nf90_put_att(ncid,nf90_global,'history',start_time)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice Error: global attribute history')
+
+        status = nf90_put_att(ncid,nf90_global,'io_flavor','io_netcdf')
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice Error: global attribute io_flavor')
 
       !-----------------------------------------------------------------
       ! end define mode
@@ -909,25 +945,24 @@
           call broadcast_scalar(coord_var(i)%short_name,master_task)
           SELECT CASE (coord_var(i)%short_name)
             CASE ('TLON')
-              call gather_global(work_g1,TLON,master_task,distrb_info)
-              if (my_task == master_task) then
               ! Convert T grid longitude from -180 -> 180 to 0 to 360
-                 work_gr = work_g1*rad_to_deg + c360    ! single precision
-                 where (work_gr > c360) work_gr = work_gr - c360
-                 where (work_gr < c0 )  work_gr = work_gr + c360
-              endif
+              work1 = TLON*rad_to_deg + c360
+              where (work1 > c360) work1 = work1 - c360
+              where (work1 < c0 )  work1 = work1 + c360
+              call gather_global(work_g1,work1,master_task,distrb_info)
             CASE ('TLAT')
-              call gather_global(work_g1,TLAT,master_task,distrb_info)
-              if (my_task == master_task) work_gr = work_g1*rad_to_deg
+              work1 = TLAT*rad_to_deg
+              call gather_global(work_g1,work1,master_task,distrb_info)
             CASE ('ULON')
-              call gather_global(work_g1,ULON,master_task,distrb_info)
-              if (my_task == master_task) work_gr = work_g1*rad_to_deg
+              work1 = ULON*rad_to_deg
+              call gather_global(work_g1,work1,master_task,distrb_info)
             CASE ('ULAT')
-              call gather_global(work_g1,ULAT,master_task,distrb_info)
-              if (my_task == master_task) work_gr = work_g1*rad_to_deg
+              work1 = ULAT*rad_to_deg
+              call gather_global(work_g1,work1,master_task,distrb_info)
           END SELECT
           
           if (my_task == master_task) then
+             work_gr = work_g1
              status = nf90_inq_varid(ncid, coord_var(i)%short_name, varid)
              if (status /= nf90_noerr) call abort_ice( &
                   'ice: Error getting varid for '//coord_var(i)%short_name)
@@ -953,6 +988,8 @@
                  status = nf90_put_var(ncid,varid,(/(k, k=1,nzilyr)/))
                CASE ('VGRDs') ! index - needed for Met Office analysis code
                  status = nf90_put_var(ncid,varid,(/(k, k=1,nzslyr)/))
+               CASE ('VGRDb')
+                 status = nf90_put_var(ncid,varid,(/(k, k=1,nzblyr)/))
              END SELECT
              if (status /= nf90_noerr) call abort_ice( &
                            'ice: Error writing'//var_nz(i)%short_name)
@@ -961,7 +998,7 @@
         enddo
 
       !-----------------------------------------------------------------
-      ! write grid mask, area and rotation angle
+      ! write grid masks, area and rotation angle
       !-----------------------------------------------------------------
 
       if (igrd(n_tmask)) then
@@ -977,7 +1014,20 @@
       endif
       endif
 
-      do i = 2, nvar       ! note: n_tmask=1
+      if (igrd(n_blkmask)) then
+      call gather_global(work_g1, bm, master_task, distrb_info)
+      if (my_task == master_task) then
+        work_gr=work_g1
+        status = nf90_inq_varid(ncid, 'blkmask', varid)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error getting varid for blkmask')
+        status = nf90_put_var(ncid,varid,work_gr)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error writing variable blkmask')
+      endif
+      endif
+
+      do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
         if (igrd(i)) then
         call broadcast_scalar(var(i)%req%short_name,master_task)
         SELECT CASE (var(i)%req%short_name)

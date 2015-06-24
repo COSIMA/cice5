@@ -823,7 +823,6 @@
 !        strocny(i,j) = strocny(i,j) &
 !                     - vrel*(vvel(i,j)*cosw + uvel(i,j)*sinw) * aiu(i,j)
 
-! ars599: 04032014 (sign_code)
          ! update strocnx to most recent iterate and complete the term       
          vrel = vrel * aiu(i,j)
          strocnx(i,j) = vrel*((uocn(i,j) - uvel(i,j))*cosw &

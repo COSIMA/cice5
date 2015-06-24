@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_forcing.F90 744 2013-09-27 22:53:24Z eclare $
+!  SVN:$Id: ice_forcing.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 ! Reads and interpolates forcing data for atmosphere and ocean quantities.
@@ -254,14 +254,6 @@
     ! initialize to annual climatology created from monthly data
     !-------------------------------------------------------------------
 
-!ars599: 10052014 try to use new code, so change ifndef to ifdef
-!	new code has no more "Tocnfrz"
-!ars599: 10052014 sss_data_type was set to clim in ice_in which is "wrong"
-!       should be defult. however why use the code after else if ?? should not
-!       need to use this part if not in clim run????
-!       ! Note: Restoring is done only if sss_data_type and/or 
-!       sst_data_type are set (not default) in namelist.
-#ifndef AusCOM
       if (trim(sss_data_type) == 'clim') then
 
          sss_file = trim(ocn_data_dir)//'sss.mm.100x116.da' ! gx3 only
@@ -297,57 +289,22 @@
             do i = 1, nx_block
                sss(i,j,iblk) = sss(i,j,iblk) / c12   ! annual average
                sss(i,j,iblk) = max(sss(i,j,iblk),c0)
-               if (ktherm == 2) then
-                  Tf(i,j,iblk) = sss(i,j,iblk) / (-18.48_dbl_kind &
-                               + ((18.48_dbl_kind/c1000) * sss(i,j,iblk)))
-               else
-                  Tf(i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
-               endif
             enddo
             enddo
          enddo
          !$OMP END PARALLEL DO
 
+         call ocn_freezing_temperature
+
          if (my_task == master_task) close(nu_forcing)
 
       endif                     ! sss_data_type
-#else
-      sss(:,:,:) = 34.0
-      !set a constant SSS fields in coupled case (Siobhan's idea ?!)
-      !need revist this part ?!
-      do iblk = 1, nblocks
-         do j = 1, ny_block
-         do i = 1, nx_block
-!ars599: 26032014 temperally removed
-!	new code has no such variable
-!	so remove the if
-!            if (trim(Tfrzpt) == 'constant') then
-!               Tf (i,j,iblk) = Tocnfrz ! deg C
-!            else ! default:  Tfrzpt = 'linear_S'
-!               Tf (i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
-!            endif
-!ars599 09052014 try to mimic original code line 293-297
-!	similar to old code mimic similar lines
-               if (ktherm == 2) then
-                  Tf(i,j,iblk) = sss(i,j,iblk) / (-18.48_dbl_kind &
-                               + ((18.48_dbl_kind/c1000) * sss(i,j,iblk)))
-               else
-                  Tf(i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
-               endif
-         enddo
-         enddo
-      enddo
-#endif
 
     !-------------------------------------------------------------------
     ! Sea surface temperature (SST)
     ! initialize to data for current month
     !-------------------------------------------------------------------
 
-!ars599: 10052014 try to use new code, so change ifndef to ifdef
-!	new code has no more "Tocnfrz"
-#ifdef AusCOM
-!#ifndef AusCOM
       if (trim(sst_data_type) == 'clim') then
 
          if (nx_global == 320) then ! gx1
@@ -422,21 +379,47 @@
 !         call ocn_data_ncar_init
          call ocn_data_ncar_init_3D
       endif
-#else
-      sst(:,:,:)=-0.1
-      !set initial SST constant globally (Siobhan's idea ?!)
-      !need revist this part ?!
-      !Make sure sst is not less than freezing temperature Tf
-      do iblk = 1, nblocks
-          do j = 1, ny_block
-          do i = 1, nx_block
-             sst(i,j,iblk) = max(sst(i,j,iblk),Tf(i,j,iblk))
-          enddo
-          enddo
-      enddo
-#endif
 
       end subroutine init_forcing_ocn
+
+!=======================================================================
+
+      subroutine ocn_freezing_temperature
+
+ ! Compute ocean freezing temperature Tf based on tfrz_option
+ ! 'minus1p8'         Tf = -1.8 C (default)
+ ! 'linear_salt'      Tf = -depressT * sss
+ ! 'mushy'            Tf conforms with mushy layer thermo (ktherm=2)
+
+      use ice_blocks, only: nx_block, ny_block
+      use ice_constants, only: depressT, c1000
+      use ice_domain, only: nblocks
+      use ice_flux, only: sss, Tf
+      use ice_ocean, only: tfrz_option
+
+      ! local variables
+
+      integer (kind=int_kind) :: &
+         i, j, iblk           ! horizontal indices
+
+      !$OMP PARALLEL DO PRIVATE(iblk,i,j)
+      do iblk = 1, nblocks
+         do j = 1, ny_block
+         do i = 1, nx_block
+            if (trim(tfrz_option) == 'mushy') then
+               Tf(i,j,iblk) =  sss(i,j,iblk) / (-18.48_dbl_kind &
+                            + ((18.48_dbl_kind/c1000) * sss(i,j,iblk)))
+            elseif (trim(tfrz_option) == 'linear_salt') then
+               Tf(i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
+            else
+               Tf(i,j,iblk) = -1.8_dbl_kind
+            endif
+         enddo
+         enddo
+      enddo
+      !$OMP END PARALLEL DO
+
+      end subroutine ocn_freezing_temperature
 
 !=======================================================================
 
@@ -3272,16 +3255,12 @@
             do j = 1, ny_block
             do i = 1, nx_block
                sss(i,j,iblk) = max(sss(i,j,iblk), c0)
-               if (ktherm == 2) then
-                  Tf(i,j,iblk) =  sss(i,j,iblk) / (-18.48_dbl_kind &
-                               + ((18.48_dbl_kind/c1000) * sss(i,j,iblk)))
-               else
-                  Tf(i,j,iblk) = -depressT * sss(i,j,iblk) ! deg C
-               endif
             enddo
             enddo
          enddo
          !$OMP END PARALLEL DO
+
+         call ocn_freezing_temperature
       endif
 
     !-------------------------------------------------------------------
@@ -3457,12 +3436,10 @@
 
       endif
 
-#ifndef ACCICE
 !echmod - currents cause Fram outflow to be too large
               ocn_frc_m(:,:,:,4,:) = c0
               ocn_frc_m(:,:,:,5,:) = c0
 !echmod
-#endif
 
       end subroutine ocn_data_ncar_init
 
@@ -3689,6 +3666,7 @@
         endif
         enddo
         !$OMP END PARALLEL DO
+
         call interpolate_data (sst_data,work1)
         ! masking by hm is necessary due to NaNs in the data file
         do j = 1, ny_block 
@@ -3718,14 +3696,11 @@
       do j = 1, ny_block 
          do i = 1, nx_block 
             sss (i,j,:) = max (sss(i,j,:), c0) 
-            if (ktherm == 2) then
-               Tf(i,j,:) =  sss(i,j,:) / (-18.48_dbl_kind + ((18.48_dbl_kind/1000.0_dbl_kind) * sss(i,j,:)))
-            else
-               Tf(i,j,:) = -depressT * sss(i,j,:) ! deg C
-            endif
             hmix(i,j,:) = max(hmix(i,j,:), c0) 
          enddo 
       enddo 
+
+      call ocn_freezing_temperature
 
       if (restore_sst) then
         do j = 1, ny_block 
@@ -3813,14 +3788,7 @@
  
       sss    (:,:,:) = 34.0_dbl_kind   ! sea surface salinity (ppt)
 
-      ! freezing temp (C)
-      if (ktherm == 2) then
-         ! liquidus_temperature_mush(sss)
-         Tf (:,:,:) = sss(:,:,:) / (-18.48_dbl_kind &
-                                 + ((18.48_dbl_kind*p001)*sss(:,:,:)))
-      else
-         Tf (:,:,:) = -depressT*sss(:,:,:)
-      endif
+      call ocn_freezing_temperature
 
       sst    (:,:,:) = Tf(:,:,:)       ! sea surface temp (C)
       uocn   (:,:,:) = c0              ! surface ocean currents (m/s)

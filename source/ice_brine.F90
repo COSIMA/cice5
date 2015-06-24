@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_brine.F90 744 2013-09-27 22:53:24Z eclare $
+!  SVN:$Id: ice_brine.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 ! Computes ice microstructural information for use in biogeochemistry
@@ -69,7 +69,7 @@
       igrid(1)       = c0 ! ice top
       igrid(nblyr+1) = c1 ! ice bottom
       
-      zspace = c1/(real(nblyr,kind=dbl_kind)) 
+      zspace = c1/max(c1,(real(nblyr,kind=dbl_kind)))
       do k = 2, nblyr+1
          bgrid(k) = zspace*(real(k,kind=dbl_kind) - c1p5)
       enddo
@@ -657,9 +657,9 @@
       if (my_task == master_task) write(nu_diag,*) 'brine restart'
 
       call read_restart_field(nu_restart_hbrine,0,trcrn(:,:,nt_fbri,:,:),'ruf8', &
-                              'fbrn',ncat,diag)
+                              'fbrn',ncat,diag,field_loc_center,field_type_scalar)
       call read_restart_field(nu_restart_hbrine,0,first_ice_real(:,:,:,:),'ruf8', &
-                              'first_ice',ncat,diag)
+                              'first_ice',ncat,diag,field_loc_center,field_type_scalar)
        
       do iblk = 1, nblocks
          do n = 1,ncat

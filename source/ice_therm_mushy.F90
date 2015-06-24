@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_therm_mushy.F90 742 2013-09-27 15:32:43Z akt $
+!  SVN:$Id: ice_therm_mushy.F90 952 2015-03-26 16:24:51Z eclare $
  
 !=======================================================================
 
@@ -168,8 +168,6 @@ contains
                                           flwoutn,  fsurfn,   &
                                           fcondtopn,fcondbot, &
                                           fadvocn,  snoice,   &
-                                          freshn,   fsaltn,   &
-                                          fhocnn,             &
                                           einit,    l_stop,   &
                                           istop,    jstop)
 
@@ -230,10 +228,7 @@ contains
          fsensn      , & ! surface downward sensible heat (W m-2)
          flatn       , & ! surface downward latent heat (W m-2)
          flwoutn     , & ! upward LW at surface (W m-2)
-         fadvocn     , & ! advection heat flux to ocean
-         freshn      , & ! fresh water flux to ocean (kg/m^2/s)
-         fsaltn      , & ! salt flux to ocean (kg/m^2/s)
-         fhocnn          ! net heat flux to ocean (W/m^2) 
+         fadvocn         ! advection heat flux to ocean
     
     real (kind=dbl_kind), dimension (icells), intent(out):: &
          fcondbot        ! downward cond flux at bottom surface (W m-2)
@@ -308,8 +303,6 @@ contains
                                        flwoutn(i,j),  fsurfn(i,j),   &
                                        fcondtopn(i,j),fcondbot(ij),  &
                                        fadvocn(i,j),  snoice(i,j),   &
-                                       freshn(i,j),   fsaltn(i,j),   &
-                                       fhocnn(i,j),                  &
                                        einit(ij),     l_stop)
 
        if (tr_pond) then
@@ -349,8 +342,6 @@ contains
                                         flwoutn,  fsurfn,   &
                                         fcondtop, fcondbot, &
                                         fadvheat, snoice,   &
-                                        freshn,   fsaltn,   &
-                                        fhocnn,             &
                                         einit_old,lstop)
 
     ! solve the enthalpy and bulk salinity of the ice for a single column
@@ -405,10 +396,7 @@ contains
     real (kind=dbl_kind), intent(inout):: &
          Tsf         , & ! ice/snow surface temperature (C)
          hpond       , & ! melt pond depth (m)
-         apond       , & ! melt pond area
-         freshn      , & ! fresh water flux to ocean (kg/m^2/s)
-         fsaltn      , & ! salt flux to ocean (kg/m^2/s)
-         fhocnn          ! net heat flux to ocean (W/m^2) 
+         apond           ! melt pond area
 
     real (kind=dbl_kind), dimension (nilyr), intent(inout) :: &
          zqin        , & ! ice layer enthalpy (J m-3)
@@ -604,9 +592,7 @@ contains
                    phi,        dt,       &
                    zSin,       Sbr,      &
                    sss,        qocn,     &
-                   snoice,     fadvheat, &
-                   freshn,     fsaltn,   &
-                   fhocnn)
+                   snoice,     fadvheat)
 
   end subroutine temperature_changes_column
 
@@ -2902,6 +2888,9 @@ contains
     
     ! perform a tri-diagonal solve with TDMA using a sparse tridiagoinal matrix
 
+    integer(kind=int_kind), intent(in) :: &
+         n      ! matrix size
+    
     real(kind=dbl_kind), dimension(1:n), intent(in) :: &
          a  , & ! matrix lower off-diagonal
          b  , & ! matrix diagonal
@@ -2911,9 +2900,6 @@ contains
     real(kind=dbl_kind), dimension(1:n), intent(out) :: &
          x      ! solution vector
 
-    integer(kind=int_kind), intent(in) :: &
-         n      ! matrix size
-    
     real(kind=dbl_kind), dimension(nilyr+nslyr+1) :: &
          cp , & ! modified upper off-diagonal vector
          dp     ! modified right hand side vector
@@ -3141,9 +3127,7 @@ contains
                                hpond,  apond, &
                                dt,     w)
    
-    ! calculate the vertical flushing Darcy velocity
-    ! negative - downward flushing
-    ! positive - upward flushing
+    ! calculate the vertical flushing Darcy velocity (positive downward)
 
     use ice_constants, only: viscosity_dyn
 
@@ -3220,13 +3204,13 @@ contains
     dhhead = max(hbrine - hocn,c0)
 
     ! darcy flow through ice
-    w = -(perm_harm * rhow * gravit * (dhhead / hin)) / viscosity_dyn
+    w = (perm_harm * rhow * gravit * (dhhead / hin)) / viscosity_dyn
 
     ! maximum down flow to drain pond
-    w_down_max = -(hpond * apond) / dt
+    w_down_max = (hpond * apond) / dt
 
     ! limit flow
-    w = max(w,w_down_max)
+    w = min(w,w_down_max)
 
     ! limit amount of brine that can be advected out of any particular layer
     wlimit = (advection_limit * phi_min * hilyr) / dt
@@ -3237,7 +3221,7 @@ contains
        w = c0
     endif
 
-    w = -min(w,c0)
+    w = max(w, c0)
 
   end subroutine flushing_velocity
 
@@ -3263,7 +3247,7 @@ contains
     if (apond > c0 .and. hpond > c0) then
 
        ! flush pond through mush
-       hpond = hpond + (min(w,c0) * dt) / apond
+       hpond = hpond - w * dt / apond
        
        hpond = max(hpond, c0)
 
@@ -3284,9 +3268,7 @@ contains
                        phi,    dt,       &
                        zSin,   Sbr,      &
                        sss,    qocn,     &
-                       snoice, fadvheat, &
-                       freshn, fsaltn,   &
-                       fhocnn)
+                       snoice, fadvheat)
 
     ! given upwards flushing brine flow calculate amount of snow ice and
     ! convert snow to ice with appropriate properties
@@ -3310,17 +3292,14 @@ contains
          Sbr                   ! ice layer brine salinity (ppt)
 
     real(kind=dbl_kind), intent(inout) :: &
-         hslyr             , & ! ice layer thickness (m)
-         hilyr                 ! snow layer thickness (m)
+         hslyr             , & ! snow layer thickness (m)
+         hilyr                 ! ice layer thickness (m)
 
     real(kind=dbl_kind), intent(out) :: &
          snoice                ! snow ice formation
 
    real(kind=dbl_kind), intent(inout) :: &
-         fadvheat          , & ! advection heat flux to ocean
-         freshn            , & ! fresh water flux to ocean (kg/m^2/s)
-         fsaltn            , & ! salt flux to ocean (kg/m^2/s)
-         fhocnn                ! net heat flux to ocean (W/m^2) 
+         fadvheat              ! advection heat flux to ocean
 
     real(kind=dbl_kind) :: &
          hin2              , & ! new ice thickness (m)
@@ -3369,7 +3348,7 @@ contains
           ! sea ice fraction of newly formed snow ice
           phi_snowice = (c1 - rhos / rhoi)
 
-          ! desnity of newly formed snowice
+          ! density of newly formed snowice
           rho_snowice = phi_snowice * rho_ocn + (c1 - phi_snowice) * rhoi
 
           ! calculate thickness of new ice added
@@ -3413,11 +3392,6 @@ contains
 
           ! conservation
           fadvheat = fadvheat - eadded
-          
-          ! coupling
-          freshn = freshn - wadded
-          fsaltn = fsaltn - sadded
-          fhocnn = fhocnn - eadded
 
        endif
 
@@ -3453,23 +3427,17 @@ contains
     ! snow depth and snow layers affected by snowice formation
     if (hsn > puny) then
        rnlyr = (dh / hsn) * nslyr
-       nlyr = min(floor(rnlyr),nslyr-1)
-       
-       zqsn_snowice = c0
-       
+       nlyr = min(floor(rnlyr),nslyr-1) ! nlyr=0 if nslyr=1
+
        ! loop over full snow layers affected
+       ! not executed if nlyr=0
        do k = nslyr, nslyr-nlyr+1, -1
-          
           zqsn_snowice = zqsn_snowice + zqsn(k) / rnlyr
-          
        enddo ! k
-       
+
        ! partially converted snow layer
        zqsn_snowice = zqsn_snowice + &
-                      ((rnlyr - real(nlyr,dbl_kind)) / rnlyr) * zqsn(nslyr)
-       
-       zqsn_snowice = zqsn_snowice
-
+            ((rnlyr - real(nlyr,dbl_kind)) / rnlyr) * zqsn(nslyr-nlyr)
     endif
 
   end subroutine enthalpy_snow_snowice

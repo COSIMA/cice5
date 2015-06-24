@@ -1,3 +1,4 @@
+
 !  SVN:$Id: ice_restart.F90 607 2013-03-29 15:49:42Z eclare $
 !=======================================================================
 !
@@ -61,11 +62,6 @@
             open(nu_rst_pointer,file=pointer_file)
             read(nu_rst_pointer,'(a)') filename0
             filename = trim(filename0)
-#ifdef AusCOM
-            write(nu_diag,*) 'XXX: restart_dir = ', restart_dir
-            filename = trim(restart_dir)//trim(filename)
-            write(nu_diag,*) 'XXX: restart file => ', filename
-#endif
             close(nu_rst_pointer)
             write(nu_diag,*) 'Read ',pointer_file(1:lenstr(pointer_file))
          endif
@@ -81,7 +77,7 @@
          call ice_pio_init(mode='read', filename=trim(filename), File=File)
       
          call ice_pio_initdecomp(iodesc=iodesc2d)
-         call ice_pio_initdecomp(ndim3=ncat  , iodesc=iodesc3d_ncat)
+         call ice_pio_initdecomp(ndim3=ncat  , iodesc=iodesc3d_ncat,remap=.true.)
 
          if (use_restart_time) then
          status = pio_get_att(File, pio_global, 'istep1', istep0)
@@ -89,13 +85,13 @@
          status = pio_get_att(File, pio_global, 'time_forc', time_forc)
          call pio_seterrorhandling(File, PIO_BCAST_ERROR)
          status = pio_get_att(File, pio_global, 'nyr', nyr)
+         call pio_seterrorhandling(File, PIO_INTERNAL_ERROR)
          if (status == PIO_noerr) then
             status = pio_get_att(File, pio_global, 'month', month)
             status = pio_get_att(File, pio_global, 'mday', mday)
             status = pio_get_att(File, pio_global, 'sec', sec)
          endif
          endif ! use namelist values if use_restart_time = F
-         call pio_seterrorhandling(File, PIO_INTERNAL_ERROR)
       endif
 
       if (my_task == master_task) then
@@ -210,6 +206,9 @@
          call define_rest_field(File,'uvel',dims)
          call define_rest_field(File,'vvel',dims)
 
+#ifdef CCSMCOUPLED
+         call define_rest_field(File,'coszen',dims)
+#endif
          call define_rest_field(File,'scale_factor',dims)
          call define_rest_field(File,'swvdr',dims)
          call define_rest_field(File,'swvdf',dims)
@@ -257,7 +256,7 @@
          endif
 
          if (tr_pond_lvl) then
-            call define_rest_field(ncid,'fsnow',dims)
+            call define_rest_field(File,'fsnow',dims)
          endif
 
          if (skl_bgc) then
@@ -375,7 +374,7 @@
          status = pio_enddef(File)
 
          call ice_pio_initdecomp(iodesc=iodesc2d)
-         call ice_pio_initdecomp(ndim3=ncat  , iodesc=iodesc3d_ncat)
+         call ice_pio_initdecomp(ndim3=ncat  , iodesc=iodesc3d_ncat, remap=.true.)
 
       endif
 
@@ -395,11 +394,12 @@
 
       use ice_blocks, only: nx_block, ny_block
       use ice_communicate, only: my_task, master_task
+      use ice_constants, only: c0, field_loc_center
       use ice_boundary, only: ice_HaloUpdate
-      use ice_domain, only: halo_info, distrb_info
+      use ice_domain, only: halo_info, distrb_info, nblocks
       use ice_domain_size, only: max_blocks, ncat
       use ice_fileunits, only: nu_diag
-      use ice_global_reductions, only: global_minval, global_maxval
+      use ice_global_reductions, only: global_minval, global_maxval, global_sum
 
       integer (kind=int_kind), intent(in) :: &
            nu            , & ! unit number (not used for netcdf)
@@ -426,18 +426,27 @@
       ! local variables
 
       integer (kind=int_kind) :: &
+        j,     &      ! dimension counter
         n,     &      ! number of dimensions for variable
         status        ! status variable from netCDF routine
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: &
-           work2              ! input array (real, 8-byte)
-
-      real (kind=dbl_kind) :: amin,amax
+      real (kind=dbl_kind) :: amin,amax,asum
 
       if (restart_format == "pio") then
-         write(nu_diag,*) vname
+         if (my_task == master_task) &
+            write(nu_diag,*)'Parallel restart file read: ',vname
+
+         call pio_seterrorhandling(File, PIO_BCAST_ERROR)
+
          status = pio_inq_varid(File,trim(vname),vardesc)
-         if (ndim3 == ncat) then
+
+         if (status /= 0) then
+            call abort_ice("CICE4 restart? Missing variable: "//trim(vname))
+         endif
+
+         call pio_seterrorhandling(File, PIO_INTERNAL_ERROR)
+
+         if (ndim3 == ncat .and. ncat>1) then
             call pio_read_darray(File, vardesc, iodesc3d_ncat, work, status)
             if (present(field_loc)) then
                do n=1,ndim3
@@ -446,8 +455,7 @@
                enddo
             endif
          elseif (ndim3 == 1) then
-            call pio_read_darray(File, vardesc, iodesc2d, work2, status)
-            work(:,:,1,:) = work2(:,:,:)
+            call pio_read_darray(File, vardesc, iodesc2d, work, status)
             if (present(field_loc)) then
                call ice_HaloUpdate (work(:,:,1,:), halo_info, &
                                     field_loc, field_type)
@@ -461,16 +469,19 @@
                do n=1,ndim3
                   amin = global_minval(work(:,:,n,:),distrb_info)
                   amax = global_maxval(work(:,:,n,:),distrb_info)
+                  asum = global_sum(work(:,:,n,:), distrb_info, field_loc_center)
                   if (my_task == master_task) then
                      write(nu_diag,*) ' min and max =', amin, amax
-                     write(nu_diag,*) ''
+                     write(nu_diag,*) ' sum =',asum
                   endif
                enddo
             else
                amin = global_minval(work(:,:,1,:),distrb_info)
                amax = global_maxval(work(:,:,1,:),distrb_info)
+               asum = global_sum(work(:,:,1,:), distrb_info, field_loc_center)
                if (my_task == master_task) then
                   write(nu_diag,*) ' min and max =', amin, amax
+                  write(nu_diag,*) ' sum =',asum
                   write(nu_diag,*) ''
                endif
             endif
@@ -491,11 +502,11 @@
 
       use ice_blocks, only: nx_block, ny_block
       use ice_communicate, only: my_task, master_task
-      use ice_constants, only: c0
-      use ice_domain, only: distrb_info
+      use ice_constants, only: c0, field_loc_center
+      use ice_domain, only: distrb_info, nblocks
       use ice_domain_size, only: max_blocks, ncat
       use ice_fileunits, only: nu_diag
-      use ice_global_reductions, only: global_minval, global_maxval
+      use ice_global_reductions, only: global_minval, global_maxval, global_sum
 
       integer (kind=int_kind), intent(in) :: &
            nu            , & ! unit number
@@ -518,24 +529,29 @@
       ! local variables
 
       integer (kind=int_kind) :: &
+        j,     &      ! dimension counter
         n,     &      ! dimension counter
+        ndims, &  ! number of variable dimensions
         status        ! status variable from netCDF routine
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: &
-           work2              ! input array (real, 8-byte)
-
-      real (kind=dbl_kind) :: amin,amax
+      real (kind=dbl_kind) :: amin,amax,asum
 
       if (restart_format == "pio") then
-         write(nu_diag,*) vname
+         if (my_task == master_task) &
+            write(nu_diag,*)'Parallel restart file write: ',vname
+
          status = pio_inq_varid(File,trim(vname),vardesc)
-         if (ndim3 == ncat) then 
-            call pio_write_darray(File, vardesc, iodesc3d_ncat, work, status, fillval=c0)
-         elseif (ndim3 == 1) then
-            work2(:,:,:) = work(:,:,1,:)
-            call pio_write_darray(File, vardesc, iodesc2d, work2, status, fillval=c0)
+         
+         status = pio_inq_varndims(File, vardesc, ndims)
+
+         if (ndims==3) then 
+            call pio_write_darray(File, vardesc, iodesc3d_ncat,work(:,:,:,1:nblocks), &
+                 status, fillval=c0)
+         elseif (ndims == 2) then
+            call pio_write_darray(File, vardesc, iodesc2d, work(:,:,1,1:nblocks), &
+                 status, fillval=c0)
          else
-            write(nu_diag,*) "ndim3 not supported",ndim3
+            write(nu_diag,*) "ndims not supported",ndims,ndim3
          endif
 
          if (diag) then
@@ -543,15 +559,20 @@
                do n=1,ndim3
                   amin = global_minval(work(:,:,n,:),distrb_info)
                   amax = global_maxval(work(:,:,n,:),distrb_info)
+                  asum = global_sum(work(:,:,n,:), distrb_info, field_loc_center)
+                  if (my_task == master_task) then
+                     write(nu_diag,*) ' min and max =', amin, amax
+                     write(nu_diag,*) ' sum =',asum
+                  endif
                enddo
             else
                amin = global_minval(work(:,:,1,:),distrb_info)
                amax = global_maxval(work(:,:,1,:),distrb_info)
-            endif
-         
-            if (my_task == master_task) then
-               write(nu_diag,*) ' min and max =', amin, amax
-               write(nu_diag,*) ''
+               asum = global_sum(work(:,:,1,:), distrb_info, field_loc_center)
+               if (my_task == master_task) then
+                  write(nu_diag,*) ' min and max =', amin, amax
+                  write(nu_diag,*) ' sum =',asum
+               endif
             endif
          endif
       else
@@ -572,10 +593,9 @@
       use ice_fileunits, only: nu_diag
 
       if (restart_format == 'pio') then
-         call pio_closefile(File)
-
          call PIO_freeDecomp(File,iodesc2d)
          call PIO_freeDecomp(File,iodesc3d_ncat)
+         call pio_closefile(File)
       endif
 
       if (my_task == master_task) &

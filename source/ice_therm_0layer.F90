@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_therm_0layer.F90 703 2013-08-20 21:14:30Z eclare $
+!  SVN:$Id: ice_therm_0layer.F90 925 2015-03-04 00:34:27Z eclare $
 !=========================================================================
 !
 ! Update ice and snow internal temperatures

@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_therm_vertical.F90 742 2013-09-27 15:32:43Z akt $
+!  SVN:$Id: ice_therm_vertical.F90 925 2015-03-04 00:34:27Z eclare $
 !=========================================================================
 !
 ! Update ice and snow internal temperatures and compute
@@ -55,6 +55,8 @@
 #else
          ustar_min       ! minimum friction velocity for ice-ocean heat flux
 #endif
+      character (len=char_len), public :: &
+         fbot_xfer_type  ! transfer coefficient type for ice-ocean heat flux
 
 !=======================================================================
 
@@ -67,7 +69,6 @@
 !
 ! authors: William H. Lipscomb, LANL
 !          C. M. Bitz, UW
-
 
       subroutine thermo_vertical (nx_block,    ny_block,  &
                                   dt,          icells,    &
@@ -96,6 +97,9 @@
 
       use ice_communicate, only: my_task
       use ice_therm_mushy, only: temperature_changes_salinity
+#ifdef CCSMCOUPLED
+      use ice_prescribed_mod, only: prescribed_ice
+#endif
 
       integer (kind=int_kind), intent(in) :: &
          nx_block, ny_block, & ! block dimensions
@@ -152,12 +156,12 @@
 
       ! coupler fluxes to atmosphere
       real (kind=dbl_kind), dimension (nx_block,ny_block), intent(out):: &
-         fsensn  , & ! sensible heat flux (W/m^2) 
          flwoutn , & ! outgoing longwave radiation (W/m^2) 
          evapn       ! evaporative water flux (kg/m^2/s) 
 
       ! Note: these are intent out if calc_Tsfc = T, otherwise intent in
       real (kind=dbl_kind), dimension (nx_block,ny_block), intent(inout):: &
+         fsensn   , & ! sensible heat flux (W/m^2) 
          flatn    , & ! latent heat flux   (W/m^2) 
          fsurfn   , & ! net flux to top surface, excluding fcondtopn
          fcondtopn    ! downward cond flux at top surface (W m-2)
@@ -246,7 +250,6 @@
 
       do j=1, ny_block
       do i=1, nx_block
-         fsensn (i,j) = c0
          flwoutn(i,j) = c0
          evapn  (i,j) = c0
 
@@ -268,6 +271,7 @@
       if (calc_Tsfc) then
          do j=1, ny_block
          do i=1, nx_block
+            fsensn   (i,j) = c0
             flatn    (i,j) = c0
             fsurfn   (i,j) = c0
             fcondtopn(i,j) = c0
@@ -331,8 +335,6 @@
                                               flwoutn,       fsurfn,   &
                                               fcondtopn,     fcondbot, &
                                               fadvocn,       snoice,   &
-                                              freshn,        fsaltn,   &
-                                              fhocnn,                  &
                                               einit,         l_stop,   &
                                               istop,         jstop)
 
@@ -356,8 +358,7 @@
                                      flwoutn,       fsurfn,   &
                                      fcondtopn,     fcondbot, &
                                      einit,         l_stop,   &
-                                     istop,         jstop,    &
-                                     hin)
+                                     istop,         jstop)
 
          endif ! ktherm
             
@@ -458,6 +459,21 @@
       if (l_stop) return
 
       !-----------------------------------------------------------------
+      ! If prescribed ice, set hi back to old values
+      !-----------------------------------------------------------------
+
+#ifdef CCSMCOUPLED
+      if (prescribed_ice) then
+         do ij = 1, icells
+            i = indxi(ij)
+            j = indxj(ij)
+            hin(ij) = worki(ij)
+            fhocnn(i,j) = c0             ! for diagnostics
+         enddo                  ! ij
+      endif
+#endif
+
+      !-----------------------------------------------------------------
       ! Compute fluxes of water and salt from ice to ocean.
       ! evapn < 0 => sublimation, evapn > 0 => condensation
       ! aerosol flux is accounted for in ice_aerosol.F90
@@ -475,6 +491,8 @@
                        (rhoi*dhi + rhos*dhs) / dt
          fsaltn(i,j) = fsaltn(i,j) - &
                        rhoi*dhi*ice_ref_salinity*p001/dt
+
+         fhocnn(i,j) = fhocnn(i,j) + fadvocn(i,j) ! for ktherm=2 
 
          if (hin(ij) == c0) then
             if (tr_pond_topo) &
@@ -599,7 +617,7 @@
                                         sst,      Tf,       &
                                         strocnxT, strocnyT, &
                                         Tbot,     fbot,     &
-                                        rside)
+                                        rside,    Cdn_ocn)
 
       integer (kind=int_kind), intent(in) :: &
          nx_block, ny_block, & ! block dimensions
@@ -614,6 +632,7 @@
          frzmlt  , & ! freezing/melting potential (W/m^2)
          sst     , & ! sea surface temperature (C)
          Tf      , & ! freezing temperature (C)
+         Cdn_ocn , & ! ocean-ice neutral drag coefficient
          strocnxT, & ! ice-ocean stress, x-direction
          strocnyT    ! ice-ocean stress, y-direction
 
@@ -655,16 +674,8 @@
          xtmp          ! temporary variable
 
       ! Parameters for bottom melting
-!#if defined(AusCOM) || defined(ACCICE)
-#ifdef AusCOM
       real (kind=dbl_kind) :: &
-         cpchr 
-#else
-      ! 0.006 = unitless param for basal heat flx ala McPhee and Maykut
-
-      real (kind=dbl_kind), parameter :: &
-         cpchr = -cp_ocn*rhow*0.006_dbl_kind
-#endif
+         cpchr         ! -cp_ocn*rhow*exchange coefficient
 
       ! Parameters for lateral melting
 
@@ -723,7 +734,17 @@
          ustar = sqrt (sqrt(strocnxT(i,j)**2+strocnyT(i,j)**2)/rhow)
          ustar = max (ustar,ustar_min)
 
+         if (trim(fbot_xfer_type) == 'Cdn_ocn') then
+            ! Note: Cdn_ocn has already been used for calculating ustar 
+            ! (formdrag only) --- David Schroeder (CPOM)
+            cpchr = -cp_ocn*rhow*Cdn_ocn(i,j)
+         else ! fbot_xfer_type == 'constant'
+            ! 0.006 = unitless param for basal heat flx ala McPhee and Maykut
+            cpchr = -cp_ocn*rhow*0.006_dbl_kind
+         endif
+
          fbot(i,j) = cpchr * deltaT * ustar ! < 0
+
          fbot(i,j) = max (fbot(i,j), frzmlt(i,j)) ! frzmlt < fbot < 0
 
 !!! uncomment to use all frzmlt for standalone runs
@@ -1210,9 +1231,6 @@
       ! correct roundoff error
       !-----------------------------------------------------------------
 
-
-
-
          if (ktherm /= 2) then
 !DIR$ CONCURRENT !Cray
 !cdir nodep      !NEC
@@ -1242,14 +1260,12 @@
       ! initial energy per unit area of ice/snow, relative to 0 C
       !-----------------------------------------------------------------
 
-
 !DIR$ CONCURRENT !Cray
 !cdir nodep      !NEC
 !ocl novrec      !Fujitsu
          do ij = 1, icells
             einit(ij) = einit(ij) + hilyr(ij)*zqin(ij,k) 
          enddo                  ! ij
-
 
       enddo                     ! nilyr
 
@@ -2218,24 +2234,29 @@
       !-----------------------------------------------------------------
 
       do k2 = 1, nlyr
-
          do ij = 1, icells
             hq(ij,k2) = c0
          enddo
+      enddo                     ! k
 
-         do k1 = 1, nlyr
 !DIR$ CONCURRENT !Cray
 !cdir nodep      !NEC
 !ocl novrec      !Fujitsu
-            do ij = 1, icells
-               hovlp = min (z1(ij,k1+1), z2(ij,k2+1)) &
-                     - max (z1(ij,k1),   z2(ij,k2))
-               hovlp = max (hovlp, c0)
-
-               hq(ij,k2) = hq(ij,k2) + hovlp*qn(ij,k1)
-            enddo               ! ij
-         enddo                  ! kold
-      enddo                     ! k
+      do ij = 1, icells
+         k1 = 1
+         k2 = 1
+         do while (k1 <= nlyr .and. k2 <= nlyr)
+            hovlp = min (z1(ij,k1+1), z2(ij,k2+1)) &
+                  - max (z1(ij,k1),   z2(ij,k2))
+            hovlp = max (hovlp, c0)
+            hq(ij,k2) = hq(ij,k2) + hovlp*qn(ij,k1)
+            if (z1(ij,k1+1) > z2(ij,k2+1)) then
+               k2 = k2 + 1
+            else
+               k1 = k1 + 1
+            endif
+         enddo                  ! while
+      enddo                     ! ij
 
       !-----------------------------------------------------------------
       ! Compute new enthalpies.
@@ -2243,8 +2264,6 @@
 
       do k = 1, nlyr
          do ij = 1, icells
-            i = indxi(ij)
-            j = indxj(ij)
             qn(ij,k) = hq(ij,k) * rhlyr(ij)
          enddo                  ! ij
       enddo                     ! k

@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_fileunits.F90 726 2013-09-17 14:58:52Z eclare $
+!  SVN:$Id: ice_fileunits.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 !  This module contains an I/O unit manager for tracking, assigning
@@ -22,6 +22,9 @@
       module ice_fileunits
 
       use ice_kinds_mod
+#ifdef CCSMCOUPLED
+      use shr_file_mod, only : shr_file_getunit, shr_file_freeunit
+#endif
 
       implicit none
       private
@@ -31,6 +34,9 @@
 
       character (len=char_len), public :: &
          diag_type               ! 'stdout' or 'file'
+
+      logical (log_kind), public :: &
+         bfbflag                 ! logical for bit-for-bit computations
 
       integer (kind=int_kind), public :: &
          nu_grid       , &  ! grid file
@@ -61,12 +67,12 @@
          nu_diag            ! diagnostics output file
 
 #ifndef AusCOM
-      character (6), parameter, public :: &
+      character (32), parameter, public :: &
          nml_filename = 'ice_in' ! namelist input file name
 #else
 !ars599: 25032014 change to public
-      character (11), parameter, public :: &
-!      character (11), parameter :: &
+      character (32), parameter, public :: &
+!      character (32), parameter :: &
          nml_filename = 'cice_in.nml' ! namelist input file name
 #endif
 
@@ -81,6 +87,11 @@
 
       logical (kind=log_kind), dimension(ice_IOUnitsMaxUnit) :: &
          ice_IOUnitsInUse   ! flag=.true. if unit currently open
+
+      ! instance control
+      integer (kind=int_kind), public :: inst_index
+      character(len=16)      , public :: inst_name
+      character(len=16)      , public :: inst_suffix
 
 !=======================================================================
 
@@ -148,11 +159,12 @@
 
    ! local variables
 
+#ifndef CCSMCOUPLED
    integer (kind=int_kind) :: n  ! dummy loop index
-
    logical (kind=log_kind) :: alreadyInUse
+#endif
 
-#ifdef SEQ_MCT
+#ifdef CCSMCOUPLED
    iunit = shr_file_getUnit()
 #else
 
@@ -230,7 +242,7 @@
    integer (kind=int_kind), intent(in) :: &
       iunit                    ! I/O unit to be released
 
-#ifdef SEQ_MCT
+#ifdef CCSMCOUPLED
          call shr_file_freeUnit(iunit)
 #else
 !  check for proper unit number
@@ -257,7 +269,7 @@
 
       subroutine flush_fileunit(iunit)
 
-#ifdef CCSM
+#ifdef CCSMCOUPLED
       use shr_sys_mod, only : shr_sys_flush
 #endif
 
@@ -270,15 +282,15 @@
 !
 !-----------------------------------------------------------------------
 
+#ifdef CCSMCOUPLED
+   call shr_sys_flush(iunit)
+#else
 #if (defined IRIX64 || defined CRAY || defined OSF1 || defined SUNOS || defined LINUX || defined NEC_SX | defined UNICOSMP)
    call flush(iunit)
 #endif
 #if (defined AIX)
    call flush_(iunit)
 #endif
-
-#ifdef CCSM
-   call shr_sys_flush(iunit)
 #endif
 
       end subroutine flush_fileunit

@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_exit.F90 700 2013-08-15 19:17:39Z eclare $
+!  SVN:$Id: ice_exit.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 ! Exit the model. 
@@ -29,17 +29,23 @@
       use ice_communicate
 #if (defined CCSM) || (defined SEQ_MCT)
       use shr_sys_mod
-#endif
-
+#else
+      use ice_fileunits, only: nu_diag, ice_stderr, flush_fileunit
       include 'mpif.h'   ! MPI Fortran include file
+#endif
 
       character (len=*), intent(in) :: error_message
 
       ! local variables
 
+#ifndef CCSMCOUPLED
       integer (int_kind) :: ierr ! MPI error flag
+#endif
 
-#if (defined CCSM) || (defined SEQ_MCT)
+#if (defined CCSMCOUPLED)
+      call flush_fileunit(nu_diag)
+      write (nu_diag,*) error_message
+      call flush_fileunit(nu_diag)
       call shr_sys_abort(error_message)
 #else
       call flush_fileunit(nu_diag)

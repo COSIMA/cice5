@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_itd.F90 738 2013-09-25 03:32:35Z eclare $
+!  SVN:$Id: ice_itd.F90 936 2015-03-17 15:46:44Z eclare $
 !=======================================================================
 
 ! Routines to initialize the ice thickness distribution and
@@ -192,6 +192,7 @@
                     0.30_dbl_kind, 0.70_dbl_kind,  &
                     1.20_dbl_kind, 2.00_dbl_kind,  &
                     999._dbl_kind /
+
          hin_max(0) = c0
          do n = 1, ncat
             hin_max(n) = wmo6(n)
@@ -319,6 +320,7 @@
       enddo
       enddo
 
+      if (icells > 0) then
 
       allocate (atrcr(icells,ntrcr))
 
@@ -448,6 +450,8 @@
                             trcr(:,:,:))
 
       deallocate (atrcr)
+
+      endif ! icells > 0
 
       end subroutine aggregate
 
@@ -1637,7 +1641,6 @@
                            aicen, &
                            aice,     aice0)
 
-
       if (limit_aice) then  ! check for aice out of bounds
       
          do j = jlo,jhi
@@ -1819,9 +1822,8 @@
          dfhocn       ! zapped energy flux ( W/m^2)
 
      real (kind=dbl_kind), dimension (nx_block,ny_block,nbtrcr), &
-         intent(out) :: &
+         intent(inout), optional :: &
          flux_bio     ! Ocean tracer flux from biology (mmol/m^2/s)
-
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,max_aero), &
          intent(out) :: &
@@ -1851,7 +1853,7 @@
         indxi       , & ! compressed indices for i/j directions
         indxj
 
-      real (kind=dbl_kind) :: xtmp, zspace      ! temporary variable
+      real (kind=dbl_kind) :: xtmp     ! temporary variable
 
       !-----------------------------------------------------------------
       ! Initialize
@@ -1861,8 +1863,6 @@
       istop = 0
       jstop = 0
 
-      zspace = c1/(real(nblyr,kind=dbl_kind)) 
-      
       !-----------------------------------------------------------------
       ! I. Zap categories with very small areas.
       !-----------------------------------------------------------------
@@ -2348,13 +2348,13 @@
 
             l_zap = .false.
 
+            if (aicen(i,j,n) > puny) then
+
+            ! snow thickness
+            hsn = vsnon(i,j,n) / aicen(i,j,n)
+
             ! check each snow layer - zap all if one is bad
             do k = 1, nslyr
-
-               if (aicen(i,j,n) > puny) then
-
-               ! snow thickness
-               hsn = vsnon(i,j,n) / aicen(i,j,n)
 
                ! snow enthalpy and max temperature
                if (hsn > hs_min .and. heat_capacity) then
@@ -2381,9 +2381,9 @@
                   write(nu_diag,*) "zqsn:", zqsn
                endif
 
-               endif ! aicen > puny
-
             enddo ! k
+
+            endif ! aicen > puny
 
             ! add cell to zap list
             if (l_zap) then

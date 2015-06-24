@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_communicate.F90 700 2013-08-15 19:17:39Z eclare $
+!  SVN:$Id: ice_communicate.F90 918 2015-02-10 20:37:08Z eclare $
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
  module ice_communicate
@@ -10,10 +10,6 @@
 ! Oct. 2004: Adapted from POP version by William H. Lipscomb, LANL
 
    use ice_kinds_mod
-#if (defined CCSM) || (defined SEQ_MCT)
-   use cpl_interface_mod, only : cpl_interface_init
-   use cpl_fields_mod, only : cpl_fields_icename
-#endif
 
 #if defined key_oasis3 || key_oasis3mct
    use cpl_oasis3
@@ -21,6 +17,10 @@
 
 #if defined key_oasis4
    use cpl_oasis4
+#endif
+
+#if defined key_iomput
+   use lib_mpp, only:   mpi_comm_opa      ! MPP library
 #endif
 
    implicit none
@@ -49,7 +49,7 @@
 
 !***********************************************************************
 
- subroutine init_communicate
+ subroutine init_communicate(mpicom)
 
 !  This routine sets up MPI environment and defines ice
 !  communicator.
@@ -62,8 +62,10 @@
 
    include 'mpif.h'   ! MPI Fortran include file
 
-   integer (int_kind) :: ierr  ! MPI error flag
+   integer (kind=int_kind), optional, intent(in) :: mpicom ! specified communicator
 
+   integer (int_kind) :: ierr  ! MPI error flag
+   logical            :: flag  ! MPI logical flag
    integer (int_kind) :: ice_comm
 
 !-----------------------------------------------------------------------

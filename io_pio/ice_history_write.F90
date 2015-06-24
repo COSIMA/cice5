@@ -1,8 +1,4 @@
 !  SVN:$Id: ice_history_write.F90 567 2013-01-07 02:57:36Z eclare $
-
-! NOTE 4D variables are not available with PIO.
-! Search for '1==0' to find related code
-
 !=======================================================================
 !
 ! Writes history in netCDF format
@@ -50,12 +46,12 @@
           histfreq, dayyr, days_per_year, use_leap_years
       use ice_communicate, only: my_task, master_task
       use ice_constants, only: c0, c360, secday, spval, spval_dbl, rad_to_deg
-      use ice_domain, only: distrb_info
+      use ice_domain, only: distrb_info, nblocks
       use ice_domain_size, only: nx_global, ny_global, max_blocks, max_nstrm
       use ice_exit, only: abort_ice
       use ice_fileunits, only: nu_diag
       use ice_gather_scatter, only: gather_global
-      use ice_grid, only: TLON, TLAT, ULON, ULAT, hm, tarea, uarea, &
+      use ice_grid, only: TLON, TLAT, ULON, ULAT, hm, bm, tarea, uarea, &
           dxu, dxt, dyu, dyt, HTN, HTE, ANGLE, ANGLET, tmask, &
           lont_bounds, latt_bounds, lonu_bounds, latu_bounds
       use ice_history_shared
@@ -124,20 +120,10 @@
       TYPE(coord_attributes), dimension(nvarz) :: var_nz
       CHARACTER (char_len), dimension(ncoord) :: coord_bounds
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: &
-           workr
-      real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks,ncat_hist) :: &
-           workr3c
-      real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks,nzlyr) :: &
-           workr3i
-      real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks,nzlyrb) :: &
-           workr3b
-#if 1==0
-      real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks,nzlyr,ncat_hist) :: &
-           workr4i
-#endif
-      real (kind=dbl_kind), dimension(nverts,nx_block,ny_block,max_blocks) :: &
-           workrv
+      real (kind=dbl_kind), allocatable :: workr2(:,:,:)
+      real (kind=dbl_kind), allocatable :: workr3(:,:,:,:)
+      real (kind=dbl_kind), allocatable :: workr4(:,:,:,:,:)
+      real (kind=dbl_kind), allocatable :: workr3v(:,:,:,:)
 
       character(len=char_len_long) :: &
            filename
@@ -147,6 +133,7 @@
 
       integer (kind=int_kind), dimension(2) ::  &
          bnd_start,bnd_length          ! dimension quantities for netCDF
+
 
       if (my_task == master_task) then
         call construct_filename(ncfile(ns),'nc',ns)
@@ -172,9 +159,7 @@
       call ice_pio_initdecomp(ndim3=nzlyr,     iodesc=iodesc3di)
       call ice_pio_initdecomp(ndim3=nzlyrb,    iodesc=iodesc3db)
       call ice_pio_initdecomp(ndim3=nverts, inner_dim=.true., iodesc=iodesc3dv)
-#if 1==0
       call ice_pio_initdecomp(ndim3=nzlyr,  ndim4=ncat_hist,  iodesc=iodesc4di)
-#endif
 
 !      ltime = time/int(secday)
       ltime = real(time/int(secday),kind=real_kind)
@@ -257,13 +242,27 @@
                        'U grid center latitude',  'degrees_north')
       coord_bounds(ind) = 'latu_bounds'
 
+      var_nz(1) = coord_attributes('NCAT', 'category maximum thickness', 'm')
+      var_nz(2) = coord_attributes('VGRDi', 'vertical ice levels', '1')
+      var_nz(3) = coord_attributes('VGRDs', 'vertical snow levels', '1')
+      var_nz(4) = coord_attributes('VGRDb', 'vertical ice-bio levels', '1')
+
       !-----------------------------------------------------------------
       ! define information for optional time-invariant variables
       !-----------------------------------------------------------------
 
+      var(n_tmask)%req = coord_attributes('tmask', &
+                  'ocean grid mask', ' ')
+      var(n_tmask)%coordinates = 'TLON TLAT'
+
+      var(n_blkmask)%req = coord_attributes('blkmask', &
+                  'ice grid block mask', ' ')
+      var(n_blkmask)%coordinates = 'TLON TLAT'
+
       var(n_tarea)%req = coord_attributes('tarea', &
                   'area of T grid cells', 'm^2')
       var(n_tarea)%coordinates = 'TLON TLAT'
+
       var(n_uarea)%req = coord_attributes('uarea', &
                   'area of U grid cells', 'm^2')
       var(n_uarea)%coordinates = 'ULON ULAT'
@@ -328,23 +327,40 @@
           endif          
         enddo
 
-        if (igrdz(n_NCAT)) then
-           status = pio_def_var(File, 'NCAT', &
-                                pio_real, (/cmtid/), varid)
-           status = pio_put_att(File,varid,'long_name',&
-                               'category maximum thickness')
-           status = pio_put_att(File, varid, 'units', 'm')
-        endif
+        ! Extra dimensions (NCAT, NZILYR, NZSLYR, NZBLYR)
+          dimidex(1)=cmtid
+          dimidex(2)=kmtidi
+          dimidex(3)=kmtids
+          dimidex(4)=kmtidb
+
+	do i = 1, nvarz
+           if (igrdz(i)) then
+              status = pio_def_var(File, trim(var_nz(i)%short_name), pio_real, &
+                                   (/dimidex(i)/), varid)
+              status = pio_put_att(File, varid, 'long_name', var_nz(i)%long_name)
+              status = pio_put_att(File, varid, 'units'    , var_nz(i)%units)
+           endif
+        enddo
 
         ! Attributes for tmask defined separately, since it has no units
         if (igrd(n_tmask)) then
            status = pio_def_var(File, 'tmask', pio_real, dimid2, varid)
            status = pio_put_att(File,varid, 'long_name', 'ocean grid mask') 
            status = pio_put_att(File, varid, 'coordinates', 'TLON TLAT')
+           status = pio_put_att(File, varid, 'missing_value', spval)
+           status = pio_put_att(File, varid,'_FillValue',spval)
            status = pio_put_att(File,varid,'comment', '0 = land, 1 = ocean')
         endif
+        if (igrd(n_blkmask)) then
+           status = pio_def_var(File, 'blkmask', pio_real, dimid2, varid)
+           status = pio_put_att(File,varid, 'long_name', 'ice grid block mask') 
+           status = pio_put_att(File, varid, 'coordinates', 'TLON TLAT')
+           status = pio_put_att(File,varid,'comment', 'mytask + iblk/100')
+           status = pio_put_att(File, varid, 'missing_value', spval)
+           status = pio_put_att(File, varid,'_FillValue',spval)
+        endif
 
-        do i = 2, nvar       ! note: n_tmask=1
+        do i = 3, nvar       ! note: n_tmask=1, n_blkmask=2
           if (igrd(i)) then
              status = pio_def_var(File, trim(var(i)%req%short_name), &
                                    pio_real, dimid2, varid)
@@ -368,6 +384,8 @@
              pio_put_att(File,varid, 'long_name', trim(var_nverts(i)%long_name))
              status = &
              pio_put_att(File, varid, 'units', trim(var_nverts(i)%units))
+             status = pio_put_att(File, varid, 'missing_value', spval)
+             status = pio_put_att(File, varid,'_FillValue',spval)
           endif
         enddo
  
@@ -539,10 +557,6 @@
       ! 4D (ice categories and layers)
       !-----------------------------------------------------------------
 
-!!! 4D is not available with PIO
-#if 1==0
-!!! this part works properly
-
         dimidcz(1) = imtid
         dimidcz(2) = jmtid
         dimidcz(3) = kmtidi
@@ -653,9 +667,6 @@
           endif
         enddo  ! num_avail_hist_fields_4Db
 
-!end of 4D definitions, not available in PIO
-#endif
-
       !-----------------------------------------------------------------
       ! global attributes
       !-----------------------------------------------------------------
@@ -670,7 +681,7 @@
         title = 'Diagnostic and Prognostic Variables'
         status = pio_put_att(File,pio_global,'contents',trim(title))
 
-        title  = 'Los Alamos Sea Ice Model (CICE)'
+        title  = 'Los Alamos Sea Ice Model (CICE) Version 5'
         status = pio_put_att(File,pio_global,'source',trim(title))
 
         if (use_leap_years) then
@@ -696,8 +707,9 @@
                                current_time(3:4)
 1000    format('This dataset was created on ', &
                 a,'-',a,'-',a,' at ',a,':',a)
-
         status = pio_put_att(File,pio_global,'history',trim(start_time))
+
+        status = pio_put_att(File,pio_global,'io_flavor','io_pio')
 
       !-----------------------------------------------------------------
       ! end define mode
@@ -710,8 +722,7 @@
       !-----------------------------------------------------------------
 
         status = pio_inq_varid(File,'time',varid)
-        call pio_setframe(varid, int(1,kind=PIO_OFFSET))
-        status = pio_put_var(File,varid,ltime)
+        status = pio_put_var(File,varid,(/1/),ltime)
 
       !-----------------------------------------------------------------
       ! write time_bounds info
@@ -719,7 +730,6 @@
 
         if (hist_avg .and. histfreq(ns) /= '1') then
           status = pio_inq_varid(File,'time_bounds',varid)
-          call pio_setframe(varid, int(1,kind=PIO_OFFSET))
           time_bounds=(/time_beg(ns),time_end(ns)/)
           bnd_start  = (/1,1/)
           bnd_length = (/2,1/)
@@ -731,73 +741,90 @@
       ! write coordinate variables
       !-----------------------------------------------------------------
 
-        do i = 1,ncoord
+        allocate(workr2(nx_block,ny_block,nblocks))
 
+        do i = 1,ncoord
+          status = pio_inq_varid(File, coord_var(i)%short_name, varid)
           SELECT CASE (coord_var(i)%short_name)
             CASE ('TLON')
               ! Convert T grid longitude from -180 -> 180 to 0 to 360
-                 workr = tlon*rad_to_deg + c360
-                 where (workr > c360) workr = workr - c360
-                 where (workr < c0 )  workr = workr + c360
+                 workr2(:,:,:) = mod(tlon(:,:,1:nblocks)*rad_to_deg + c360, c360)
             CASE ('TLAT')
-              workr = tlat*rad_to_deg
+              workr2(:,:,:) = tlat(:,:,1:nblocks)*rad_to_deg
             CASE ('ULON')
-              workr = ulon*rad_to_deg
+              workr2(:,:,:) = ulon(:,:,1:nblocks)*rad_to_deg
             CASE ('ULAT')
-              workr = ulat*rad_to_deg
+              workr2(:,:,:) = ulat(:,:,1:nblocks)*rad_to_deg
           END SELECT
-          
-             status = pio_inq_varid(File, coord_var(i)%short_name, varid)
-         call pio_write_darray(File, varid, iodesc2d, &
-                               workr, status, fillval=spval_dbl)
+          call pio_write_darray(File, varid, iodesc2d, &
+               workr2, status, fillval=spval_dbl)
         enddo
 
-        if (igrdz(n_NCAT)) then
-           status = pio_inq_varid(File, 'NCAT', varid)
-           status = pio_put_var(File,varid,hin_max(1:ncat_hist)) 
-        endif
+        ! Extra dimensions (NCAT, VGRD*)
+
+	do i = 1, nvarz
+          if (igrdz(i)) then
+            status = pio_inq_varid(File, var_nz(i)%short_name, varid)
+            SELECT CASE (var_nz(i)%short_name)
+              CASE ('NCAT')
+                status = pio_put_var(File, varid, hin_max(1:ncat_hist)) 
+              CASE ('VGRDi')
+                status = pio_put_var(File, varid, (/(k, k=1,nzilyr)/))
+              CASE ('VGRDs')
+                status = pio_put_var(File, varid, (/(k, k=1,nzslyr)/))
+              CASE ('VGRDb')
+                status = pio_put_var(File, varid, (/(k, k=1,nzblyr)/))
+             END SELECT
+           endif
+        enddo
 
       !-----------------------------------------------------------------
-      ! write grid mask, area and rotation angle
+      ! write grid masks, area and rotation angle
       !-----------------------------------------------------------------
 
-      if (igrd(n_tmask)) then
-        workr = tmask
-        status = pio_inq_varid(File, 'tmask', varid)
-        call pio_write_darray(File, varid, iodesc2d, &
-                              workr, status, fillval=spval_dbl)
-      endif
-
-      do i = 2, nvar       ! note: n_tmask=1
-        if (igrd(i)) then
-        SELECT CASE (var(i)%req%short_name)
-          CASE ('tarea')
-            workr = tarea
-          CASE ('uarea')
-            workr = uarea
-          CASE ('dxu')
-            workr = dxu
-          CASE ('dyu')
-            workr = dyu
-          CASE ('dxt')
-            workr = dxt
-          CASE ('dyt')
-            workr = dyt
-          CASE ('HTN')
-            workr = HTN
-          CASE ('HTE')
-            workr = HTE
-          CASE ('ANGLE')
-            workr = ANGLE
-          CASE ('ANGLET')
-            workr = ANGLET
-        END SELECT
-
-        status = pio_inq_varid(File, var(i)%req%short_name, varid)
-        call pio_write_darray(File, varid, iodesc2d, &
-                              workr, status, fillval=spval_dbl)
-
-        endif
+!      if (igrd(n_tmask)) then
+!        status = pio_inq_varid(File, 'tmask', varid)
+!        call pio_write_darray(File, varid, iodesc2d, &
+!                              hm(:,:,1:nblocks), status, fillval=spval_dbl)
+!      endif
+!      if (igrd(n_blkmask)) then
+!        status = pio_inq_varid(File, 'blkmask', varid)
+!        call pio_write_darray(File, varid, iodesc2d, &
+!                              bm(:,:,1:nblocks), status, fillval=spval_dbl)
+!      endif
+        
+      do i = 1, nvar       ! note: n_tmask=1, n_blkmask=2
+         if (igrd(i)) then
+            SELECT CASE (var(i)%req%short_name)
+            CASE ('tmask')
+               workr2 = hm(:,:,1:nblocks)
+            CASE ('blkmask')
+               workr2 = bm(:,:,1:nblocks)
+            CASE ('tarea')
+               workr2 = tarea(:,:,1:nblocks)
+            CASE ('uarea')
+               workr2 = uarea(:,:,1:nblocks)
+            CASE ('dxu')
+               workr2 = dxu(:,:,1:nblocks)
+            CASE ('dyu')
+               workr2 = dyu(:,:,1:nblocks)
+            CASE ('dxt')
+               workr2 = dxt(:,:,1:nblocks)
+            CASE ('dyt')
+               workr2 = dyt(:,:,1:nblocks)
+            CASE ('HTN')
+               workr2 = HTN(:,:,1:nblocks)
+            CASE ('HTE')
+               workr2 = HTE(:,:,1:nblocks)
+            CASE ('ANGLE')
+               workr2 = ANGLE(:,:,1:nblocks)
+            CASE ('ANGLET')
+               workr2 = ANGLET(:,:,1:nblocks)
+            END SELECT
+            status = pio_inq_varid(File, var(i)%req%short_name, varid)
+            call pio_write_darray(File, varid, iodesc2d, &
+                 workr2, status, fillval=spval_dbl)
+         endif
       enddo
 
       !----------------------------------------------------------------
@@ -805,32 +832,34 @@
       !----------------------------------------------------------------
 
       if (f_bounds) then
-      workrv (:,:,:,:) = c0
+      allocate(workr3v(nverts,nx_block,ny_block,nblocks))
+      workr3v (:,:,:,:) = c0
       do i = 1, nvar_verts
         SELECT CASE (var_nverts(i)%short_name)
         CASE ('lont_bounds')
            do ivertex = 1, nverts 
-              workrv(ivertex,:,:,:) = lont_bounds(ivertex,:,:,:)
+              workr3v(ivertex,:,:,:) = lont_bounds(ivertex,:,:,1:nblocks)
            enddo
         CASE ('latt_bounds')
            do ivertex = 1, nverts 
-              workrv(ivertex,:,:,:) = latt_bounds(ivertex,:,:,:)
+              workr3v(ivertex,:,:,:) = latt_bounds(ivertex,:,:,1:nblocks)
            enddo
         CASE ('lonu_bounds')
            do ivertex = 1, nverts 
-              workrv(ivertex,:,:,:) = lonu_bounds(ivertex,:,:,:)
+              workr3v(ivertex,:,:,:) = lonu_bounds(ivertex,:,:,1:nblocks)
            enddo
         CASE ('latu_bounds')
            do ivertex = 1, nverts 
-              workrv(ivertex,:,:,:) = latu_bounds(ivertex,:,:,:)
+              workr3v(ivertex,:,:,:) = latu_bounds(ivertex,:,:,1:nblocks)
            enddo
         END SELECT
 
           status = pio_inq_varid(File, var_nverts(i)%short_name, varid)
           call pio_write_darray(File, varid, iodesc3dv, &
-                                workrv, status, fillval=spval_dbl)
+                                workr3v, status, fillval=spval_dbl)
       enddo
-      endif
+      deallocate(workr3v)
+      endif  ! f_bounds
 
 
       !-----------------------------------------------------------------
@@ -843,63 +872,76 @@
             status  = pio_inq_varid(File,avail_hist_fields(n)%vname,varid)
             if (status /= pio_noerr) call abort_ice( &
                'ice: Error getting varid for '//avail_hist_fields(n)%vname)
-            workr(:,:,:) = a2D(:,:,n,:)
-            call pio_setframe(varid, int(1,kind=PIO_OFFSET))
+            workr2(:,:,:) = a2D(:,:,n,1:nblocks)
+            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET_KIND))
             call pio_write_darray(File, varid, iodesc2d,&
-                                  workr, status, fillval=spval_dbl)
+                                  workr2, status, fillval=spval_dbl)
          endif
       enddo ! num_avail_hist_fields_2D
 
+      deallocate(workr2)
+
       ! 3D (category)
+      allocate(workr3(nx_block,ny_block,nblocks,ncat_hist))
       do n = n2D + 1, n3Dccum
          nn = n - n2D
          if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_inq_varid(File,avail_hist_fields(n)%vname,varid)
             if (status /= pio_noerr) call abort_ice( &
                'ice: Error getting varid for '//avail_hist_fields(n)%vname)
+            do j = 1, nblocks
             do i = 1, ncat_hist
-               workr3c(:,:,:,i) = a3Dc(:,:,i,nn,:)
+               workr3(:,:,j,i) = a3Dc(:,:,i,nn,j)
             enddo
-            call pio_setframe(varid, int(1,kind=PIO_OFFSET))
+            enddo
+            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET_KIND))
             call pio_write_darray(File, varid, iodesc3dc,&
-                                  workr3c, status, fillval=spval_dbl)
+                                  workr3, status, fillval=spval_dbl)
          endif
       enddo ! num_avail_hist_fields_3Dc
+      deallocate(workr3)
 
       ! 3D (vertical ice)
+      allocate(workr3(nx_block,ny_block,nblocks,nzlyr))
       do n = n3Dccum+1, n3Dzcum
          nn = n - n3Dccum
          if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_inq_varid(File,avail_hist_fields(n)%vname,varid)
             if (status /= pio_noerr) call abort_ice( &
                'ice: Error getting varid for '//avail_hist_fields(n)%vname)
+            do j = 1, nblocks
             do i = 1, nzlyr
-               workr3i(:,:,:,i) = a3Dz(:,:,i,nn,:)
+               workr3(:,:,j,i) = a3Dz(:,:,i,nn,j)
             enddo
-            call pio_setframe(varid, int(1,kind=PIO_OFFSET))
+            enddo
+            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET_KIND))
             call pio_write_darray(File, varid, iodesc3di,&
-                                  workr3i, status, fillval=spval_dbl)
+                                  workr3, status, fillval=spval_dbl)
          endif
       enddo ! num_avail_hist_fields_3Dz
+      deallocate(workr3)
 
       ! 3D (vertical ice biology)
+      allocate(workr3(nx_block,ny_block,nblocks,nzlyrb))
       do n = n3Dzcum+1, n3Dbcum
          nn = n - n3Dzcum
          if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_inq_varid(File,avail_hist_fields(n)%vname,varid)
             if (status /= pio_noerr) call abort_ice( &
                'ice: Error getting varid for '//avail_hist_fields(n)%vname)
+            do j = 1, nblocks
             do i = 1, nzlyrb
-               workr3b(:,:,:,i) = a3Db(:,:,i,nn,:)
+               workr3(:,:,j,i) = a3Db(:,:,i,nn,j)
             enddo
-            call pio_setframe(varid, int(1,kind=PIO_OFFSET))
+            enddo
+            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET_KIND))
             call pio_write_darray(File, varid, iodesc3db,&
-                                  workr3b, status, fillval=spval_dbl)
+                                  workr3, status, fillval=spval_dbl)
          endif
       enddo ! num_avail_hist_fields_3Db
+      deallocate(workr3)
 
-#if 1==0
-!!! 4D variables are not available with PIO
+      allocate(workr4(nx_block,ny_block,nblocks,ncat_hist,nzlyr))
       ! 4D (categories, vertical ice)
       do n = n3Dbcum+1, n4Dicum
          nn = n - n3Dbcum
@@ -907,31 +949,23 @@
             status  = pio_inq_varid(File,avail_hist_fields(n)%vname,varid)
             if (status /= pio_noerr) call abort_ice( &
                'ice: Error getting varid for '//avail_hist_fields(n)%vname)
+            do j = 1, nblocks
             do i = 1, ncat_hist
             do k = 1, nzilyr
-               workr4i(:,:,:,k,i) = a4Di(:,:,k,i,nn,:)
+               workr4(:,:,j,i,k) = a4Di(:,:,k,i,nn,j)
             enddo ! k
             enddo ! i
-            call pio_setframe(varid, int(1,kind=PIO_OFFSET))
+            enddo ! j
+            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET_KIND))
             call pio_write_darray(File, varid, iodesc4di,&
-                                  workr4i, status, fillval=spval_dbl)
+                                  workr4, status, fillval=spval_dbl)
          endif
       enddo ! num_avail_hist_fields_4Di
+      deallocate(workr4)
 
-      similarly for num_avail_hist_fields_4Ds (define workr4s, iodesc4ds)
-      similarly for num_avail_hist_fields_4Db (define workr4b, iodesc4db)
-!end of 4D definitions, not available in PIO
-#endif
+!     similarly for num_avail_hist_fields_4Ds (define workr4s, iodesc4ds)
+!     similarly for num_avail_hist_fields_4Db (define workr4b, iodesc4db)
 
-      !-----------------------------------------------------------------
-      ! close output dataset
-      !-----------------------------------------------------------------
-
-      call pio_closefile(File)
-      if (my_task == master_task) then
-         write(nu_diag,*) ' '
-         write(nu_diag,*) 'Finished writing ',trim(ncfile(ns))
-      endif
 
       !-----------------------------------------------------------------
       ! clean-up PIO descriptors
@@ -942,9 +976,17 @@
       call pio_freedecomp(File,iodesc3dc)
       call pio_freedecomp(File,iodesc3di)
       call pio_freedecomp(File,iodesc3db)
-#if 1==0
       call pio_freedecomp(File,iodesc4di)
-#endif
+
+      !-----------------------------------------------------------------
+      ! close output dataset
+      !-----------------------------------------------------------------
+
+      call pio_closefile(File)
+      if (my_task == master_task) then
+         write(nu_diag,*) ' '
+         write(nu_diag,*) 'Finished writing ',trim(ncfile(ns))
+      endif
 
 #endif
 

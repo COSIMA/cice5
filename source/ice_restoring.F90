@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_restoring.F90 744 2013-09-27 22:53:24Z eclare $
+!  SVN:$Id: ice_restoring.F90 825 2014-08-29 15:37:09Z eclare $
 !=======================================================================
 !
 ! Reads and interpolates forcing data for atmosphere and ocean quantities.
@@ -97,8 +97,10 @@
    if (trim(restore_ic) == 'defined') then
 
       ! restore to defined ice state
+      !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block, &
+      !$OMP                     iglob,jglob,iblock,jblock)
       do iblk = 1, nblocks
-      this_block = get_block(blocks_ice(iblk),iblk)         
+         this_block = get_block(blocks_ice(iblk),iblk)         
          ilo = this_block%ilo
          ihi = this_block%ihi
          jlo = this_block%jlo
@@ -121,6 +123,7 @@
                                vicen_rest(:,:,  :,iblk), &
                                vsnon_rest(:,:,  :,iblk))
       enddo ! iblk
+      !$OMP END PARALLEL DO
 
    else  ! restore_ic
 

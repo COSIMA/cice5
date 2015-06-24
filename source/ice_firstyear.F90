@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_firstyear.F90 746 2013-09-28 22:47:56Z eclare $
+!  SVN:$Id: ice_firstyear.F90 900 2015-01-22 21:35:57Z eclare $
 !=======================================================================
 !
 ! First year concentration tracer for sea ice
@@ -157,12 +157,12 @@
       if (my_task == master_task) write(nu_diag,*) 'min/max first-year ice area'
 
       call read_restart_field(nu_restart_FY,0,trcrn(:,:,nt_FY,:,:),'ruf8', &
-                              'FY',ncat,diag)
+                      'FY',ncat,diag,field_loc_center,field_type_scalar)
 
       if (my_task == master_task) write(nu_diag,*) 'min/max frz_onset'
 
       call read_restart_field(nu_restart_FY,0,frz_onset,'ruf8', &
-                              'frz_onset',1,diag)
+                  'frz_onset',1,diag,field_loc_center,field_type_scalar)
 
       end subroutine read_restart_FY
 

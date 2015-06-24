@@ -56,7 +56,7 @@
       use ice_domain_size, only: nilyr, nslyr, ncat, max_blocks
       use ice_fileunits, only: nu_diag, nu_rst_pointer, nu_dump
       use ice_flux, only: scale_factor, swvdr, swvdf, swidr, swidf, &
-          strocnxT, strocnyT, sst, frzmlt, iceumask, &
+          strocnxT, strocnyT, sst, frzmlt, iceumask, coszen, &
           stressp_1, stressp_2, stressp_3, stressp_4, &
           stressm_1, stressm_2, stressm_3, stressm_4, &
           stress12_1, stress12_2, stress12_3, stress12_4
@@ -88,7 +88,7 @@
          call init_restart_write
       endif
 
-      diag = .false.
+      diag = .true.
 
       !-----------------------------------------------------------------
       ! state variables
@@ -128,6 +128,9 @@
       !-----------------------------------------------------------------
       ! radiation fields
       !-----------------------------------------------------------------
+#ifdef CCSMCOUPLED
+      call write_restart_field(nu_dump,0,coszen,'ruf8','coszen',1,diag)
+#endif
       call write_restart_field(nu_dump,0,scale_factor,'ruf8','scale_factor',1,diag)
 
       call write_restart_field(nu_dump,0,swvdr,'ruf8','swvdr',1,diag)
@@ -203,7 +206,7 @@
           max_ntrcr, max_blocks
       use ice_fileunits, only: nu_diag, nu_rst_pointer, nu_restart
       use ice_flux, only: scale_factor, swvdr, swvdf, swidr, swidf, &
-          strocnxT, strocnyT, sst, frzmlt, iceumask, &
+          strocnxT, strocnyT, sst, frzmlt, iceumask, coszen, &
           stressp_1, stressp_2, stressp_3, stressp_4, &
           stressm_1, stressm_2, stressm_3, stressm_4, &
           stress12_1, stress12_2, stress12_3, stress12_4
@@ -304,6 +307,10 @@
       if (my_task == master_task) &
          write(nu_diag,*) 'radiation fields'
 
+#ifdef CCSMCOUPLED
+      call read_restart_field(nu_restart,0,coszen,'ruf8', &
+           'coszen',1,diag, field_loc_center, field_type_scalar)
+#endif
       call read_restart_field(nu_restart,0,scale_factor,'ruf8', &
            'scale_factor',1,diag, field_loc_center, field_type_scalar)
       call read_restart_field(nu_restart,0,swvdr,'ruf8', &
@@ -362,35 +369,33 @@
       call read_restart_field(nu_restart,0,stress12_4,'ruf8', &
            'stress12_4',1,diag,field_loc_center,field_type_scalar) ! stress12_4
 
-      if (trim(grid_type) == 'tripole' .and. trim(restart_format) == 'pio') then
+      if (trim(grid_type) == 'tripole') then
+         call ice_HaloUpdate_stress(stressp_1, stressp_3, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_3, stressp_1, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_2, stressp_4, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_4, stressp_2, halo_info, &
+                                    field_loc_center,  field_type_scalar)
 
-      call ice_HaloUpdate_stress(stressp_1, stressp_3, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stressp_3, stressp_1, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stressp_2, stressp_4, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stressp_4, stressp_2, halo_info, &
-                                 field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_1, stressm_3, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_3, stressm_1, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_2, stressm_4, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_4, stressm_2, halo_info, &
+                                    field_loc_center,  field_type_scalar)
 
-      call ice_HaloUpdate_stress(stressm_1, stressm_3, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stressm_3, stressm_1, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stressm_2, stressm_4, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stressm_4, stressm_2, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-
-      call ice_HaloUpdate_stress(stress12_1, stress12_3, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stress12_3, stress12_1, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stress12_2, stress12_4, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-      call ice_HaloUpdate_stress(stress12_4, stress12_2, halo_info, &
-                                 field_loc_center,  field_type_scalar)
-
+         call ice_HaloUpdate_stress(stress12_1, stress12_3, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_3, stress12_1, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_2, stress12_4, halo_info, &
+                                    field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_4, stress12_2, halo_info, &
+                                    field_loc_center,  field_type_scalar)
       endif
 
       !-----------------------------------------------------------------
@@ -570,7 +575,10 @@
          filename = trim(filename0)
 #ifdef AusCOM
          write(nu_diag,*) 'XXX: restart_dir = ', restart_dir
-         filename = trim(restart_dir)//trim(filename)
+         write(nu_diag,*) 'XXX: org restart file => ', filename
+!ars599: 28042015 restart issue
+!         filename = trim(restart_dir)//trim(filename)
+         filename = trim(filename)
          write(nu_diag,*) 'XXX: restart file => ', filename
 #endif
          close(nu_rst_pointer)
@@ -597,6 +605,7 @@
          istep1 = istep0
          call broadcast_scalar(time,master_task)
          call broadcast_scalar(time_forc,master_task)
+         call calendar(time)
 
       else
 

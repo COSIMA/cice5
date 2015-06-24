@@ -1,4 +1,4 @@
-!  SVN:$Id: CICE_InitMod.F90 746 2013-09-28 22:47:56Z eclare $
+!  SVN:$Id: CICE_InitMod.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 !  This module contains the CICE initialization routine that sets model
@@ -129,10 +129,10 @@
       if (trim(runtype) == 'continue' .or. restart) &
          call init_shortwave    ! initialize radiative transfer
 
-         istep  = istep  + 1    ! update time step counters
-         istep1 = istep1 + 1
-         time = time + dt       ! determine the time and date
-         call calendar(time)    ! at the end of the first timestep
+      istep  = istep  + 1    ! update time step counters
+      istep1 = istep1 + 1
+      time = time + dt       ! determine the time and date
+      call calendar(time)    ! at the end of the first timestep
 
    !--------------------------------------------------------------------
    ! coupler communication or forcing data initialization
@@ -168,12 +168,14 @@
       use ice_brine, only: init_hbrine
       use ice_calendar, only: time, calendar
       use ice_domain, only: nblocks
-      use ice_domain_size, only: ncat
+      use ice_domain_size, only: ncat, max_ntrcr
       use ice_dyn_eap, only: read_restart_eap
       use ice_dyn_shared, only: kdyn
       use ice_firstyear, only: init_fy, restart_FY, read_restart_FY
       use ice_flux, only: sss
+      use ice_grid, only: tmask
       use ice_init, only: ice_ic
+      use ice_itd, only: aggregate
       use ice_lvl, only: init_lvl, restart_lvl, read_restart_lvl
       use ice_meltpond_cesm, only: init_meltponds_cesm, &
           restart_pond_cesm, read_restart_pond_cesm
@@ -183,9 +185,7 @@
           restart_pond_topo, read_restart_pond_topo
       use ice_restart_shared, only: runtype, restart
       use ice_restart_driver, only: restartfile, restartfile_v4
-      use ice_state, only: tr_iage, tr_FY, tr_lvl, tr_pond_cesm, &
-          tr_pond_lvl, tr_pond_topo, tr_aero, trcrn, &
-          nt_iage, nt_FY, nt_alvl, nt_vlvl, nt_apnd, nt_hpnd, nt_ipnd, tr_brine
+      use ice_state ! almost everything
       use ice_zbgc, only: init_bgc
       use ice_zbgc_shared, only: skl_bgc
 
@@ -284,6 +284,30 @@
       if (tr_aero)  call init_aerosol ! ice aerosol
       if (tr_brine) call init_hbrine  ! brine height tracer
       if (skl_bgc)  call init_bgc     ! biogeochemistry
+
+      !-----------------------------------------------------------------
+      ! aggregate tracers
+      !-----------------------------------------------------------------
+
+      !$OMP PARALLEL DO PRIVATE(iblk)
+      do iblk = 1, nblocks
+
+         call aggregate (nx_block, ny_block, &
+                         aicen(:,:,:,iblk),  &
+                         trcrn(:,:,:,:,iblk),&
+                         vicen(:,:,:,iblk),  &
+                         vsnon(:,:,:,iblk),  &
+                         aice (:,:,  iblk),  &
+                         trcr (:,:,:,iblk),  &
+                         vice (:,:,  iblk),  &
+                         vsno (:,:,  iblk),  &
+                         aice0(:,:,  iblk),  &
+                         tmask(:,:,  iblk),  &
+                         max_ntrcr,          &
+                         trcr_depend)
+
+      enddo
+      !$OMP END PARALLEL DO
 
       end subroutine init_restart
 

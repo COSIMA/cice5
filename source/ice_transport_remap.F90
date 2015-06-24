@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_transport_remap.F90 703 2013-08-20 21:14:30Z eclare $
+!  SVN:$Id: ice_transport_remap.F90 857 2014-10-14 23:23:18Z eclare $
 !=======================================================================
 !
 ! Transports quantities using the second-order conservative remapping
@@ -455,17 +455,18 @@
       type (block) ::     &
          this_block       ! block information for current block
 
-      l_stop = .false.
-      istop = 0
-      jstop = 0
-
 !---!-------------------------------------------------------------------
 !---! Remap the ice area and associated tracers.
 !---! Remap the open water area (without tracers).
 !---!-------------------------------------------------------------------
 
-      !$OMP PARALLEL DO PRIVATE(iblk,i,j,ilo,ihi,jlo,jhi,this_block,n)
+      !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block,n,m, &
+      !$OMP          indxinc,indxjnc,mmask,tmask,istop,jstop,l_stop)
       do iblk = 1, nblocks
+
+         l_stop = .false.
+         istop = 0
+         jstop = 0
 
          this_block = get_block(blocks_ice(iblk),iblk)         
          ilo = this_block%ilo
@@ -588,7 +589,7 @@
 
          ! tracer fields 
          if (maskhalo_remap) then
-            halomask = 0
+            halomask(:,:,:) = 0
             !$OMP PARALLEL DO PRIVATE(iblk,this_block,ilo,ihi,jlo,jhi,n,m,j,i)
             do iblk = 1, nblocks
                this_block = get_block(blocks_ice(iblk),iblk)         
@@ -633,10 +634,15 @@
 
       endif  ! nghost
 
-      !$OMP PARALLEL DO PRIVATE(iblk,i,j,ilo,ihi,jlo,jhi,this_block, &
-      !$OMP                     edgearea_e,edgearea_n,edge,n,iflux,jflux, &
-      !$OMP                     xp,yp,icellsng,indxing,indxjng,triarea)
+      !$OMP PARALLEL DO PRIVATE(iblk,i,j,ilo,ihi,jlo,jhi,this_block,n,m, &
+      !$OMP                     edgearea_e,edgearea_n,edge,iflux,jflux, &
+      !$OMP                     xp,yp,indxing,indxjng,mflxe,mflxn, &
+      !$OMP                     mtflxe,mtflxn,triarea,istop,jstop,l_stop)
       do iblk = 1, nblocks
+
+         l_stop = .false.
+         istop = 0
+         jstop = 0
 
          this_block = get_block(blocks_ice(iblk),iblk)         
          ilo = this_block%ilo
@@ -1736,7 +1742,13 @@
          i, j, ij, ic   ,&! horizontal indices
          ib, ie, jb, je ,&! limits for loops over edges
          ng, nv         ,&! triangle indices
-         ishift, jshift   ! differences between neighbor cells
+         ishift, jshift ,&! differences between neighbor cells
+         ishift_tl, jshift_tl ,&! i,j indices of TL cell relative to edge
+         ishift_bl, jshift_bl ,&! i,j indices of BL cell relative to edge
+         ishift_tr, jshift_tr ,&! i,j indices of TR cell relative to edge
+         ishift_br, jshift_br ,&! i,j indices of BR cell relative to edge
+         ishift_tc, jshift_tc ,&! i,j indices of TC cell relative to edge
+         ishift_bc, jshift_bc   ! i,j indices of BC cell relative to edge
 
       integer (kind=int_kind) ::   &
          icellsd          ! number of cells where departure area > 0.
@@ -1767,12 +1779,6 @@
          md             ,&! slope of line connecting DL and DR
          mdl            ,&! slope of line connecting DL and DM
          mdr            ,&! slope of line connecting DR and DM
-         ishift_tl, jshift_tl ,&! i,j indices of TL cell relative to edge
-         ishift_bl, jshift_bl ,&! i,j indices of BL cell relative to edge
-         ishift_tr, jshift_tr ,&! i,j indices of TR cell relative to edge
-         ishift_br, jshift_br ,&! i,j indices of BR cell relative to edge
-         ishift_tc, jshift_tc ,&! i,j indices of TC cell relative to edge
-         ishift_bc, jshift_bc ,&! i,j indices of BC cell relative to edge
          area1, area2         ,&! temporary triangle areas
          area3, area4         ,&! 
          area_c               ,&! center polygon area

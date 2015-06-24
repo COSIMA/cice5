@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_mechred.F90 705 2013-08-22 18:21:18Z eclare $
+!  SVN:$Id: ice_mechred.F90 933 2015-03-16 16:52:38Z eclare $
 !=======================================================================
 
 ! Driver for ice mechanical redistribution (ridging)
@@ -12,9 +12,9 @@
 ! Hibler, W. D. III, 1980: Modeling a variable thickness sea ice
 !  cover, Mon. Wea. Rev., 108, 1943-1973, 1980.
 !
-! Lipscomb, W. H., E. C. Hunke, W. Maslowski, and J. Jakacki, 2006: 
-!  Ridging, strength, and stability in sea ice models, submitted 
-!  to J. Geophys. Res. 
+! Lipscomb, W. H., E. C. Hunke, W. Maslowski, and J. Jakacki, 2007: 
+!  Improving ridging schemes for high-resolution sea ice models.
+!  J. Geophys. Res. 112, C03S91, doi:10.1029/2005JC003355.
 ! 
 ! Rothrock, D. A., 1975: The energetics of the plastic deformation of
 !  pack ice by ridging, J. Geophys. Res., 80, 4514-4519.
@@ -60,17 +60,17 @@
                           ! 1 for exponential redistribution function 
 
       real (kind=dbl_kind), public :: &  
-         mu_rdg           ! gives e-folding scale of ridged ice (m^.5) 
-                          ! (krdg_redist = 1) 
+         mu_rdg, &        ! gives e-folding scale of ridged ice (m^.5) (krdg_redist = 1) 
+         Cf               ! ratio of ridging work to PE change in ridging (kstrength = 1)
  
       real (kind=dbl_kind), parameter :: & 
-         Cf = 17._dbl_kind   , & ! ratio of ridging work to PE change in ridging 
          Cs = p25            , & ! fraction of shear energy contrbtng to ridging 
          Cp = p5*gravit*(rhow-rhoi)*rhoi/rhow, & ! proport const for PE 
          fsnowrdg = p5       , & ! snow fraction that survives in ridging 
          Gstar  = p15        , & ! max value of G(h) that participates 
                                  ! (krdg_partic = 0) 
          astar  = p05        , & ! e-folding scale for G(h) participation 
+!echmod         astar  = p1        , & ! e-folding scale for G(h) participation 
                                  ! (krdg_partic = 1) 
          maxraft= c1         , & ! max value of hrmin - hi = max thickness 
                                  ! of ice that rafts (m) 
@@ -278,6 +278,7 @@
          ardg1n   (ij,:) = c0
          ardg2n   (ij,:) = c0
          virdgn   (ij,:) = c0
+         mraftn   (ij,:) = c0
 !         aopen    (ij) = c0
       enddo
 
@@ -668,6 +669,7 @@
             i = indxi(ij)
             j = indxj(ij)
             araftn(i,j,n) = mraftn(ij,n)*ardg2n(ij,n)
+!            araftn(i,j,n) = mraftn(ij,n)*ardg1n(ij,n)*p5
          enddo
          enddo
       endif
@@ -1737,7 +1739,8 @@
                i = indxii(ij)
                j = indxjj(ij)
                m = indxij(ij)
-               esrdgn = vsrdgn(ij) * trcrn(i,j,nt_qsno+k-1,n)
+               esrdgn = vsrdgn(ij) * trcrn(i,j,nt_qsno+k-1,n) &
+                                   / real(nslyr,kind=dbl_kind)
                esnow_mlt(m) = esnow_mlt(m) + esrdgn*(c1-fsnowrdg)
            enddo
          enddo
@@ -1909,25 +1912,26 @@
                      expL = exp(-(hL-hi1)/hexp)
                      farea(ij) = expL
                      fvol (ij) = (hL + hexp)*expL / (hi1 + hexp)
-
                   enddo
 
                endif            ! nr < ncat
 
                ! diagnostics
+               if (n ==1) then  ! only for thinnest ridging ice
                if (present(aredistn)) then
                do ij = 1, iridge
                   i = indxii(ij)
                   j = indxjj(ij)
-                  aredistn(i,j,nr) = farea(ij)
+                  aredistn(i,j,nr) = farea(ij)*ardg2n(ij)
                enddo
                endif
                if (present(vredistn)) then
                do ij = 1, iridge
                   i = indxii(ij)
                   j = indxjj(ij)
-                  vredistn(i,j,nr) = fvol (ij)
+                  vredistn(i,j,nr) = fvol(ij)*virdgn(ij)
                enddo
+               endif
                endif
 
             endif               ! krdg_redist
@@ -1953,7 +1957,6 @@
       ! Transfer area-weighted and volume-weighted tracers to category nr.
       ! Note: The global sum aicen*trcrn of ice area tracers 
       !       (trcr_depend = 0) is not conserved by ridging.
-      ! Is this the problem???
       !       However, ridging conserves the global sum of volume
       !       tracers (trcr_depend = 1 or 2).
       ! Tracers associated with level ice, or that are otherwise lost

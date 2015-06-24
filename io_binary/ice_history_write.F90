@@ -50,9 +50,6 @@
       use ice_grid, only: tarea
       use ice_history_shared
       use ice_restart_shared, only: lenstr, runid
-#ifdef AusCOM
-      use cpl_parameters, only: caltype
-#endif
 
       integer (kind=int_kind), intent(in) :: ns
 
@@ -96,14 +93,6 @@
 #ifdef CCSMCOUPLED
         write (nu_hdr, 999) 'runid',runid,' '
 #endif
-#ifdef AusCOM
-        if (caltype == 1) then
-           write (nu_hdr, 999) 'calendar','gregorian',' '
-        else
-           write (nu_hdr, 999) 'calendar','noleap',' '
-        endif
-        write (title,'(a,i3,a)') 'This Year Has ',int(dayyr),' days'
-#else
         if (use_leap_years) then
            write (nu_hdr, 999) 'calendar','Gregorian',' '
            write (title,'(a,i3,a)') 'This year has ',int(dayyr),' days'
@@ -111,7 +100,6 @@
            write (nu_hdr, 999) 'calendar','noleap',' '
            write (title,'(a,i3,a)') 'All years have exactly ',int(dayyr),' days'
         end if
-#endif
         write (nu_hdr, 999) 'comment',title,' '
         write (nu_hdr, 999) 'conventions','CICE',' '
         write (nu_hdr, 997) 'missing_value',spval

@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_therm_bl99.F90 711 2013-09-05 17:54:05Z akt $
+!  SVN:$Id: ice_therm_bl99.F90 925 2015-03-04 00:34:27Z eclare $
 !=========================================================================
 !
 ! Update ice and snow internal temperatures
@@ -67,8 +67,7 @@
                                       flwoutn,  fsurfn,   &
                                       fcondtopn,fcondbot, &
                                       einit,    l_stop,   &
-                                      istop,    jstop,    &
-                                      hin)
+                                      istop,    jstop)
 
       use ice_therm_shared, only: surface_heat_flux, dsurface_heat_flux_dTsf
 
@@ -103,8 +102,7 @@
       real (kind=dbl_kind), dimension (icells), intent(in) :: &
          hilyr       , & ! ice layer thickness (m)
          hslyr       , & ! snow layer thickness (m)
-         einit       , & ! initial energy of melting (J m-2)
-         hin             ! initial ice thickness
+         einit           ! initial energy of melting (J m-2)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,nslyr), &
          intent(inout) :: &
@@ -477,8 +475,9 @@
                fcondtopn(i,j) = kh(m,1+nslyr) * (Tsf(m) - zTin(m,1))
             endif
 
-            if (fsurfn(i,j) < fcondtopn(i,j)) &
-                 Tsf(m) = min (Tsf(m), -puny)
+            if ( Tsf(m) >= c0 .and. fsurfn(i,j) < fcondtopn(i,j)) &
+                 Tsf(m) = -puny 
+
 
       !-----------------------------------------------------------------
       ! Save surface temperature at start of iteration
@@ -486,11 +485,12 @@
 
             Tsf_start(ij) = Tsf(m)
 
-            if (Tsf(m) <= -puny) then
+            if (Tsf(m) < c0) then
                l_cold(m) = .true.
             else
                l_cold(m) = .false.
             endif
+
           enddo                  ! ij
 
       !-----------------------------------------------------------------
@@ -552,7 +552,7 @@
       !        conductive flux, fcondtopn.
       !    (5) The net energy added to the ice per unit time must equal 
       !        the net change in internal ice energy per unit time,
-      !        within the prescribed error ferrmax.
+      !        withinic the prescribed error ferrmax.
       !
       ! For briny ice (the standard case), zTsn and zTin are limited
       !  to prevent them from exceeding their melting temperatures.
@@ -771,7 +771,7 @@
             endif
 
       !-----------------------------------------------------------------
-      ! Condition 4: check for fsurfn < fcondtopn with Tsf > 0
+      ! Condition 4: check for fsurfn < fcondtopn with Tsf >= 0
       !-----------------------------------------------------------------
 
             fsurfn(i,j) = fsurfn(i,j) + dTsf(ij)*dfsurf_dT(ij)
@@ -781,7 +781,7 @@
                fcondtopn(i,j) = kh(m,1+nslyr) * (Tsf(m)-zTin(m,1))
             endif
 
-            if (Tsf(m) > -puny .and. fsurfn(i,j) < fcondtopn(i,j)) then
+            if (Tsf(m) >= c0 .and. fsurfn(i,j) < fcondtopn(i,j)) then
                converged(m) = .false.
                all_converged = .false.
             endif

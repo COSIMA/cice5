@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_history_shared.F90 745 2013-09-28 18:22:36Z eclare $
+!  SVN:$Id: ice_history_shared.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 !
 ! Output files: netCDF or binary data, Fortran unformatted dumps
@@ -25,6 +25,7 @@
       module ice_history_shared
 
       use ice_kinds_mod
+      use ice_fileunits, only: nu_diag
       use ice_domain_size, only: ncat, nilyr, nslyr, nblyr, max_nstrm
 
       implicit none
@@ -108,7 +109,7 @@
          avail_hist_fields
 
       integer (kind=int_kind), parameter, public :: &
-         nvar = 11              , & ! number of grid fields that can be written
+         nvar = 12              , & ! number of grid fields that can be written
                                     !   excluding grid vertices
          nvarz = 4              , & ! number of category/vertical grid fields written
          ncat_hist = ncat           ! number of ice categories written <= ncat
@@ -170,7 +171,7 @@
       !---------------------------------------------------------------
 
       logical (kind=log_kind), public :: &
-           f_tmask     = .true., &
+           f_tmask     = .true., f_blkmask    = .true., &
            f_tarea     = .true., f_uarea      = .true., &
            f_dxt       = .true., f_dyt        = .true., &
            f_dxu       = .true., f_dyu        = .true., &
@@ -185,16 +186,18 @@
            f_hi        = 'm', f_hs         = 'm', &
            f_Tsfc      = 'm', f_aice       = 'm', &
            f_uvel      = 'm', f_vvel       = 'm', &
+           f_uatm      = 'm', f_vatm       = 'm', &
            f_fswdn     = 'm', f_flwdn      = 'm', &
            f_snow      = 'm', f_snow_ai    = 'm', &
            f_rain      = 'm', f_rain_ai    = 'm', &
            f_sst       = 'm', f_sss        = 'm', &
            f_uocn      = 'm', f_vocn       = 'm', &
            f_sice      = 'm', f_frzmlt     = 'm', &
-           f_fswfac    = 'm', &
+           f_fswfac    = 'm', f_fswint_ai  = 'x', &
            f_fswabs    = 'm', f_fswabs_ai  = 'm', &
            f_albsni    = 'm', &
            f_alvdr     = 'm', f_alidr      = 'm', &
+           f_alvdf     = 'm', f_alidf      = 'm', &
            f_albice    = 'm', f_albsno     = 'm', &
            f_albpnd    = 'm', f_coszen     = 'm', &
            f_flat      = 'm', f_flat_ai    = 'm', &
@@ -221,16 +224,20 @@
            f_sig1      = 'm', f_sig2       = 'm', &
            f_dvidtt    = 'm', f_dvidtd     = 'm', &
            f_daidtt    = 'm', f_daidtd     = 'm', &
+           f_dagedtt   = 'm', f_dagedtd    = 'm', &
            f_mlt_onset = 'm', f_frz_onset  = 'm', &
            f_iage      = 'm', f_FY         = 'm', &
            f_hisnap    = 'm', f_aisnap     = 'm', &
            f_aicen     = 'x', f_vicen      = 'x', &
+           f_vsnon     = 'x',                     &
            f_trsig     = 'm', f_icepresent = 'm', &
            f_fsurf_ai  = 'm', f_fcondtop_ai= 'm', &
            f_fmeltt_ai = 'm',                     &
            f_fsurfn_ai = 'x' ,f_fcondtopn_ai='x', &
            f_fmelttn_ai= 'x', f_flatn_ai   = 'x', &
+           f_fsensn_ai = 'x',                     &
 !          f_field3dz  = 'x',                     &
+           f_keffn_top = 'x', &
            f_Tinz      = 'x', f_Sinz       = 'x', &
            f_Tsnz      = 'x', &
            f_a11       = 'x', f_a12        = 'x', & 
@@ -247,7 +254,7 @@
       !---------------------------------------------------------------
 
       namelist / icefields_nml /     &
-           f_tmask    , &
+           f_tmask    , f_blkmask  , &
            f_tarea    , f_uarea    , &
            f_dxt      , f_dyt      , &
            f_dxu      , f_dyu      , &
@@ -260,16 +267,18 @@
            f_hi,        f_hs       , &
            f_Tsfc,      f_aice     , &
            f_uvel,      f_vvel     , &
+           f_uatm,      f_vatm     , &
            f_fswdn,     f_flwdn    , &
            f_snow,      f_snow_ai  , &     
            f_rain,      f_rain_ai  , &
            f_sst,       f_sss      , &
            f_uocn,      f_vocn     , &
            f_sice,      f_frzmlt   , &
-           f_fswfac                , &
+           f_fswfac,    f_fswint_ai, &
            f_fswabs,    f_fswabs_ai, &
            f_albsni                , &
            f_alvdr,     f_alidr    , &
+           f_alvdf,     f_alidf    , &
            f_albice,    f_albsno   , &
            f_albpnd,    f_coszen   , &
            f_flat,      f_flat_ai  , &
@@ -296,16 +305,20 @@
            f_sig1,      f_sig2     , &
            f_dvidtt,    f_dvidtd   , &
            f_daidtt,    f_daidtd   , &
+           f_dagedtt,   f_dagedtd  , &
            f_mlt_onset, f_frz_onset, &
            f_iage,      f_FY       , &
            f_hisnap,    f_aisnap   , &
            f_aicen,     f_vicen    , &
+           f_vsnon,                  &
            f_trsig,     f_icepresent,&
            f_fsurf_ai,  f_fcondtop_ai,&
            f_fmeltt_ai, &
            f_fsurfn_ai,f_fcondtopn_ai,&
            f_fmelttn_ai,f_flatn_ai,  &
+           f_fsensn_ai,              &
 !          f_field3dz,  &
+           f_keffn_top, &
            f_Tinz,      f_Sinz,      &
            f_Tsnz,  &
            f_a11, 	f_a12 	   , &
@@ -323,16 +336,17 @@
 
       integer (kind=int_kind), parameter, public :: &
            n_tmask      = 1,  &
-           n_tarea      = 2,  &
-           n_uarea      = 3,  &
-           n_dxt        = 4,  &
-           n_dyt        = 5,  &
-           n_dxu        = 6,  & 
-           n_dyu        = 7,  &
-           n_HTN        = 8,  &
-           n_HTE        = 9,  &
-           n_ANGLE      = 10, &
-           n_ANGLET     = 11, &
+           n_blkmask    = 2,  &
+           n_tarea      = 3,  &
+           n_uarea      = 4,  &
+           n_dxt        = 5,  &
+           n_dyt        = 6,  &
+           n_dxu        = 7,  & 
+           n_dyu        = 8,  &
+           n_HTN        = 9,  &
+           n_HTE        = 10, &
+           n_ANGLE      = 11, &
+           n_ANGLET     = 12, &
 
            n_NCAT       = 1, &
            n_VGRDi      = 2, &
@@ -349,6 +363,7 @@
            n_hi         , n_hs         , &
            n_Tsfc       , n_aice       , &
            n_uvel       , n_vvel       , &
+           n_uatm       , n_vatm       , &
            n_sice       , &
            n_fswdn      , n_flwdn      , &
            n_snow       , n_snow_ai    , &
@@ -356,9 +371,11 @@
            n_sst        , n_sss        , &
            n_uocn       , n_vocn       , &
            n_frzmlt     , n_fswfac     , &
+           n_fswint_ai,                  &
            n_fswabs     , n_fswabs_ai  , &
            n_albsni     , &
            n_alvdr      , n_alidr      , &
+           n_alvdf      , n_alidf      , &
            n_albice     , n_albsno     , &
            n_albpnd     , n_coszen     , &
            n_flat       , n_flat_ai    , &
@@ -373,6 +390,7 @@
            n_meltb      , n_meltl      , &
            n_fresh      , n_fresh_ai   , &
            n_fsalt      , n_fsalt_ai   , &
+           n_vsnon,                        &
            n_fhocn      , n_fhocn_ai   , &
            n_fswthru    , n_fswthru_ai , &
            n_strairx    , n_strairy    , &
@@ -385,6 +403,7 @@
            n_sig1       , n_sig2       , &
            n_dvidtt     , n_dvidtd     , &
            n_daidtt     , n_daidtd     , &
+           n_dagedtt    , n_dagedtd    , &
            n_mlt_onset  , n_frz_onset  , &
            n_hisnap     , n_aisnap     , &
            n_trsig      , n_icepresent , &
@@ -396,7 +415,9 @@
            n_fcondtopn_ai, &
            n_fmelttn_ai  , &
            n_flatn_ai    , &
+           n_fsensn_ai   , &
 !          n_field3dz    , &
+           n_keffn_top   , &
            n_Tinz        , n_Sinz      , &
            n_Tsnz, &
 	   n_a11	 , n_a12	, &
@@ -438,6 +459,9 @@
         iday = mday
         isec = sec - dt
 
+#ifdef CCSMCOUPLED
+        if (write_ic) isec = sec
+#endif
         ! construct filename
         if (write_ic) then
            write(ncfile,'(a,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
@@ -502,7 +526,7 @@
 
       subroutine define_hist_field(id, vname, vunit, vcoord, vcellmeas, &
                                    vdesc, vcomment, cona, conb, &
-                                   ns1, vhistfreq)
+                                   ns, vhistfreq)
 
       use ice_calendar, only: histfreq, histfreq_n, nstreams
       use ice_domain_size, only: max_nstrm
@@ -528,18 +552,22 @@
          vhistfreq      ! history frequency
  
       integer (kind=int_kind), intent(in) :: &
-         ns1            ! stream index
+         ns             ! history file stream index
 
       integer (kind=int_kind) :: &
-         ns         , & ! loop index
+         ns1        , & ! variable stream loop index
          lenf           ! length of namelist string
 
       character (len=40) :: stmp
 
-      lenf = len(trim(vhistfreq))
-      if (ns1 == 1) id(:) = 0
+      if (histfreq(ns) == 'x') then
+         call abort_ice("define_hist_fields has histfreq x")
+      endif
 
-      do ns = 1, nstreams
+      if (ns == 1) id(:) = 0
+      lenf = len(trim(vhistfreq))
+
+      do ns1 = 1, lenf
          if (vhistfreq(ns1:ns1) == histfreq(ns)) then
 
             num_avail_hist_fields_tot = num_avail_hist_fields_tot + 1
@@ -576,7 +604,7 @@
             id(ns) = num_avail_hist_fields_tot
 
             stmp = vname
-            if (lenf > 1 .and. ns1 > 1) &
+            if (ns > 1) &
                write(stmp,'(a,a1,a1)') trim(stmp),'_',vhistfreq(ns1:ns1)
 
             avail_hist_fields(id(ns))%vname = trim(stmp)
@@ -590,8 +618,8 @@
             avail_hist_fields(id(ns))%vhistfreq = vhistfreq(ns1:ns1)
             avail_hist_fields(id(ns))%vhistfreq_n = histfreq_n(ns)
 
-           endif
-        enddo
+         endif
+      enddo
 
       end subroutine define_hist_field
 

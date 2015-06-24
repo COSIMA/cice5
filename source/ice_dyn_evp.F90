@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_dyn_evp.F90 700 2013-08-15 19:17:39Z eclare $
+!  SVN:$Id: ice_dyn_evp.F90 843 2014-10-02 19:54:30Z eclare $
 !=======================================================================
 !
 ! Elastic-viscous-plastic sea ice dynamics model
@@ -69,7 +69,7 @@
 
       use ice_atmo, only: Cdn_ocn
       use ice_boundary, only: ice_halo, ice_HaloMask, ice_HaloUpdate, &
-          ice_HaloDestroy
+          ice_HaloDestroy, ice_HaloUpdate_stress
       use ice_blocks, only: block, get_block, nx_block, ny_block
       use ice_constants, only: field_loc_center, field_loc_NEcorner, &
           field_type_scalar, field_type_vector, c0
@@ -83,13 +83,16 @@
           stressm_1, stressm_2, stressm_3, stressm_4, &
           stress12_1, stress12_2, stress12_3, stress12_4
       use ice_grid, only: tmask, umask, dxt, dyt, dxhy, dyhx, cxp, cyp, cxm, cym, &
-          tarear, uarear, tinyarea, to_ugrid, t2ugrid_vector, u2tgrid_vector
+          tarear, uarear, tinyarea, to_ugrid, t2ugrid_vector, u2tgrid_vector, &
+          grid_type
       use ice_mechred, only: ice_strength
       use ice_state, only: aice, vice, vsno, uvel, vvel, divu, shear, &
           aice_init, aice0, aicen, vicen, strength
       use ice_timers, only: timer_dynamics, timer_bound, &
           ice_timer_start, ice_timer_stop
-#ifdef CICE_IN_NEMO
+!ars599: 22042015: not quite sure about this part do we need
+#ifdef ACCESS
+!#ifdef CICE_IN_NEMO
       use ice_atmo, only: calc_strair
 #endif
 
@@ -127,10 +130,11 @@
       real (kind=dbl_kind), allocatable :: fld2(:,:,:,:)
 
       real (kind=dbl_kind), dimension(nx_block,ny_block,8):: &
-         str          ! stress combinations for momentum equation
+         strtmp       ! stress combinations for momentum equation
 
       integer (kind=int_kind), dimension (nx_block,ny_block,max_blocks) :: &
-         icetmask     ! ice extent mask (T-cell)
+         icetmask, &  ! ice extent mask (T-cell)
+         halomask     ! generic halo mask
 
       type (ice_halo) :: &
          halo_info_mask !  ghost cell update info for masked halo
@@ -213,8 +217,8 @@
 
       call to_ugrid(tmass,umass)
       call to_ugrid(aice_init, aiu)
-
-#ifdef CICE_IN_NEMO
+#ifdef ACCESS
+!#ifdef CICE_IN_NEMO
       !----------------------------------------------------------------
       ! Set wind stress to values supplied via NEMO
       ! This wind stress is rotated on u grid and multiplied by aice
@@ -223,14 +227,21 @@
          strairx(:,:,:) = strax(:,:,:)
          strairy(:,:,:) = stray(:,:,:)
       else
-#else
-#ifdef ACCESS
+!#endif
+!ars599: 22042015: not quite sure about this part do we need
+! the second part call t2ugrid_vector if not calling ACCESS??
+!#ifdef ACCESS
       !This wind stress is on T grid and multiplied by aice (in get_sbc_ice)
-      strairx = strax
-      strairy = stray
+      !in T or U grid? (strax is from file)
+      ! calc_strair in ACCESS ice_in is also F
+!      strairx = strax
+!      strairy = stray
 #endif
       call t2ugrid_vector(strairx)
       call t2ugrid_vector(strairy)
+#ifdef ACCESS
+!#ifdef CICE_IN_NEMO
+      endif      
 #endif
 
       !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block)
@@ -305,7 +316,7 @@
 
       ! unload
       !$OMP PARALLEL DO PRIVATE(iblk)
-      do iblk = 1,nblocks
+      do iblk = 1, nblocks
          uvel(:,:,iblk) = fld2(:,:,1,iblk)
          vvel(:,:,iblk) = fld2(:,:,2,iblk)
       enddo
@@ -321,7 +332,7 @@
       ! stress tensor equation, total surface stress
       !-----------------------------------------------------------------
 
-         !$OMP PARALLEL DO PRIVATE(iblk)
+         !$OMP PARALLEL DO PRIVATE(iblk,strtmp)
          do iblk = 1, nblocks
 
 !            if (trim(yield_curve) == 'ellipse') then
@@ -344,7 +355,7 @@
                             shear     (:,:,iblk), divu      (:,:,iblk), & 
                             prs_sig   (:,:,iblk),                       & 
                             rdg_conv  (:,:,iblk), rdg_shear (:,:,iblk), & 
-                            str       (:,:,:) )
+                            strtmp    (:,:,:) )
 !            endif               ! yield_curve
 
       !-----------------------------------------------------------------
@@ -354,7 +365,7 @@
             call stepu (nx_block,            ny_block,           &
                         icellu       (iblk), Cdn_ocn (:,:,iblk), & 
                         indxui     (:,iblk), indxuj    (:,iblk), & 
-                        aiu      (:,:,iblk), str     (:,:,:),    & 
+                        aiu      (:,:,iblk), strtmp  (:,:,:),    & 
                         uocn     (:,:,iblk), vocn    (:,:,iblk), &     
                         waterx   (:,:,iblk), watery  (:,:,iblk), & 
                         forcex   (:,:,iblk), forcey  (:,:,iblk), & 
@@ -382,7 +393,7 @@
 
          ! unload
          !$OMP PARALLEL DO PRIVATE(iblk)
-         do iblk = 1,nblocks
+         do iblk = 1, nblocks
             uvel(:,:,iblk) = fld2(:,:,1,iblk)
             vvel(:,:,iblk) = fld2(:,:,2,iblk)
          enddo
@@ -393,6 +404,74 @@
 
       deallocate(fld2)
       if (maskhalo_dyn) call ice_HaloDestroy(halo_info_mask)
+
+      ! Force symmetry across the tripole seam
+      if (trim(grid_type) == 'tripole') then
+      if (maskhalo_dyn) then
+         !-------------------------------------------------------
+         ! set halomask to zero because ice_HaloMask always keeps
+         ! local copies AND tripole zipper communication
+         !-------------------------------------------------------
+         halomask = 0
+         call ice_HaloMask(halo_info_mask, halo_info, halomask)
+
+         call ice_HaloUpdate_stress(stressp_1, stressp_3, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_3, stressp_1, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_2, stressp_4, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_4, stressp_2, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+
+         call ice_HaloUpdate_stress(stressm_1, stressm_3, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_3, stressm_1, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_2, stressm_4, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_4, stressm_2, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+
+         call ice_HaloUpdate_stress(stress12_1, stress12_3, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_3, stress12_1, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_2, stress12_4, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_4, stress12_2, halo_info_mask, &
+                              field_loc_center,  field_type_scalar)
+
+         call ice_HaloDestroy(halo_info_mask)
+      else
+         call ice_HaloUpdate_stress(stressp_1, stressp_3, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_3, stressp_1, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_2, stressp_4, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressp_4, stressp_2, halo_info, &
+                              field_loc_center,  field_type_scalar)
+
+         call ice_HaloUpdate_stress(stressm_1, stressm_3, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_3, stressm_1, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_2, stressm_4, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stressm_4, stressm_2, halo_info, &
+                              field_loc_center,  field_type_scalar)
+
+         call ice_HaloUpdate_stress(stress12_1, stress12_3, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_3, stress12_1, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_2, stress12_4, halo_info, &
+                              field_loc_center,  field_type_scalar)
+         call ice_HaloUpdate_stress(stress12_4, stress12_2, halo_info, &
+                              field_loc_center,  field_type_scalar)
+      endif   ! maskhalo
+      endif   ! tripole
 
       !-----------------------------------------------------------------
       ! ice-ocean stress

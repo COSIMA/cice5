@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_age.F90 746 2013-09-28 22:47:56Z eclare $
+!  SVN:$Id: ice_age.F90 900 2015-01-22 21:35:57Z eclare $
 !=======================================================================
 !
 ! authors Elizabeth Hunke
@@ -123,7 +123,7 @@
       if (my_task == master_task) write(nu_diag,*) 'min/max age (s)'
 
       call read_restart_field(nu_restart_age,0,trcrn(:,:,nt_iage,:,:),'ruf8', &
-                              'iage',ncat,diag)
+                       'iage',ncat,diag,field_loc_center,field_type_scalar)
 
       end subroutine read_restart_age
 

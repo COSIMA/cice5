@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_global_reductions.F90 700 2013-08-15 19:17:39Z eclare $
+!  SVN:$Id: ice_global_reductions.F90 843 2014-10-02 19:54:30Z eclare $
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
  module ice_global_reductions
@@ -9,14 +9,18 @@
 ! author: Phil Jones, LANL
 ! Oct. 2004: Adapted from POP version by William H. Lipscomb, LANL
 ! Feb. 2008: Updated from POP version by Elizabeth C. Hunke, LANL
+! Aug. 2014: Added bit-for-bit reproducible options for global_sum_dbl
+!            and global_sum_prod_dbl by T Craig NCAR
 
    use ice_kinds_mod
-   use ice_communicate, only: my_task, mpiR8, mpiR4
+   use ice_blocks, only: block, get_block, nblocks_tot, nx_block, ny_block
+   use ice_communicate, only: my_task, mpiR8, mpiR4, master_task
    use ice_constants, only: field_loc_Nface, field_loc_NEcorner
-   use ice_blocks, only: block, get_block, nblocks_tot
+   use ice_fileunits, only: bfbflag
    use ice_distribution, only: distrb, ice_distributionGet, &
        ice_distributionGetBlockID
-   use ice_domain_size, only: nx_global
+   use ice_domain_size, only: nx_global, ny_global, max_blocks
+   use ice_gather_scatter, only: gather_global
 
    implicit none
    private
@@ -126,21 +130,37 @@
    logical (log_kind) :: &
       Nrow           ! this field is on a N row (a velocity row)
 
+   real (dbl_kind), dimension(:,:), allocatable :: &
+      workg          ! temporary global array
+   real (dbl_kind), dimension(:,:,:), allocatable :: &
+      work           ! temporary local array
+
    type (block) :: &
       this_block     ! holds local block information
 
 !-----------------------------------------------------------------------
 
+   if (bfbflag) then
+      allocate(work(nx_block,ny_block,max_blocks))
+      work = 0.0_dbl_kind
+      if (my_task == master_task) then
+         allocate(workg(nx_global,ny_global))
+      else 
+         allocate(workg(1,1))
+      endif
+      workg = 0.0_dbl_kind
+   else
 #ifdef REPRODUCIBLE
-   nreduce = nblocks_tot
+      nreduce = nblocks_tot
 #else
-   nreduce = 1
+      nreduce = 1
 #endif
-   allocate(blockSum(nreduce), &
-            globalSumTmp(nreduce))
-   blockSum     = 0.0_dbl_kind
-   globalSumTmp = 0.0_dbl_kind
-   globalSum    = 0.0_dbl_kind
+      allocate(blockSum(nreduce), &
+               globalSumTmp(nreduce))
+      blockSum     = 0.0_dbl_kind
+      globalSumTmp = 0.0_dbl_kind
+      globalSum    = 0.0_dbl_kind
+   endif
 
    call ice_distributionGet(dist,          &
                             numLocalBlocks = numBlocks, &
@@ -166,23 +186,35 @@
       if (present(mMask)) then
          do j=jb,je
          do i=ib,ie
-            blockSum(n) = &
-            blockSum(n) + array(i,j,iblock)*mMask(i,j,iblock)
+            if (bfbflag) then
+               work(i,j,iblock) = array(i,j,iblock)*mMask(i,j,iblock)
+            else
+               blockSum(n) = &
+                  blockSum(n) + array(i,j,iblock)*mMask(i,j,iblock)
+            endif
          end do
          end do
       else if (present(lMask)) then
          do j=jb,je
          do i=ib,ie
             if (lMask(i,j,iblock)) then
-               blockSum(n) = &
-               blockSum(n) + array(i,j,iblock)
+               if (bfbflag) then
+                  work(i,j,iblock) = array(i,j,iblock)
+               else
+                  blockSum(n) = &
+                    blockSum(n) + array(i,j,iblock)
+               endif
             endif
          end do
          end do
       else
          do j=jb,je
          do i=ib,ie
-            blockSum(n) = blockSum(n) + array(i,j,iblock)
+            if (bfbflag) then
+               work(i,j,iblock) = array(i,j,iblock)
+            else
+               blockSum(n) = blockSum(n) + array(i,j,iblock)
+            endif
          end do
          end do
       endif
@@ -190,6 +222,7 @@
       !*** if this row along or beyond tripole boundary
       !*** must eliminate redundant points from global sum
 
+      if (.not.bfbflag) then
       if (this_block%tripole) then
          Nrow=(field_loc == field_loc_Nface .or. &
             field_loc == field_loc_NEcorner)
@@ -227,20 +260,34 @@
                end do
             endif
 
-         endif
-      endif
+         endif  ! maxiglob
+      endif ! tripole
+      endif ! bfbflag
    end do
 
-   if (my_task < numProcs) then
-      call MPI_ALLREDUCE(blockSum, globalSumTmp, nreduce, &
-                         mpiR8, MPI_SUM, communicator, ierr)
+   if (bfbflag) then
+      call gather_global(workg, work, master_task, dist, spc_val=0.0_dbl_kind)
+      globalSum = 0.0_dbl_kind
+      if (my_task == master_task) then
+         do j = 1, ny_global
+         do i = 1, nx_global
+            globalSum = globalSum + workg(i,j)
+         enddo
+         enddo
+      endif
+      call MPI_BCAST(globalSum,1,mpiR8,master_task,communicator,ierr)
+      deallocate(workg,work)
+   else
+      if (my_task < numProcs) then
+         call MPI_ALLREDUCE(blockSum, globalSumTmp, nreduce, &
+                            mpiR8, MPI_SUM, communicator, ierr)
+      endif
+
+      do n=1,nreduce
+         globalSum = globalSum + globalSumTmp(n)
+      enddo
+      deallocate(blockSum, globalSumTmp)
    endif
-
-   do n=1,nreduce
-      globalSum = globalSum + globalSumTmp(n)
-   enddo
-
-   deallocate(blockSum, globalSumTmp)
 
 !-----------------------------------------------------------------------
 
@@ -867,25 +914,41 @@
    logical (log_kind) :: &
       Nrow           ! this field is on a N row (a velocity row)
 
+   real (dbl_kind), dimension(:,:), allocatable :: &
+      workg          ! temporary global array
+   real (dbl_kind), dimension(:,:,:), allocatable :: &
+      work           ! tempoerary local array
+
    type (block) :: &
       this_block     ! holds local block information
 
 !-----------------------------------------------------------------------
 
+   if (bfbflag) then
+      allocate(work(nx_block,ny_block,max_blocks))
+      work = 0.0_dbl_kind
+      if (my_task == master_task) then
+         allocate(workg(nx_global,ny_global))
+      else
+         allocate(workg(1,1))
+      endif
+      workg = 0.0_dbl_kind
+   else
 #ifdef REPRODUCIBLE
-   nreduce = nblocks_tot
+      nreduce = nblocks_tot
 #else
-   nreduce = 1
+      nreduce = 1
 #endif
-   allocate(blockSum(nreduce), &
-            globalSumTmp(nreduce))
-   blockSum     = 0.0_dbl_kind
-   globalSumTmp = 0.0_dbl_kind
-   globalSum    = 0.0_dbl_kind
+      allocate(blockSum(nreduce), &
+               globalSumTmp(nreduce))
+      blockSum     = 0.0_dbl_kind
+      globalSumTmp = 0.0_dbl_kind
+      globalSum    = 0.0_dbl_kind
+   endif
 
-   call ice_distributionGet(dist, &
+   call ice_distributionGet(dist,          &
                             numLocalBlocks = numBlocks, &
-                            nprocs = numProcs,        &
+                            nprocs = numProcs,       &
                             communicator = communicator)
 
    do iblock=1,numBlocks
@@ -907,24 +970,37 @@
       if (present(mMask)) then
          do j=jb,je
          do i=ib,ie
-            blockSum(n) = &
-            blockSum(n) + array1(i,j,iblock)*array2(i,j,iblock)* &
+            if (bfbflag) then
+               work(i,j,iblock) = array1(i,j,iblock)*array2(i,j,iblock)* &
                        mMask(i,j,iblock)
+            else
+               blockSum(n) = &
+                  blockSum(n) + array1(i,j,iblock)*array2(i,j,iblock)* &
+                       mMask(i,j,iblock)
+            endif
          end do
          end do
       else if (present(lMask)) then
          do j=jb,je
          do i=ib,ie
             if (lMask(i,j,iblock)) then
-               blockSum(n) = &
-               blockSum(n) + array1(i,j,iblock)*array2(i,j,iblock)
+               if (bfbflag) then
+                  work(i,j,iblock) = array1(i,j,iblock)*array2(i,j,iblock)
+               else
+                  blockSum(n) = &
+                    blockSum(n) + array1(i,j,iblock)*array2(i,j,iblock)
+               endif
             endif
          end do
          end do
       else
          do j=jb,je
          do i=ib,ie
-            blockSum(n) = blockSum(n) + array1(i,j,iblock)*array2(i,j,iblock)
+            if (bfbflag) then
+               work(i,j,iblock) = array1(i,j,iblock)*array2(i,j,iblock)
+            else
+               blockSum(n) = blockSum(n) + array1(i,j,iblock)*array2(i,j,iblock)
+            endif
          end do
          end do
       endif
@@ -932,6 +1008,7 @@
       !*** if this row along or beyond tripole boundary
       !*** must eliminate redundant points from global sum
 
+      if (.not.bfbflag) then
       if (this_block%tripole) then
          Nrow=(field_loc == field_loc_Nface .or. &
             field_loc == field_loc_NEcorner)
@@ -959,7 +1036,7 @@
                do i=ib,ie
                   if (this_block%i_glob(i) > maxiglob) then
                      if (lMask(i,j,iblock)) &
-                        blockSum(n) = blockSum(n) - &
+                     blockSum(n) = blockSum(n) - &
                                    array1(i,j,iblock)*array2(i,j,iblock)
                   endif
                end do
@@ -972,21 +1049,34 @@
                end do
             endif
 
-         endif
-      endif
-
+         endif  ! maxiglob
+      endif ! tripole
+      endif ! bfbflag
    end do
 
-   if (my_task < numProcs) then
-      call MPI_ALLREDUCE(blockSum, globalSumTmp, nreduce, &
-                         mpiR8, MPI_SUM, communicator, ierr)
+   if (bfbflag) then
+      call gather_global(workg, work, master_task, dist, spc_val=0.0_dbl_kind)
+      globalSum = 0.0_dbl_kind
+      if (my_task == master_task) then
+         do j = 1, ny_global
+         do i = 1, nx_global
+            globalSum = globalSum + workg(i,j)
+         enddo
+         enddo
+      endif
+      call MPI_BCAST(globalSum,1,mpiR8,master_task,communicator,ierr)
+      deallocate(workg,work)
+   else
+      if (my_task < numProcs) then
+         call MPI_ALLREDUCE(blockSum, globalSumTmp, nreduce, &
+                            mpiR8, MPI_SUM, communicator, ierr)
+      endif
+
+      do n=1,nreduce
+         globalSum = globalSum + globalSumTmp(n)
+      enddo
+      deallocate(blockSum, globalSumTmp)
    endif
-
-   do n=1,nreduce
-      globalSum = globalSum + globalSumTmp(n)
-   enddo
-
-   deallocate(blockSum, globalSumTmp)
 
 !-----------------------------------------------------------------------
 

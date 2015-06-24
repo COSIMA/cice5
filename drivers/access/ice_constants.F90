@@ -35,6 +35,9 @@
                                         ! freshwater value needed for enthalpy
 #endif
          depressT  = 0.054_dbl_kind   ,&! Tf:brine salinity ratio (C/ppt)
+
+!ars599: 26032014 new code (CODE: dragio)
+!	use new code, mark out #ifndef AusCOM
 #ifndef AusCOM
          dragio    = 0.00536_dbl_kind ,&! ice-ocn drag coefficient
 #endif
@@ -95,6 +98,7 @@
       ! in namelist therefore not parameter, which is counterintuitive,
       ! since this modules name is ice_constants
 !ars599: 26032014: change to public
+!ars599: 24042015: remove dragio!!
       real (kind=dbl_kind), public :: &
          dragio   , & ! ice-ocn drag coefficient
          Tocnfrz ! freezing temp of seawater (C),

@@ -56,9 +56,12 @@
             read(nu_rst_pointer,'(a)') filename0
             filename = trim(filename0)
 #ifdef AusCOM
-            write(nu_diag,*) 'XXX: restart_dir = ', restart_dir
-            filename = trim(restart_dir)//trim(filename)
-            write(nu_diag,*) 'XXX: restart file => ', filename
+         write(nu_diag,*) 'XXX: restart_dir = ', restart_dir
+         write(nu_diag,*) 'XXX: org restart file => ', filename
+!ars599: 28042015 restart issue
+!         filename = trim(restart_dir)//trim(filename)
+         filename = trim(filename)
+         write(nu_diag,*) 'XXX: restart file => ', filename
 #endif
             close(nu_rst_pointer)
             write(nu_diag,*) 'Read ',pointer_file(1:lenstr(pointer_file))
@@ -211,9 +214,9 @@
       ! write pointer (path/file)
       if (my_task == master_task) then
          filename = trim(filename) // '.nc'
-!         open(nu_rst_pointer,file=pointer_file)
-!         write(nu_rst_pointer,'(a)') filename
-!         close(nu_rst_pointer)
+         open(nu_rst_pointer,file=pointer_file)
+         write(nu_rst_pointer,'(a)') filename
+         close(nu_rst_pointer)
 
          iflag = 0
          if (lcdf64) iflag = nf90_64bit_offset
@@ -252,6 +255,9 @@
          call define_rest_field(ncid,'uvel',dims)
          call define_rest_field(ncid,'vvel',dims)
 
+#ifdef CCSMCOUPLED
+         call define_rest_field(ncid,'coszen',dims)
+#endif
          call define_rest_field(ncid,'scale_factor',dims)
          call define_rest_field(ncid,'swvdr',dims)
          call define_rest_field(ncid,'swvdf',dims)

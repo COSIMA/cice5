@@ -21,7 +21,7 @@ use ice_gather_scatter
 use ice_constants
 use ice_grid,      only : tmask, to_ugrid
 use ice_communicate, only : my_task, master_task
-use ice_ocean,     only : cprho
+!use ice_ocean,     only : cprho
 use ice_exit,      only : abort_ice
 
 use cpl_parameters

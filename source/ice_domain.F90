@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_domain.F90 726 2013-09-17 14:58:52Z eclare $
+!  SVN:$Id: ice_domain.F90 918 2015-02-10 20:37:08Z eclare $
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
  module ice_domain
@@ -173,7 +173,7 @@
       !***
       !*** input nprocs does not match system (eg MPI) request
       !***
-#if (defined SEQ_MCT)
+#if (defined CCSMCOUPLED)
       nprocs = get_num_procs()
 #else
       call abort_ice('ice: Input nprocs not same as system request')
@@ -270,6 +270,7 @@
       i,j,n              ,&! dummy loop indices
       ig,jg              ,&! global indices
       work_unit          ,&! size of quantized work unit
+      tblocks_tmp        ,&! total number of blocks
       nblocks_tmp        ,&! temporary value of nblocks
       nblocks_max          ! max blocks on proc
 
@@ -405,8 +406,14 @@
       ! use processor_shape = 'square-pop' and distribution_wght = 'block' 
       ! to make CICE and POP decompositions/distributions identical.
 
+
+#ifdef CICE_IN_NEMO
+      ! Keep all blocks even the ones only containing land points
+      if (distribution_wght == 'block') nocn(n) = nx_block*ny_block
+#else
       if (distribution_wght == 'block' .and. &   ! POP style
           nocn(n) > 0) nocn(n) = nx_block*ny_block
+#endif
    end do
 
    work_unit = maxval(nocn)/max_work_unit + 1
@@ -447,11 +454,18 @@
       nblocks = 0
    endif
    nblocks_max = 0
+   tblocks_tmp = 0
    do n=0,distrb_info%nprocs - 1
      nblocks_tmp = nblocks
      call broadcast_scalar(nblocks_tmp, n)
      nblocks_max = max(nblocks_max,nblocks_tmp)
+     tblocks_tmp = tblocks_tmp + nblocks_tmp
    end do
+
+   if (my_task == master_task) then
+      write(nu_diag,*) &
+          'ice: total number of blocks is', tblocks_tmp
+   endif
 
    if (nblocks_max > max_blocks) then
      write(outstring,*) &

@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_lvl.F90 746 2013-09-28 22:47:56Z eclare $
+!  SVN:$Id: ice_lvl.F90 900 2015-01-22 21:35:57Z eclare $
 !=======================================================================
 
 ! Ridged ice tracers for sea ice
@@ -81,6 +81,7 @@
       subroutine read_restart_lvl()
 
       use ice_communicate, only: my_task, master_task
+      use ice_constants, only: field_loc_center, field_type_scalar
       use ice_domain_size, only: ncat
       use ice_fileunits, only: nu_diag, nu_restart_lvl
       use ice_state, only: nt_alvl, nt_vlvl, trcrn
@@ -96,9 +97,9 @@
       if (my_task == master_task) write(nu_diag,*) 'min/max level ice area, volume'
 
       call read_restart_field(nu_restart_lvl,0,trcrn(:,:,nt_alvl,:,:),'ruf8', &
-                              'alvl',ncat,diag)
+                       'alvl',ncat,diag,field_loc_center,field_type_scalar)
       call read_restart_field(nu_restart_lvl,0,trcrn(:,:,nt_vlvl,:,:),'ruf8', &
-                              'vlvl',ncat,diag)
+                       'vlvl',ncat,diag,field_loc_center,field_type_scalar)
 
       end subroutine read_restart_lvl
 

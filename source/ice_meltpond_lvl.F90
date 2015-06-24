@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_meltpond_lvl.F90 746 2013-09-28 22:47:56Z eclare $
+!  SVN:$Id: ice_meltpond_lvl.F90 925 2015-03-04 00:34:27Z eclare $
 !=======================================================================
 
 ! Level-ice meltpond parameterization
@@ -27,9 +27,7 @@
                 write_restart_pond_lvl, read_restart_pond_lvl
 
       logical (kind=log_kind), public :: & 
-         restart_pond_lvl, & ! if .true., read meltponds restart file
-         snowinfil           ! if .true., adjust snow depth/area in dEdd
-                             !            for infiltration of melt water
+         restart_pond_lvl    ! if .true., read meltponds restart file
 
       character (len=char_len), public :: &
          frzpnd              ! pond refreezing parameterization
@@ -88,8 +86,8 @@
                                    dhs,   ffrac,        &
                                    aicen, vicen, vsnon, &
                                    qicen, sicen,        &
-                                   Tsfcn, alvl, &
-                                   apnd,  hpnd, ipnd)
+                                   Tsfcn, alvl,         &
+                                   apnd,  hpnd,  ipnd)
 
       use ice_constants, only: viscosity_dyn
       use ice_domain_size, only: nilyr
@@ -106,21 +104,21 @@
          pndaspect   ! ratio of pond depth to pond fraction
 
       character (len=char_len), intent(in) :: &
-         frzpnd       ! pond refreezing parameterization
+         frzpnd      ! pond refreezing parameterization
 
       real (kind=dbl_kind), dimension(nx_block,ny_block), &
          intent(in) :: &
-         Tsfcn, &
-         alvl,  &
+         Tsfcn, &    ! surface temperature (C)
+         alvl,  &    ! fraction of level ice
          rfrac, &    ! water fraction retained for melt ponds
-         meltt, &
-         melts, &
-         frain, &
+         meltt, &    ! top melt rate (m/s)
+         melts, &    ! snow melt rate (m/s)
+         frain, &    ! rainfall rate (kg/m2/s)
          Tair,  &    ! air temperature (K)
          fsurfn,&    ! atm-ice surface heat flux  (W/m2)
-         aicen, &
-         vicen, &
-         vsnon
+         aicen, &    ! ice area fraction
+         vicen, &    ! ice volume (m)
+         vsnon       ! snow volume (m)
 
       real (kind=dbl_kind), dimension(nx_block,ny_block), &
          intent(inout) :: &
@@ -138,18 +136,18 @@
          intent(out) :: &
          ffrac     ! fraction of fsurfn over pond used to melt ipond
 
-!     local temporary variables
+      ! local temporary variables
 
       real (kind=dbl_kind), dimension(nx_block,ny_block) :: &
-         volpn 
+         volpn     ! pond volume per unit area (m)
 
       real (kind=dbl_kind), dimension (nilyr) :: &
-         Tmlt      ! melting temperature 
+         Tmlt      ! melting temperature (C)
 
       integer (kind=int_kind), dimension (nx_block*ny_block) :: &
          indxi, indxj     ! compressed indices for cells with ice melting
 
-      integer (kind=int_kind) :: i,j,ij,icells
+      integer (kind=int_kind) :: i, j, ij, icells ! indices
 
       real (kind=dbl_kind) :: &
          hi                     , & ! ice thickness (m)
@@ -157,9 +155,9 @@
          dTs                    , & ! surface temperature diff for freeze-up (C)
          Tp                     , & ! pond freezing temperature (C)
          Ts                     , & ! surface air temperature (C)
-         apondn, &
-         hpondn, &
-         dvn   , &
+         apondn                 , & ! local pond area 
+         hpondn                 , & ! local pond depth (m)
+         dvn                    , & ! change in pond volume (m)
          hlid, alid             , & ! refrozen lid thickness, area
          dhlid                  , & ! change in refrozen lid thickness
          bdt                    , & ! 2 kice dT dt / (rhoi Lfresh)
@@ -207,9 +205,10 @@
 
          if (hi < hi_min) then
 
-         !--------------------------------------------------------------
-         ! Remove ponds on thin ice
-         !--------------------------------------------------------------
+            !-----------------------------------------------------------
+            ! Remove ponds on thin ice
+            !-----------------------------------------------------------
+
             apondn = c0
             hpondn = c0
             volpn (i,j) = c0
@@ -250,6 +249,8 @@
                      if (hlid > dhlid) dhlid = p5*bdt/hlid ! existing ice
                      dhlid = min(dhlid, hpnd(i,j)*rhofresh/rhoi)
                      hlid = hlid + dhlid
+                  else
+                     dhlid = c0 ! to account for surface inversions
                   endif
                else ! convert refrozen pond ice back to water
                   dhlid = max(fsurfn(i,j)*dt / (rhoi*Lfresh), c0) ! > 0
@@ -462,17 +463,17 @@
       if (my_task == master_task) write(nu_diag,*) 'min/max level-ice ponds'
 
       call read_restart_field(nu_restart_pond,0, trcrn(:,:,nt_apnd,:,:),'ruf8', &
-                              'apnd',ncat,diag)
+                              'apnd',ncat,diag,field_loc_center,field_type_scalar)
       call read_restart_field(nu_restart_pond,0, trcrn(:,:,nt_hpnd,:,:),'ruf8', &
-                              'hpnd',ncat,diag)
+                              'hpnd',ncat,diag,field_loc_center,field_type_scalar)
       call read_restart_field(nu_restart_pond,0, trcrn(:,:,nt_ipnd,:,:),'ruf8', &
-                              'ipnd',ncat,diag)
+                              'ipnd',ncat,diag,field_loc_center,field_type_scalar)
       call read_restart_field(nu_restart_pond,0, fsnow(:,:,          :),'ruf8', &
-                              'fsnow',1,diag)
+                              'fsnow',1,diag,field_loc_center,field_type_scalar)
       call read_restart_field(nu_restart_pond,0,  dhsn(:,:,        :,:),'ruf8', &
-                              'dhs',ncat,diag)
+                              'dhs',ncat,diag,field_loc_center,field_type_scalar)
       call read_restart_field(nu_restart_pond,0,ffracn(:,:,        :,:),'ruf8', &
-                              'ffrac',ncat,diag)
+                              'ffrac',ncat,diag,field_loc_center,field_type_scalar)
 
       end subroutine read_restart_pond_lvl
 

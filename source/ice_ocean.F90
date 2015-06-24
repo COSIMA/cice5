@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_ocean.F90 704 2013-08-20 23:43:58Z eclare $
+!  SVN:$Id: ice_ocean.F90 936 2015-03-17 15:46:44Z eclare $
 !=======================================================================
 
 ! Ocean mixed layer calculation (internal to sea ice model).
@@ -32,6 +32,12 @@
       real (kind=dbl_kind), parameter, public :: &
          cprho = cp_ocn*rhow
 
+      character(len=char_len), public :: &
+         tfrz_option              ! form of ocean freezing temperature
+                                  ! 'minus1p8' = -1.8 C
+                                  ! 'linear_salt' = -depressT * sss
+                                  ! 'mushy' conforms with ktherm=2
+
 !=======================================================================
 
       contains
@@ -53,7 +59,7 @@
            qdp, hmix, strairx_ocn, strairy_ocn, Tref_ocn, Qref_ocn
       use ice_grid, only: tmask
       use ice_atmo, only: atmo_boundary_layer, atmbndy, atmo_boundary_const, &
-           Cdn_atm, Cdn_atm_ocn
+           Cdn_atm, Cdn_atm_ratio
 
       real (kind=dbl_kind), intent(in) :: &
          dt      ! time step
@@ -80,10 +86,10 @@
          shcoef, & ! transfer coefficient for sensible heat
          lhcoef    ! transfer coefficient for latent heat
 
-      integer (kind=int_kind), save :: &
+      integer (kind=int_kind) :: &
          icells    ! number of ocean cells
 
-      integer (kind=int_kind), dimension(nx_block*ny_block), save :: &
+      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
          indxi, indxj    ! compressed indices for ocean cells
 
       !-----------------------------------------------------------------
@@ -92,6 +98,8 @@
       !-----------------------------------------------------------------
 
          icells = 0
+         indxi(:) = 0
+         indxj(:) = 0
          do j = 1, ny_block
          do i = 1, nx_block
             if (tmask(i,j,iblk)) then
@@ -152,8 +160,8 @@
                                       delq       (:,:),      &
                                       lhcoef     (:,:),      &
                                       shcoef     (:,:),      &
-                                      Cdn_atm(:,:,iblk),          & 
-                                      Cdn_atm_ocn(:,:,iblk))    
+                                      Cdn_atm(:,:,iblk),     & 
+                                      Cdn_atm_ratio(:,:,iblk))
          endif
 
       !-----------------------------------------------------------------
