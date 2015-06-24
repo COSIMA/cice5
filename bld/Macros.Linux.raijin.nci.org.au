@@ -1,0 +1,79 @@
+#==============================================================================
+# Makefile macros for Ubuntu 10.04 Linux w/ repository OpenMPI and libnetcdf-dev
+# Geophysical Institute, University of Alaska Fairbanks
+#==============================================================================
+
+INCLDIR    := -I.
+SLIBS      :=
+ULIBS      := 
+CPP        := cpp
+CPPFLAGS   := -P -traditional
+CPPDEFS    := -DLINUX
+CFLAGS     := -c -O2
+ifeq ($(COMMDIR), mpi)
+   FC         := mpif90
+else
+   FC         := ifort
+endif
+ifeq ($(DEBUG), yes)
+    CFLAGS     := -c -g -O0
+else
+    CFLAGS     := -c -O2
+endif
+FIXEDFLAGS := -132
+FREEFLAGS  := 
+# work-around for gcc to ensure that denormailzed numbers are 
+# flushed to zero: -march=pentium4 -msse2 -mfpmath=sse
+#FFLAGS     := -O2 -w -fdefault-real-8 -msse2 -mfpmath=sse -fconvert=big-endian
+#FFLAGS     := -r8 -i4 -O2 -align all -w -ftz -convert big_endian -assume byterecl -no-vec -mcmodel=medium
+#FFLAGS     := -r8 -i4 -g -O0 -align all -w -ftz -convert big_endian -assume byterecl -no-vec -mcmodel=medium
+ifeq ($(DEBUG), yes)
+    FFLAGS     := -g -r8 -i4 -O0 -g -align all -w -ftz -convert big_endian -assume byterecl -no-vec -mcmodel=medium
+else
+    FFLAGS     := -r8 -i4 -O2 -align all -w -ftz -convert big_endian -assume byterecl -no-vec -mcmodel=medium
+endif
+MOD_SUFFIX := mod
+LD         := $(FC)
+LDFLAGS    := $(FFLAGS) -v -static-intel
+
+    CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) -DN_ILYR=$(N_ILYR) \
+                -DNUMIN=$(NUMIN) -DNUMAX=$(NUMAX) \
+                -DTRAGE=$(TRAGE) -DTRFY=$(TRFY) -DTRLVL=$(TRLVL) \
+                -DTRPND=$(TRPND) -DNTRAERO=$(NTRAERO) -DTRBRI=$(TRBRI) \
+                -DNBGCLYR=$(NBGCLYR) -DTRBGCS=$(TRBGCS) \
+                -DNICECAT=$(NICECAT) -DNICELYR=$(NICELYR) \
+                -DNSNWLYR=$(NSNWLYR) \
+                -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS)
+
+ifeq ($(COMMDIR), mpi)
+   SLIBS   :=  $(SLIBS) $(OPENMPI_F90LIBS)
+endif
+
+ifeq ($(DITTO), yes)
+   CPPDEFS :=  $(CPPDEFS) -DREPRODUCIBLE
+endif
+
+ifeq ($(IO_TYPE), netcdf)
+   CPPDEFS := $(CPPDEFS) -Dncdf
+   INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
+   SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib/Intel -lnetcdf -lnetcdff
+endif
+
+ifeq ($(AusCOM), yes)
+   CPPDEFS := $(CPPDEFS) -DAusCOM -Dcoupled
+   INCLDIR := $(INCLDIR) $(CPL_INCS)
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lpsmile.${CHAN}
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lmpp_io
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lmpi
+   SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib/Intel -lnetcdf
+endif
+
+ifeq ($(ACCESS), yes)
+   CPPDEFS := $(CPPDEFS) -DACCESS
+endif
+# standalone CICE with AusCOM mods
+ifeq ($(ACCICE), yes)
+   CPPDEFS := $(CPPDEFS) -DACCICE
+endif
+### note this file does not include PIO capability
+### see Macros.Linux.LANL.conejo

@@ -1,0 +1,261 @@
+#! /bin/csh -f
+
+### Change these to your own site and user directory! 
+### You will need to create a Makefile Macro in bld/ and a run_ice script 
+### in input_templates/.
+
+setenv DEBUG no
+
+setenv SITE `hostname`
+
+# load intel compilers if on raijin
+if ($SITE =~ raijin?) then
+    setenv SITE 'raijin.nci.org.au'
+    source /etc/csh.login
+    module purge
+    module load intel-fc intel-cc openmpi netcdf
+#    setenv SYSTEM_USERDIR /short/p66/${USER}/CICE4.1   # raijin
+    setenv SYSTEM_USERDIR /short/${PROJECT}/${USER}/CICE.v5.1
+else    
+    setenv SYSTEM_USERDIR $PWD/CICE.v5.1   # petteri-as
+    setenv NETCDF_ROOT /usr
+endif
+
+### SYSTEM_USERDIR is predefined on ORNL machines
+#setenv SYSTEM_USERDIR /scratch/eclare/CICE.v5.0  # conejo
+#setenv SYSTEM_USERDIR /Users/akt/Work/MPAS-CICE/Column_Package/cice_package/run_dirs
+#setenv SYSTEM_USERDIR /short/${PROJECT}/${USER}/CICE.v5.0
+
+### Grid resolution
+#setenv RES col ; setenv GRID 5x5
+#setenv RES gx3 ; setenv GRID 100x116
+#setenv RES gx1 ; setenv GRID 320x384
+#setenv RES tx1 ; setenv GRID 360x240
+setenv RES tp1 ; setenv GRID 360x300
+
+set NXGLOB = `echo $GRID | sed s/x.\*//`
+set NYGLOB = `echo $GRID | sed s/.\*x//`
+
+# Recommendations:
+#   NTASK equals nprocs in ice_in 
+#   use processor_shape = slenderX1 or slenderX2 in ice_in
+#   one per processor with distribution_type='cartesian' or
+#   squarish blocks with distribution_type='rake'
+# If BLCKX (BLCKY) does not divide NXGLOB (NYGLOB) evenly, padding 
+# will be used on the right (top) of the grid.
+if ($RES == 'col') then   # for column configuration:
+   setenv NTASK      1       # total number of processors
+   setenv BLCKX      5       # x-dimension of blocks ( not including )
+   setenv BLCKY      5       # y-dimension of blocks (  ghost cells  )
+   setenv NICELYR    7       # number of vertical layers in the ice
+   setenv NSNWLYR    1       # number of vertical layers in the snow
+   setenv NICECAT    5       # number of ice thickness categories
+else if ($RES == 'gx3') then # test problem: gx3
+   setenv NTASK      1       # total number of processors
+   setenv BLCKX    100       # x-dimension of blocks ( not including )
+   setenv BLCKY    116       # y-dimension of blocks (  ghost cells  )
+#   setenv NTASK      4       # total number of processors
+#   setenv BLCKX     25       # x-dimension of blocks ( not including )
+#   setenv BLCKY     29       # y-dimension of blocks (  ghost cells  )
+   setenv NICELYR    7       # number of vertical layers in the ice
+   setenv NSNWLYR    1       # number of vertical layers in the snow
+   setenv NICECAT    5       # number of ice thickness categories
+else # accice   #for 2 cpu, 2x1, to set slenderX1 shape in cice_in.nml
+   #setenv NTASK 2       # total number of processors
+   #setenv BLCKX 180      # x-dimension of blocks ( not including )
+   #setenv BLCKY 300      # y-dimension of blocks (  ghost cells  )
+   #setenv MXBLCKS 1
+   #for 4 cpu, 4x1, to set slenderX1 shape in cice_in.nml
+   #setenv NTASK 4       # total number of processors
+   #setenv BLCKX 90
+   #setenv BLCKY 300
+   #setenv MXBLCKS 1
+   #for 6 cpu, 6x1, to set slenderX1 shape in cice_in.nml
+   #setenv NTASK 6       # total number of processors
+   #setenv BLCKX 60
+   #setenv BLCKY 300
+   #setenv MXBLCKS 1
+   #for 6 cpu, 6x1, to set slenderX2 shape in cice_in.nml
+   #setenv NTASK 6       # total number of processors
+   #setenv BLCKX 60
+   #setenv BLCKY 50
+   #setenv MXBLCKS 5
+   #for 8 cpu, 8x1, to set slenderX1 shape in cice_in.nml
+   setenv NTASK 8       # total number of processors
+   setenv BLCKX 45
+   setenv BLCKY 300
+   #setenv MXBLCKS 1
+   #for 16 cpu, 4x4, to set slenderX1 shape in cice_in.nml
+   #setenv NTASK 16       # total number of processors
+   #setenv BLCKX 90       # x-dimension of blocks ( not including )
+   #setenv BLCKY 300      # y-dimension of blocks (  ghost cells  )
+   #setenv MXBLCKS 4
+   #for 16 cpu, 4x4, to set slenderX2 shape in cice_in.nml
+   #setenv NTASK 16       # total number of processors
+   #setenv BLCKX 90       # x-dimension of blocks ( not including )
+   #setenv BLCKY 75       # y-dimension of blocks (  ghost cells  )
+   #setenv MXBLCKS 4
+   #for 16 cpu, 8x2, to set slenderX2 shape in cice_in.nml
+   #setenv NTASK 16       # total number of processors
+   #setenv BLCKX 45       # x-dimension of blocks ( not including )
+   #setenv BLCKY 150       # y-dimension of blocks (  ghost cells  )
+   #setenv MXBLCKS 2
+   #for 20 cpu, 4x5, to set slenderX2 shape in cice_in.nml
+   #setenv BLCKX 90
+   #setenv BLCKY 60
+   #setenv MXBLCKS 5
+   setenv NICELYR    7       # number of vertical layers in the ice
+   setenv NSNWLYR    1       # number of vertical layers in the snow
+   setenv NICECAT    5       # number of ice thickness categories
+endif
+
+if ($DEBUG == 'yes') then
+   setenv NTASK     1         # total number of processors
+   setenv BLCKX     $NXGLOB       # x-dimension of blocks ( not including )
+   setenv BLCKY     $NYGLOB       # y-dimension of blocks (  ghost cells  )
+   #setenv MXBLCKS   1
+endif
+
+# may need to increase MXBLCKS with rake distribution or padding
+@ a = $NXGLOB * $NYGLOB ; @ b = $BLCKX * $BLCKY * $NTASK  
+@ m = $a / $b ; setenv MXBLCKS $m; if ($MXBLCKS == 0) setenv MXBLCKS 1
+#setenv MXBLCKS 2 # if necessary (code will print proper value)
+
+### Tracers               # match ice_in tracer_nml to conserve memory
+setenv TRAGE   1          # set to 1 for ice age tracer
+setenv TRFY    1          # set to 1 for first-year ice area tracer
+setenv TRLVL   1          # set to 1 for level and deformed ice tracers
+setenv TRPND   1          # set to 1 for melt pond tracers
+setenv NTRAERO 0          # number of aerosol tracers 
+                          # (up to max_aero in ice_domain_size.F90) 
+                          # CESM uses 3 aerosol tracers
+setenv TRBRI   0          # set to 1 for brine height tracer
+setenv NBGCLYR 7          # number of zbgc layers
+setenv TRBGCS  0          # number of skeletal layer bgc tracers 
+                          # TRBGCS=0 or 2<=TRBGCS<=9)
+
+### Specialty code
+setenv CAM_ICE  no        # set to yes for CAM runs (single column) 
+setenv SHRDIR   csm_share # location of CCSM shared code
+setenv IO_TYPE  netcdf    # set to none if netcdf library is unavailable
+                          # set to pio for parallel netcdf
+setenv DITTO    no        # reproducible diagnostics
+setenv THRD     no        # set to yes for OpenMP threading
+
+if ( $THRD == 'yes') setenv OMP_NUM_THREADS 2 # positive integer 
+
+# ACCESS CICE settings yes/no
+# ACCICE denotes standalone CICE with AusCOM
+# modifications turned on
+setenv ACCICE yes
+
+### File unit numbers
+setenv NUMIN 11           # minimum file unit number
+setenv NUMAX 99           # maximum file unit number
+
+### Set SRCDIR and EXEDIR to your own paths!
+setenv SRCDIR $PWD
+#setenv SRCDIR $HOME/cice                                  # kraken
+#setenv SRCDIR /g/g21/hunke1/cice                          # atlas
+#setenv SRCDIR /ptmp/eclare/cice                           # bluevista
+
+### Location and name of the generated executable
+setenv DATESTR `date +%Y%m%d`
+setenv EXE cice5.1.2_${RES}.exe-${NTASK}p-${DATESTR}
+
+setenv EXEDIR $SYSTEM_USERDIR/rundir
+                                          if !(-d $EXEDIR) mkdir -p $EXEDIR
+setenv CBLD   $SRCDIR/bld
+setenv OBJDIR $EXEDIR/compile           ; if !(-d $OBJDIR) mkdir -p $OBJDIR
+/bin/rm $OBJDIR/*
+setenv RSTDIR $EXEDIR/restart           ; if !(-d $RSTDIR) mkdir -p $RSTDIR
+setenv HSTDIR $EXEDIR/history           ; if !(-d $HSTDIR) mkdir -p $HSTDIR
+
+setenv ARCH `uname -s`
+if ( $ARCH == 'UNICOS/mp') setenv ARCH UNICOS
+if ( $ARCH == 'UNICOS') then
+   cp -f $CBLD/Makefile.$ARCH $CBLD/Makefile
+else if ( $ARCH == 'Darwin' ) then
+   cp -f $CBLD/Makefile.$ARCH $CBLD/Makefile
+else
+   cp -f $CBLD/Makefile.std $CBLD/Makefile
+endif
+setenv ARCH $ARCH.$SITE
+
+cd $SRCDIR/source
+
+cd $EXEDIR
+
+if !($RES == 'col') then
+if !(-e grid)    cp $SRCDIR/input_templates/$RES/global_$RES.grid grid
+if !(-e kmt)     cp $SRCDIR/input_templates/$RES/global_$RES.kmt kmt
+endif
+if !(-e ice_in)  cp $SRCDIR/input_templates/$RES/ice_in .
+if !(-e run_ice) cp $SRCDIR/input_templates/run_ice.$ARCH run_ice
+
+cd $RSTDIR
+
+cp $SRCDIR/input_templates/$RES/iced_$RES* .
+if !(-e ice.restart_file) cp $SRCDIR/input_templates/$RES/ice.restart_file .
+
+cd $OBJDIR
+
+if ($NTASK == 1) then
+   setenv COMMDIR serial
+else
+   setenv COMMDIR mpi 
+endif
+
+if ($ACCICE == 'yes') then
+  setenv DRVDIR accice
+else  
+  setenv DRVDIR cice
+endif
+
+if ($IO_TYPE == 'netcdf') then
+  setenv IODIR io_netcdf
+else if ($IO_TYPE == 'pio') then
+  setenv IODIR io_pio
+else
+  setenv IODIR io_binary
+endif
+
+### AusCOM specific preprocessor flag which does not have an impact 
+### in standalone runs, for zerolayer set 1 else 4
+setenv N_ILYR 1
+
+### List of source code directories (in order of importance).
+cat >! Filepath << EOF
+$SRCDIR/drivers/$DRVDIR
+$SRCDIR/source
+$SRCDIR/$COMMDIR
+$SRCDIR/$IODIR
+$SRCDIR/$SHRDIR
+EOF
+
+cc -o makdep $CBLD/makdep.c                         || exit 2
+
+setenv MACFILE $CBLD/Macros.$ARCH
+
+gmake VPFILE=Filepath EXEC=$EXEDIR/$EXE \
+           NXGLOB=$NXGLOB NYGLOB=$NYGLOB \
+           BLCKX=$BLCKX BLCKY=$BLCKY MXBLCKS=$MXBLCKS \
+      -f  $CBLD/Makefile MACFILE=$MACFILE || exit 2
+
+cd ..
+pwd                                         
+echo NTASK = $NTASK
+echo "global N, block_size" 
+echo "x    $NXGLOB,    $BLCKX"
+echo "y    $NYGLOB,    $BLCKY"
+echo max_blocks = $MXBLCKS
+echo $TRAGE   = TRAGE,   iage tracer
+echo $TRFY    = TRFY,    first-year ice tracer
+echo $TRLVL   = TRLVL,   level-ice tracers
+echo $TRPND   = TRPND,   melt pond tracers
+echo $NTRAERO = NTRAERO, number of aerosol tracers
+echo $TRBRI   = TRBRI,   brine height tracer
+echo $NBGCLYR = NBGCLYR, number of bio grid layers
+echo $TRBGCS  = TRBGCS,  number of BGC tracers
+
+

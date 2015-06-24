@@ -1,0 +1,13 @@
+   echo $MODULE_VERSION
+   #source /opt/Modules/3.2.6/init/csh
+   source /etc/profile.d/nf_csh_modules
+   module purge
+#module load intel-fc/13.5.192
+#module load intel-cc/13.5.192
+#module load intel-mkl/13.5.192
+module load intel-fc/15.0.1.133
+module load intel-cc/15.0.1.133
+module load intel-mkl/15.0.1.133
+module load openmpi/1.8.5
+module load netcdf/4.3.2
+module list
