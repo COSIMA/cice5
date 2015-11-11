@@ -14,11 +14,11 @@
          use_restart_time ! if true, use time written in core restart file
 
       character (len=char_len), public :: &
-         restart_file  , & ! output file for restart dump
          runtype           ! initial, continue, hybrid, branch
 
       character (len=char_len_long), public :: &
          input_dir     , & ! directory name for restart input
+         restart_file  , & ! output file for restart dump
          restart_dir   , & ! directory name for restart dump
          runid             ! identifier for CESM coupled run or bering
 
