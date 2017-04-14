@@ -1,0 +1,10 @@
+
+setenv NTASK 1
+setenv RES 360x300
+
+set NXGLOB = `echo $RES | sed s/x.\*//`
+set NYGLOB = `echo $RES | sed s/.\*x//`
+
+setenv BLCKX `expr $NXGLOB`       # x-dimension of blocks ( not including )
+setenv BLCKY `expr $NYGLOB`       # y-dimension of blocks (  ghost cells  )
+

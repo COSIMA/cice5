@@ -1,0 +1,82 @@
+#==============================================================================
+# Makefile macros for xe.nci.org.au, an SGI ALTIX system running Linux
+# Note:  Use the -mp flag if precision is critical.   It slows down the 
+#        code by 25% (or more).
+#==============================================================================
+
+INCLDIR    := -I.
+SLIBS      :=
+ULIBS      :=
+CPP        := cpp
+
+CPPFLAGS   := -P -traditional
+CPPDEFS    := -DLINUX -DPAROPT
+ifeq ($(VTRACE), yes)
+    FC := mpif90-vt
+else
+    FC := mpif90
+endif
+CFLAGS     := -c -O2
+FIXEDFLAGS := -132
+FREEFLAGS  :=
+
+ifeq ($(DEBUG), yes)
+    FFLAGS     := -r8 -i4 -O0 -traceback -g -debug all -check all -no-vec -align all -w -fpe0 -ftz -convert big_endian -assume byterecl -check noarg_temp_created
+else
+    FFLAGS     := -r8 -i4 -O3 -align all -xHost -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
+endif
+
+MOD_SUFFIX := mod
+LD         := $(FC)
+LDFLAGS    := $(FFLAGS) -v -static-intel
+
+    CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) -DN_ILYR=$(N_ILYR) \
+                -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS)
+
+ifeq ($(COMMDIR), mpi)
+   SLIBS   :=  $(SLIBS) -lmpi
+endif
+
+ifeq ($(DITTO), yes)
+   CPPDEFS :=  $(CPPDEFS) -DREPRODUCIBLE
+endif
+
+ifeq ($(NETCDF), yes)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf
+   INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
+   SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
+endif
+
+ifeq ($(USE_ESMF), yes)
+   CPPDEFS :=  $(CPPDEFS) -Duse_esmf
+   INCLDIR :=  $(INCLDIR) -I ???
+   SLIBS   :=  $(SLIBS) -L ??? -lesmf -lcprts -lrt -ldl
+endif
+
+ifeq ($(AusCOM), yes)
+   CPPDEFS := $(CPPDEFS) -DAusCOM -Dcoupled
+   INCLDIR := $(INCLDIR) $(CPL_INCS) $(LIBAUSCOM_INCS)
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lpsmile.MPI1
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lmct
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lmpeu
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -lscrip
+   SLIBS   := $(SLIBS) $(LIBAUSCOM_LIBS)
+endif
+
+ifeq ($(UNIT_TESTING), yes)
+   CPPDEFS := $(CPPDEFS) -DUNIT_TESTING
+endif
+ifeq ($(ACCESS), yes)
+   CPPDEFS := $(CPPDEFS) -DACCESS
+endif
+# standalone CICE with AusCOM mods
+ifeq ($(ACCICE), yes)
+   CPPDEFS := $(CPPDEFS) -DACCICE
+endif
+# no MOM just CICE+UM
+ifeq ($(NOMOM), yes)
+   CPPDEFS := $(CPPDEFS) -DNOMOM
+endif
+ifeq ($(OASIS3_MCT), yes)
+   CPPDEFS := $(CPPDEFS) -DOASIS3_MCT
+endif
