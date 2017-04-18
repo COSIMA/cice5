@@ -1,3 +1,4 @@
 compile/build_MPI1_*
-build_access-*
+build_access*
+build_auscom*
 tags

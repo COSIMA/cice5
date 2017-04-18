@@ -23,14 +23,20 @@ FREEFLAGS  :=
 ifeq ($(DEBUG), yes)
     FFLAGS     := -r8 -i4 -O0 -traceback -g -debug all -check all -no-vec -align all -w -fpe0 -ftz -convert big_endian -assume byterecl -check noarg_temp_created
 else
-    FFLAGS     := -r8 -i4 -O3 -align all -xHost -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
+    FFLAGS     := -r8 -i4 -O2 -align all -xHost -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
 endif
 
 MOD_SUFFIX := mod
 LD         := $(FC)
-LDFLAGS    := $(FFLAGS) -v -static-intel
+LDFLAGS    := $(FFLAGS) -v
 
     CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) -DN_ILYR=$(N_ILYR) \
+                -DNUMIN=$(NUMIN) -DNUMAX=$(NUMAX) \
+                -DTRAGE=$(TRAGE) -DTRFY=$(TRFY) -DTRLVL=$(TRLVL) \
+                -DTRPND=$(TRPND) -DNTRAERO=$(NTRAERO) -DTRBRI=$(TRBRI) \
+                -DNBGCLYR=$(NBGCLYR) -DTRBGCS=$(TRBGCS) \
+                -DNICECAT=$(NICECAT) -DNICELYR=$(NICELYR) \
+                -DNSNWLYR=$(NSNWLYR) \
                 -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS)
 
 ifeq ($(COMMDIR), mpi)
@@ -41,7 +47,7 @@ ifeq ($(DITTO), yes)
    CPPDEFS :=  $(CPPDEFS) -DREPRODUCIBLE
 endif
 
-ifeq ($(NETCDF), yes)
+ifeq ($(IO_TYPE), netcdf)
    CPPDEFS :=  $(CPPDEFS) -Dncdf
    INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
    SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff

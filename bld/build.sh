@@ -40,7 +40,7 @@ setenv DITTO    no        # reproducible diagnostics
 setenv THRD     no        # set to yes for OpenMP threading
 if ( $THRD == 'yes') setenv OMP_NUM_THREADS 2 # positive integer 
 setenv AusCOM   yes
-if ($driver == 'access-cm') then
+if ($driver == 'access') then
     setenv ACCESS   yes
 else
     setenv ACCESS   no
@@ -51,9 +51,9 @@ setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
 
 if ( $AusCOM == 'yes' ) then
-    setenv CPLLIBDIR $OASIS_ROOT/lib
+    setenv CPLLIBDIR $OASIS_ROOT/Linux/lib
     setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
-    setenv CPLINCDIR $OASIS_ROOT/include
+    setenv CPLINCDIR $OASIS_ROOT/Linux/build/lib
     setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
 endif
 
@@ -110,13 +110,8 @@ else
 endif
 echo COMMDIR: $COMMDIR
 
-set N_ILYR = 4
+set N_ILYR = 1
 setenv DRVDIR $driver
-
-if ($driver == 'access-cm') then
-  # For "Zero-Layer" ice configuration (ACCESS version)
-  set N_ILYR = 1
-endif
 
 cd $OBJDIR
 
