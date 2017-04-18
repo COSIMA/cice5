@@ -79,8 +79,8 @@
 
   logical :: mpiflag
 
-  character(len=9) :: chiceout
-  character(len=3) :: chout
+  character(len=12) :: chiceout
+  character(len=6) :: chout
 
   !-----------------------------------
   ! 'define' the model global domain: 
@@ -175,8 +175,8 @@
   ! Open the process log file
   !if (my_task == 0 .or. ll_comparal) then
     il_out = 85 + my_task
-    write(chout,'(I3.3)')il_out
-    chiceout='iceout'//chout
+    write(chout,'(I6.6)')il_out
+    chiceout='iceout'//trim(chout)
     open(il_out,file=chiceout,form='formatted')
   
     write(il_out,*) 'Number of processes:', il_nbtotproc
