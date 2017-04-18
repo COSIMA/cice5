@@ -1141,7 +1141,7 @@
         ixm,ixx,ixp         ! record numbers of 3 data values
                             ! relative to recd
 
-      character (char_len_long), intent(in) ::  data_file
+      character (len=*), intent(in) ::  data_file
 
       integer (kind=int_kind), intent(in) :: &
            field_loc, &      ! location of field on staggered grid
@@ -1223,7 +1223,7 @@
         ixm,ixx,ixp         ! record numbers of 3 data values
                             ! relative to recd
 
-      character (char_len_long), intent(in) ::  data_file
+      character (len=*), intent(in) ::  data_file
 
       character (char_len), intent(in) :: &
          fieldname               ! field name in netCDF file
@@ -1437,7 +1437,7 @@
 ! to be read, given the year and assuming the naming convention
 ! that filenames end with 'yyyy.dat' or 'yyyy.r' or 'yyyy.nc'.
 
-      character (char_len_long), intent(inout) ::  data_file
+      character (len=*), intent(inout) ::  data_file
 
       integer (kind=int_kind), intent(in) :: yr
 

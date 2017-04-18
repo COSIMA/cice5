@@ -65,7 +65,7 @@
       use ice_state, only: aicen, vicen, vsnon, trcrn, &
           nt_Tsfc, nt_sice, nt_qice, nt_qsno, uvel, vvel
 
-      character(len=char_len_long), intent(in), optional :: filename_spec
+      character(len=*), intent(in), optional :: filename_spec
 
       ! local variables
 

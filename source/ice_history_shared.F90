@@ -448,7 +448,7 @@
                               dt
       use ice_restart_shared, only: lenstr
 
-      character (char_len_long), intent(inout) :: ncfile
+      character (len=*), intent(inout) :: ncfile
       character (len=2), intent(in) :: suffix
       integer (kind=int_kind), intent(in) :: ns
 

@@ -1432,7 +1432,7 @@
          iglob(nx_block)   , & ! global indices
          jglob(ny_block)       !
 
-      character(len=char_len_long), intent(in) :: & 
+      character(len=*), intent(in) :: & 
          ice_ic      ! method of ice cover initialization
 
       logical (kind=log_kind), dimension (nx_block,ny_block), &
