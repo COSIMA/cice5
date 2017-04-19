@@ -632,6 +632,21 @@
 
     write(il_out,*) '(into_ocn) sending coupling fields at stime= ', isteps
 
+  write(il_out,*)'chk iostrsu:', isteps, minval(iostrsu), maxval(iostrsu), sum(iostrsu)
+  write(il_out,*)'chk iostrsv:', isteps, minval(iostrsv), maxval(iostrsv), sum(iostrsv)
+  write(il_out,*)'chk iorain:', isteps, minval(iorain), maxval(iorain), sum(iorain)
+  write(il_out,*)'chk iosnow:', isteps, minval(iosnow), maxval(iosnow), sum(iosnow)
+  write(il_out,*)'chk iostflx:', isteps, minval(iostflx), maxval(iostflx), sum(iostflx)
+  write(il_out,*)'chk iohtflx:', isteps, minval(iohtflx), maxval(iohtflx), sum(iohtflx)
+  write(il_out,*)'chk ioswflx:', isteps, minval(ioswflx), maxval(ioswflx), sum(ioswflx)
+  write(il_out,*)'chk ioqflux:', isteps, minval(ioqflux), maxval(ioqflux), sum(ioqflux)
+  write(il_out,*)'chk ioshflx:', isteps, minval(ioshflx), maxval(ioshflx), sum(ioshflx)
+  write(il_out,*)'chk iolwflx:', isteps, minval(iolwflx), maxval(iolwflx), sum(iolwflx)
+  write(il_out,*)'chk iopress:', isteps, minval(iopress), maxval(iopress), sum(iopress)
+  write(il_out,*)'chk ioaice:', isteps, minval(ioaice), maxval(ioaice), sum(ioaice)
+  write(il_out,*)'chk iomelt:', isteps, minval(iomelt), maxval(iomelt), sum(iomelt)
+  write(il_out,*)'chk ioform:', isteps, minval(ioform), maxval(ioform), sum(ioform)
+
   do jf = n_i2a+1, jpfldout       !no 2-14 are for the ocn
 
     if (jf == n_i2a+1 ) vwork = scale * iostrsu
