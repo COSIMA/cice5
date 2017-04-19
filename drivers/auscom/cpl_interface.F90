@@ -1,3 +1,8 @@
+
+#if (MXBLCKS != 1)
+#error The code assumes that max_blocks == 1
+#endif
+
 !============================================================================
   module cpl_interface
 !============================================================================
@@ -25,7 +30,8 @@
   use ice_distribution, only : nprocsX, nprocsY, distrb
   use ice_gather_scatter
   use ice_constants
-  use ice_domain,      only : distrb_info,ew_boundary_type,ns_boundary_type
+  use ice_boundary, only : ice_HaloUpdate
+  use ice_domain, only : distrb_info,ew_boundary_type,ns_boundary_type, halo_info
 
   !cpl stuff
   use cpl_parameters
@@ -503,12 +509,12 @@
       write(il_out,*) '*** receiving coupling field No. ', jf, cl_read(jf)
       if (ll_comparal) then
         call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-        gwork(l_ilo:l_ihi, l_jlo:l_jhi) = vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)
+        !gwork(l_ilo:l_ihi, l_jlo:l_jhi) = vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)
 !!        call mpi_bcast(gwork(l_ilo,l_jlo), 1, subgw_type, my_task, MPI_COMM_ICE,ierror)
 !!        call mpi_barrier(MPI_COMM_ICE,ierror) 
-        call mpi_gatherv(vwork2d(l_ilo:l_ihi, l_jlo:l_jhi),1,sendsubarray,gwork,counts,disps,resizedrecvsubarray, &
-                     0,MPI_COMM_ICE,ierror)
-        call broadcast_array(gwork, 0)
+        !call mpi_gatherv(vwork2d(l_ilo:l_ihi, l_jlo:l_jhi),1,sendsubarray,gwork,counts,disps,resizedrecvsubarray, &
+        !             0,MPI_COMM_ICE,ierror)
+        !call broadcast_array(gwork, 0)
       else
         call prism_get_proto (il_var_id_in(jf), isteps, gwork, ierror)
       end if
@@ -521,28 +527,66 @@
 
     endif
 
-    field_type=field_type_scalar
-    if (jf == 9 .or. jf == 10) field_type=field_type_vector
-    if (.not. ll_comparal ) then
-      call scatter_global(vwork,gwork,master_task,distrb_info, &
-                        field_loc_center, field_type)
-    else
-       call unpack_global_dbl(vwork,gwork,master_task,distrb_info, &
-                        field_loc_center, field_type)
-    endif ! not ll_comparal
-    if (jf ==  1) swflx0 = vwork
-    if (jf ==  2) lwflx0 = vwork
-    if (jf ==  3) rain0  = vwork
-    if (jf ==  4) snow0  = vwork
-    if (jf ==  5) press0 = vwork
-    if (jf ==  6) runof0 = vwork
-    if (jf ==  7) tair0  = vwork
-    if (jf ==  8) qair0  = vwork
-    if (jf ==  9) uwnd0  = vwork
-    if (jf == 10) vwnd0  = vwork
+    !field_type=field_type_scalar
+    !if (jf == 9 .or. jf == 10) field_type=field_type_vector
+    !if (.not. ll_comparal ) then
+    !  call scatter_global(vwork,gwork,master_task,distrb_info, &
+    !                    field_loc_center, field_type)
+    !else
+    !   call unpack_global_dbl(vwork,gwork,master_task,distrb_info, &
+    !                    field_loc_center, field_type)
+    !endif ! not ll_comparal
+    !if (jf ==  1) swflx0 = vwork
+    !if (jf ==  2) lwflx0 = vwork
+    !if (jf ==  3) rain0  = vwork
+    !if (jf ==  4) snow0  = vwork
+    !if (jf ==  5) press0 = vwork
+    !if (jf ==  6) runof0 = vwork
+    !if (jf ==  7) tair0  = vwork
+    !if (jf ==  8) qair0  = vwork
+    !if (jf ==  9) uwnd0  = vwork
+    !if (jf == 10) vwnd0  = vwork
+
+    select case (jf)
+        case (1)
+            swflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (2)
+            lwflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (3)
+            rain0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (4)
+            snow0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
+        case (5)
+            press0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (6)
+            runof0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (7)
+            tair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
+        case (8)
+            qair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
+        case (9)
+            uwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
+        case (10)
+            vwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
+        case default
+            stop "Error: invalid case in subroutine from_atm()"
+    end select
+
 !........
 !call write_nc2D(ncid, cl_read(jf), gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
   enddo
+
+    call ice_HaloUpdate(swflx0, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(lwflx0, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(rain0, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(snow0, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(press0, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(runof0, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(tair0, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
+    call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
+    call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
+
 !...........
 !call ncheck(nf_close(ncid))
 
@@ -591,12 +635,12 @@
       write(il_out,*) '*** receiving coupling fields No. ', jf, cl_read(jf)
       if(ll_comparal) then
         call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-         gwork(l_ilo:l_ihi, l_jlo:l_jhi) = vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)
+         !gwork(l_ilo:l_ihi, l_jlo:l_jhi) = vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)
 !!        call mpi_bcast(gwork(l_ilo,l_jlo), 1, subgw_type, my_task, MPI_COMM_ICE,ierror) 
 !!        call mpi_barrier(MPI_COMM_ICE,ierror) 
-        call mpi_gatherv(vwork2d(l_ilo:l_ihi, l_jlo:l_jhi),1,sendsubarray,gwork,counts,disps,resizedrecvsubarray, &
-                     0,MPI_COMM_ICE,ierror)
-        call broadcast_array(gwork, 0)
+        !call mpi_gatherv(vwork2d(l_ilo:l_ihi, l_jlo:l_jhi),1,sendsubarray,gwork,counts,disps,resizedrecvsubarray, &
+                     !0,MPI_COMM_ICE,ierror)
+        !call broadcast_array(gwork, 0)
       else
         call prism_get_proto (il_var_id_in(jf), isteps, gwork, ierror)
       end if
@@ -609,32 +653,69 @@
 
     endif
 
-    field_type=field_type_scalar
-    if(jf == n_a2i+3 .or. jf == n_a2i+4 .or. jf == n_a2i+5 .or. jf == n_a2i+6) then
-       field_type=field_type_vector
-    endif
+    !field_type=field_type_scalar
+    !if(jf == n_a2i+3 .or. jf == n_a2i+4 .or. jf == n_a2i+5 .or. jf == n_a2i+6) then
+    !   field_type=field_type_vector
+    !endif
+!
+!    if (.not. ll_comparal) then
+!      call scatter_global(vwork, gwork, master_task, distrb_info, &
+!                        field_loc_center, field_type)
+!    else
+!      call unpack_global_dbl(vwork, gwork, master_task, distrb_info, &
+!                        field_loc_center, field_type)
+!    endif
+!    if (jf == n_a2i+1) ssto = vwork
+!    if (jf == n_a2i+2) ssso = vwork
+!    if (jf == n_a2i+3) ssuo = vwork
+!    if (jf == n_a2i+4) ssvo = vwork
+!    if (jf == n_a2i+5) sslx = vwork
+!    if (jf == n_a2i+6) ssly = vwork
+!    if (jf == n_a2i+7) pfmice = vwork
+!    !ignore the 8th,9th dummy fields:co2_oi and co2flux_oi
 
-    if (.not. ll_comparal) then
-      call scatter_global(vwork, gwork, master_task, distrb_info, &
-                        field_loc_center, field_type)
-    else
-      call unpack_global_dbl(vwork, gwork, master_task, distrb_info, &
-                        field_loc_center, field_type)
-    endif
-    if (jf == n_a2i+1) ssto = vwork
-    if (jf == n_a2i+2) ssso = vwork
-    if (jf == n_a2i+3) ssuo = vwork
-    if (jf == n_a2i+4) ssvo = vwork
-    if (jf == n_a2i+5) sslx = vwork
-    if (jf == n_a2i+6) ssly = vwork
-    if (jf == n_a2i+7) pfmice = vwork
-    !ignore the 8th,9th dummy fields:co2_oi and co2flux_oi
+    ! Copy over non-ghost part of coupled field.
+    select case (jf)
+        case (n_a2i+1)
+            ssto(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (n_a2i+2)
+            ssso(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (n_a2i+3)
+            ssuo(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (n_a2i+4)
+            ssvo(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (n_a2i+5)
+            sslx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (n_a2i+6)
+            ssly(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case (n_a2i+7)
+            pfmice(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
+        case default
+            stop "Error: invalid case in subroutine from_ocn()"
+    end select
 
   enddo
+
+  ! Now update the halos for each. FIXME: better to do this later, when they're actually needed.
+  call ice_HaloUpdate(ssto, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ssso, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ssuo, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ssvo, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(sslx, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ssly, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(pfmice, halo_info, field_loc_center, field_type_scalar)
 
   if (chk_o2i_fields) then
     call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
   endif
+
+  write(il_out,*)'chk ssto:', isteps, minval(ssto), maxval(ssto), sum(ssto)
+  write(il_out,*)'chk ssso:', isteps, minval(ssso), maxval(ssso), sum(ssso)
+  write(il_out,*)'chk ssuo:', isteps, minval(ssuo), maxval(ssuo), sum(ssuo)
+  write(il_out,*)'chk ssvo:', isteps, minval(ssvo), maxval(ssvo), sum(ssvo)
+  write(il_out,*)'chk sslx:', isteps, minval(sslx), maxval(sslx), sum(sslx)
+  write(il_out,*)'chk ssly:', isteps, minval(ssly), maxval(ssly), sum(ssly)
+  write(il_out,*)'chk pfmice:', isteps, minval(pfmice), maxval(pfmice), sum(pfmice)
 
   end subroutine from_ocn
 
