@@ -275,7 +275,7 @@
 
       yday = mday + daycal(month)   ! day of the year
       nyr = nyr - year_init + 1     ! year number
-      
+
       hour = int((ttime)/c3600) + c1 ! hour
 
       month0 = int((idate0 - int(idate0 / 10000) * 10000) / 100)
@@ -298,7 +298,6 @@
       if (month /= monthp) new_month = .true.
       if (mday  /= mdayp)  new_day = .true.
       if (hour  /= hourp)  new_hour = .true.
-
 
       do ns = 1, nstreams
          if (histfreq(ns)=='1' .and. histfreq_n(ns)/=0) then
@@ -349,7 +348,7 @@
         end select
 
         if (force_restart_now) write_restart = 1
-      
+
       endif !  istep > 1
 
       if (my_task == master_task .and. mod(istep,diagfreq) == 0 &

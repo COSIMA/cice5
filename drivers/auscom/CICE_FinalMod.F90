@@ -14,7 +14,7 @@
       use ice_kinds_mod
 
 #ifdef AusCOM
-      use cpl_interface, only : coupler_termination 
+      use cpl_interface, only : coupler_termination
 #endif
 
       implicit none
