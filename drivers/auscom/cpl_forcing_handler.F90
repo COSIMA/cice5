@@ -21,6 +21,7 @@ module cpl_forcing_handler
     use cpl_parameters
     use cpl_netcdf_setup
     use cpl_arrays_setup
+    use ice_calendar, only: dt
 
 implicit none
 
@@ -563,7 +564,7 @@ implicit none
 !   this_block           ! block information for current block
 
 !
-dtice = dt_cice
+dtice = dt
 swabs_ocn = 0.0
 pice      = 0.0    
 !initialization of array is critical -- otherwise it would be assigned HUGE value

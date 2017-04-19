@@ -19,11 +19,6 @@
           c4, c400, secday
       use ice_domain_size, only: max_nstrm
       use ice_exit, only: abort_ice
-#ifdef AusCOM
-      use cpl_parameters, only : inidate, iniday, inimon, iniyear, init_date
-      use cpl_parameters, only : il_out, caltype
-      use cpl_parameters, only : runtime0 !accumulated runtime by the end of last run
-#endif
 
       implicit none
       private
@@ -150,10 +145,6 @@
          write(nu_diag,*) 'Warning: days_per_year has been set to 365', &
               ' because use_leap_years = .true.'
       end if
-      
-#ifdef AusCOM
-      if ((days_year(year_init) == 366) .and. (caltype == 1)) days_per_year = 366
-#endif
 
       write(*,*)'CICE (calendar) days_per_year = ', days_per_year
 
@@ -164,17 +155,8 @@
       elseif (days_per_year == 365) then
          daymo  = daymo365
          daycal = daycal365
-#ifdef AusCOM
-      elseif (days_per_year == 366) then
-         daymo  = daymo366
-         daycal = daycal366
-#endif
       else 
-#ifdef AusCOM
-         call abort_ice('ice: days_per_year must be 360, 365 or 366')
-#else
          call abort_ice('ice: days_per_year must be 360 or 365')
-#endif
       endif
 
       ! Get the time in seconds from calendar zero to start of initial year
@@ -192,16 +174,6 @@
       nyr = nyr - year_init + 1    ! year number
 
       idate0 = (nyr+year_init-1)*10000 + month*100 + mday ! date (yyyymmdd) 
-
-#ifdef AusCOM
-      write(il_out,*) '(init_calendar) istep0, dt, time, sec = ', istep0, dt, time, sec
-      write(il_out,*) '(init_calendar) tday, yday, mday, nyr = ', tday, yday, mday, nyr
-      write(il_out,*) '(init_calendar) idate0 = ', idate0
-
-      idate0 = init_date
-      write(il_out,*) '(init_calendar) idate0 (-corrected-) = ',idate0
-      print *, 'CICE (init_calendar) idate0 = ', idate0 
-#endif
       end subroutine init_calendar
 
 !=======================================================================
@@ -230,11 +202,6 @@
          elapsed_hours              , & ! since beginning this run
          month0
 
-#ifdef AusCOM
-      integer (kind=int_kind) :: &
-         newh, newd, newm, newy         !date by the end of this step         
-#endif
-
       nyrp=nyr
       monthp=month
       mdayp=mday
@@ -246,28 +213,9 @@
       write_history(:)=.false.
       write_restart=0
 
-#ifdef AusCOM
-      write(il_out,*) '(calendar) ttime = ', ttime
-#endif
       sec = mod(ttime,secday)           ! elapsed seconds into date at
                                         ! end of dt
-#ifdef AusCOM
-      call get_idate(ttime, newh, newd, newm, newy)
-      !
-      !note ttime is seconds accumulated from the beginning of this run only.
-      !the following stuff is required here or there in other routines ... 
-      !
-      yday = (ttime-sec)/secday + c1    ! day of the year
-      hour = newh
-      mday = newd
-      month = newm
-      nyr = newy - year_init + 1
-      !
-      elapsed_months = (nyr - 1)*12 + month - 1
-      tday = (ttime+runtime0 - mod(ttime+runtime0,secday))/secday + c1
-      elapsed_days = int(yday) - 1
-      elapsed_hours = int(ttime/3600)
-#else
+
       tday = (ttime-sec)/secday + c1    ! absolute day number
 
       ! Deterime the current date from the timestep
@@ -283,15 +231,9 @@
       elapsed_months = (nyr - 1)*12 + (month - month0)
       elapsed_days = int((istep * dt) / secday)
       elapsed_hours = int(ttime/3600)
-#endif
 
-      idate = (nyr+year_init-1)*10000 + month*100 + mday ! date (yyyymmdd) 
+      idate = (nyr+year_init-1)*10000 + month*100 + mday ! date (yyyymmdd)
 
-#ifdef AusCOM
-      write(il_out,*) '(calendar) runtime0 = ', runtime0
-      write(il_out,*) '(calendar) nyr, year_init, month, mday = ', nyr, year_init, month, mday
-      write(il_out,*) '(calendar)  idate = ', idate
-#endif
       if (istep >= npt+1)  stop_now = 1
       if (istep == npt .and. dump_last) write_restart = 1 ! last timestep
       if (nyr   /= nyrp)   new_year = .true.
@@ -548,137 +490,6 @@
       endif
 
     end subroutine set_calendar
-
-#ifdef AusCOM
-!=======================================================================
-subroutine get_idate(ttime, khfin, kdfin, kmfin, kyfin)
-
-use cpl_parameters
-
-implicit none
-
-real (kind=dbl_kind), intent(in) :: ttime
-integer, intent(out) :: khfin, kdfin, kmfin, kyfin 
-
-integer :: klmo(12)	!length of the months
-integer :: inc_day	!increment of days since the beginning of this run
-integer :: jm, jd
-
-logical :: lleap
-
-inc_day = int ((ttime + 0.5)/86400. )
-khfin = (ttime - inc_day*86400)/3600
-
-IF (caltype .eq. 0 .or. caltype .eq. 1) THEN
-
-  !
-  ! 1. Length of the months
-  !
-  DO jm = 1, 12
-    klmo(jm) = 31
-    if ( (jm-4)*(jm-6)*(jm-9)*(jm-11) == 0) klmo(jm) = 30
-    IF (jm .eq. 2) THEN
-      !
-      !* Leap years
-      !
-      lleap = .FALSE.
-      IF (caltype .eq. 1) THEN
-        IF (MOD(iniyear,  4) .eq. 0) lleap = .TRUE.
-        IF (MOD(iniyear,100) .eq. 0) lleap = .FALSE.
-        IF (MOD(iniyear,400) .eq. 0) lleap = .TRUE.
-      ENDIF
-      klmo(jm) = 28 
-      if (lleap) klmo(jm) = 29
-    ENDIF
-  ENDDO  !jm=1,12
-     
-  kdfin = iniday
-  kmfin = inimon
-  kyfin = iniyear
-
-  !
-  ! 2. Loop on the days
-  !  
-
-  DO 210 jd = 1, inc_day
-    kdfin = kdfin + 1
-    IF (kdfin .le. klmo(kmfin)) GOTO 210
-    kdfin = 1
-    kmfin = kmfin + 1
-    IF (kmfin .le. 12) GOTO 210
-    kmfin = 1
-    kyfin = kyfin + 1
-    !
-    !* Leap years
-    !
-    lleap = .FALSE.
-    IF (caltype .eq. 1) THEN
-      IF (MOD(kyfin,  4) .eq. 0) lleap = .TRUE.
-      IF (MOD(kyfin,100) .eq. 0) lleap = .FALSE.
-      IF (MOD(kyfin,400) .eq. 0) lleap = .TRUE.
-    ENDIF
-    klmo(2) = 28
-    if (lleap) klmo(2) = 29
-210 CONTINUE
-
-ELSE            !for years with constant length of months
-
-  !
-  ! 1. Calculate month lengths for current year
-  !
-  DO jm = 1, 12
-    klmo(jm) = caltype
-  ENDDO
-  kdfin = iniday
-  kmfin = inimon
-  kyfin = iniyear
-
-  !
-  ! 2. Loop on the days
-  !
-
-  DO 410 jd = 1, inc_day
-    kdfin = kdfin + 1
-    IF (kdfin .le. klmo(kmfin)) GOTO 410
-    kdfin = 1
-    kmfin = kmfin + 1
-    IF (kmfin .le. 12) GOTO 410
-    kmfin = 1
-    kyfin = kyfin + 1
-410 CONTINUE
-
-ENDIF
-
-end subroutine get_idate
-
-!=======================================================================
-function days_year(year)
-
-use cpl_parameters, only : caltype
-
-implicit none
-
-integer, intent(in) :: year
-real (kind=dbl_kind) :: days_year
-logical :: lleap
-
-IF (caltype .eq. 0 .or. caltype .eq. 1) THEN
-  lleap = .FALSE.
-  days_year = 365.
-  IF (caltype .eq. 1) THEN
-    IF (MOD(year,  4) .eq. 0) lleap = .TRUE.
-    IF (MOD(year,100) .eq. 0) lleap = .FALSE.
-    IF (MOD(year,400) .eq. 0) lleap = .TRUE.
-  ENDIF
-  if (lleap) days_year = 366.
-ELSE
-  days_year = dayyr
-ENDIF
-
-return
-end function days_year
-#endif
-!=======================================================================
 
       end module ice_calendar
 

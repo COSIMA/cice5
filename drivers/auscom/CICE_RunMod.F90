@@ -50,7 +50,7 @@
 
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
-      use ice_calendar, only: istep, istep1, time, dt, stop_now, calendar
+      use ice_calendar, only: istep, istep1, time, dt, npt, stop_now, calendar
 #ifdef AusCOM
 !ars599: 27032014 add in
       use ice_calendar, only: month, mday
@@ -88,8 +88,6 @@
    ! timestep loop
    !--------------------------------------------------------------------
 
-#ifdef AusCOM
-
       ! Input 2-timelevel a2i data for better diurnal cycle forcing (critical to the 
       ! ice model). interpolation will be done to get the 'right' forcing in between 
       ! these two timelevels.
@@ -123,17 +121,17 @@
 
       ! receive forcing of the 'second coupling point' at the 'first coupling point'
       rtimestamp_ai = time_sec
+      if (my_task == 0) then
+        write(il_out,*) ' calling from_atm at icpl_ai, rtimestamp_ai = ',&
+    &   icpl_ai,rtimestamp_ai
+      endif
       call ice_timer_start(timer_from_atm)  ! atm/ocn coupling
       call from_atm(rtimestamp_ai)
       call ice_timer_stop(timer_from_atm)  ! atm/ocn coupling
-      if (my_task == 0) then
-        write(il_out,*) ' called from_atm at icpl_ai, rtimestamp_ai = ',&
-    &   icpl_ai,rtimestamp_ai
-      endif
 
 ! In case of CORE-IAF RUNOFF:
       if (use_core_iaf_runoff) then
-        call calendar(time-runtime0)
+        call calendar(time)
         if (imon /= month ) then
           imon = month
           print *, "use_core_iaf_runoff: icpl_ai, month, mday", icpl_ai, month, mday
@@ -160,13 +158,13 @@
         call t2ugrid_vector(iostrsu)
         call t2ugrid_vector(iostrsv)
 
+        if (my_task == 0) then
+           write(il_out,*) ' calling into_ocn at icpl_ai, icpl_io = ', icpl_ai,icpl_io
+           write(il_out,*) '                       stimestamp_io = ', stimestamp_io
+        endif
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
         call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
-        if (my_task == 0) then
-           write(il_out,*) ' called into_ocn at icpl_ai, icpl_io = ', icpl_ai,icpl_io
-           write(il_out,*) '                       stimestamp_io = ', stimestamp_io
-        endif
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
         call nullify_i2o_fluxes(first_step) 
 
@@ -194,7 +192,7 @@
 
           time_sec = time_sec + dt
  
-          call calendar(time-runtime0) 
+          call calendar(time)
 
           !initialize fluxes sent to coupler (WHY should still need do this?)
           call init_flux_atm
@@ -214,20 +212,21 @@
         ! ----------------------------------- 
 
         rtimestamp_io = time_sec
-#ifdef OASIS3_MCT
-        if (rtimestamp_io < runtime) then
-#endif
+        if (rtimestamp_io < (dt*npt)) then
+          if (my_task == 0) then
+             write(il_out,*) ' calling from_ocn at icpl_ai, icpl_io = ', icpl_ai,icpl_io
+             write(il_out,*) '                       rtimestamp_io = ', rtimestamp_io
+          endif
           call ice_timer_start(timer_from_ocn)  ! atm/ocn coupling
           call from_ocn(rtimestamp_io)
           call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
-          if (my_task == 0) then
-             write(il_out,*) ' called from_ocn at icpl_ai, icpl_io = ', icpl_ai,icpl_io
-             write(il_out,*) '                       rtimestamp_io = ', rtimestamp_io
-          endif
-#ifdef OASIS3_MCT
         endif
 
       tmp_time = time_sec + dt
+      if (my_task == 0) then
+         write(il_out, *), 'time_sec, dt, dt_cpl_ai''time_sec, dt, dt_cpl_ai'
+      endif
+
       if (mod(tmp_time, dt_cpl_ai) == 0) then 
       ! merge sst and Tsfc etc and then send i2a fields to coupler
       call ice_timer_start(timer_into_atm)  ! atm/ocn coupling
@@ -236,32 +235,17 @@
       ! * because of using lag=+dt_ice, we must take one step off the time_sec 
       ! * to make the sending happen at right time:
       stimestamp_ai = time_sec !- dt
+      if (my_task == 0) then
+         write(il_out,*) ' calling into_atm at icpl_ai, time_sec = ', icpl_ai,time_sec, stimestamp_ai
+      endif
       call into_atm(stimestamp_ai)
       call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling
-      if (my_task == 0) then
-         write(il_out,*) ' called into_atm at icpl_ai, time_sec = ', icpl_ai,time_sec
-      endif
       end if
-#endif
 
       End Do      !icpl_io
-#ifndef OASIS3_MCT
-      ! merge sst and Tsfc etc and then send i2a fields to coupler
-      call ice_timer_start(timer_into_atm)  ! atm/ocn coupling
-      write(il_out,*) ' called get_i2a_fields at ', time_sec
-      call get_i2a_fields
-      ! * because of using lag=+dt_ice, we must take one step off the time_sec 
-      ! * to make the sending happen at right time:
-      stimestamp_ai = time_sec - dt
-      call into_atm(stimestamp_ai)
-      call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling
-      if (my_task == 0) then
-         write(il_out,*) ' called into_atm at icpl_ai, time_sec = ', icpl_ai,time_sec
-      endif
 
       ! replace the time0 i2a data with new values
 !XXX      call update_time0_a2i_fields 
-#endif
       END DO        !icpl_ia
 
       ! final update of the stimestamp_io, ie., put back the last dt_ice:
@@ -274,37 +258,6 @@
       call save_u_star('u_star.nc',stimestamp_io)    
 
       call save_sicemass('sicemass.nc',stimestamp_io)    
-
-#else
-
-      timeLoop: do
-
-         call ice_step
-
-         istep  = istep  + 1    ! update time step counters
-         istep1 = istep1 + 1
-         time = time + dt       ! determine the time and date
-
-         call calendar(time)    ! at the end of the timestep
-
-         if (stop_now >= 1) exit timeLoop
-
-#ifndef coupled
-         call ice_timer_start(timer_couple)  ! atm/ocn coupling
-         call get_forcing_atmo     ! atmospheric forcing from data
-         call get_forcing_ocn(dt)  ! ocean forcing from data
-         ! if (tr_aero) call faero_data       ! aerosols
-         if (tr_aero)  call faero_default     ! aerosols
-         if (skl_bgc)  call get_forcing_bgc   ! biogeochemistry
-         call ice_timer_stop(timer_couple)    ! atm/ocn coupling
-#endif
-
-         call init_flux_atm     ! initialize atmosphere fluxes sent to coupler
-         call init_flux_ocn     ! initialize ocean fluxes sent to coupler
-
-      enddo timeLoop
-
-#endif
 
    !--------------------------------------------------------------------
    ! end of timestep loop

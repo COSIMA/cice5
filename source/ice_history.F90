@@ -32,9 +32,6 @@
       module ice_history
 
       use ice_kinds_mod
-#ifdef AusCOM
-      use cpl_parameters, only: caltype
-#endif
 
       implicit none
       private

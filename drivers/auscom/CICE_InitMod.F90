@@ -109,19 +109,9 @@
 #endif
 
       call init_communicate     ! initial setup for message passing
-#ifdef AusCOM 
-      call prism_init		! called in init_communicate	
+      call prism_init  ! called in init_communicate
       MPI_COMM_ICE = il_commlocal
-!      call init_cpl     ! initialize message passing
-      call get_cpl_timecontrol
-      write(il_out,*)' CICE (cice_init) 1    jobnum = ',jobnum
-      write(il_out,*)' CICE (cice_init) 1   inidate = ',inidate
-      write(il_out,*)' CICE (cice_init) 1 init_date = ',init_date
-      write(il_out,*)' CICE (cice_init) 1  runtime0 = ',runtime0
-      write(il_out,*)' CICE (cice_init) 1   runtime = ',runtime
-      write(il_out,*)' CICE (cice_init) 1     idate = ',my_task, idate
-      !write(il_out,*)' CICE (cice_init) 1   runtype = ',runtype
-#endif
+
       call init_fileunits       ! unit numbers
 
       call input_data           ! namelist variables
@@ -140,6 +130,8 @@
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
 
+      call get_cpl_timecontrol
+
       if (kdyn == 2) then
          call init_eap (dt_dyn) ! define eap dynamics parameters, variables
       else                      ! for both kdyn = 0 or 1
@@ -156,9 +148,8 @@
 
 #ifdef AusCOM
       write(il_out,*)' CICE: calendar called!'
-      idate_save = idate  !save for late re-set in case 'restart' is used for jobnum=1
-                          !and mess up the calendar idate for this exp...!
-      if (jobnum==1 .and. runtype == 'initial') then
+
+      if (runtype == 'initial') then
         nrec = month - 1            !month is from calendar
         if (nrec == 0) nrec = 12 
         write(il_out,*) 'CICE calling get_time0_sstsss... my_task = ',my_task
@@ -173,9 +164,11 @@
       if (gfdl_surface_flux) then
          call get_u_star('INPUT/u_star.nc')
       endif  
+
 #else
       call init_forcing_ocn(dt) ! initialize sss and sst from data
 #endif
+
       call init_state           ! initialize the ice state
       call init_transport       ! initialize horizontal transport
       call ice_HaloRestore_init ! restored boundary conditions
@@ -184,13 +177,7 @@
 
 #ifdef AusCOM
       write(il_out,*) 'CICE (cice_init) 2      time = ', my_task, time
-      write(il_out,*) 'CICE (cice_init) 2  runtime0 = ', my_task, runtime0
       write(il_out,*) 'CICE (cice_init) 2     idate = ', my_task, idate
- 
-      if (jobnum == 1 ) then
-        time = 0.0            !NOTE, the first job must be set back to 0 and 
-        idate = idate_save    !idate back to the 'initial' value, in any case
-      endif 
 #endif
 
       call init_diags           ! initialize diagnostic output points
@@ -206,16 +193,10 @@
          istep  = istep  + 1    ! update time step counters
          istep1 = istep1 + 1
          time = time + dt       ! determine the time and date
-#ifndef AusCOM
          call calendar(time)    ! at the end of the first timestep
-#else
-!ars599: 26032014 original code
-!         call calendar(time)    ! at the end of the first timestep
-         call calendar(time-runtime0)
+
       write(il_out,*) 'CICE (cice_init) 3     time = ', my_task, time
-      write(il_out,*) 'CICE (cice_init) 3 runtime0 = ', my_task, runtime0
       write(il_out,*) 'CICE (cice_init) 3    idate = ', my_task, idate
-#endif
 
    !--------------------------------------------------------------------
    ! coupler communication or forcing data initialization

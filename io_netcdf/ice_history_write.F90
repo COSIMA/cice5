@@ -42,8 +42,6 @@
       use ice_broadcast, only: broadcast_scalar
       use ice_calendar, only: time, sec, idate, idate0, write_ic, &
           histfreq, dayyr, days_per_year, use_leap_years
-!ars599: 27032014: add for AusCOM setting at line 133
-      use ice_calendar, only: month, daymo
       use ice_communicate, only: my_task, master_task
       use ice_constants, only: c0, c360, secday, spval, rad_to_deg
       use ice_domain, only: distrb_info
@@ -54,9 +52,6 @@
       use ice_grid, only: TLON, TLAT, ULON, ULAT, hm, bm, tarea, uarea, &
           dxu, dxt, dyu, dyt, HTN, HTE, ANGLE, ANGLET, &
           lont_bounds, latt_bounds, lonu_bounds, latu_bounds
-#ifdef AusCOM
-      use cpl_parameters, only: caltype
-#endif
       use ice_history_shared
       use ice_itd, only: hin_max
       use ice_restart_shared, only: runid
@@ -120,24 +115,7 @@
 
       if (my_task == master_task) then
 
-!ars599: 24032014
-!	since cant reconise month, daymo, so modify for AusCOM only
-!#if defined(AusCOM) || defined(ACCICE)
-#ifdef AusCOM
-        if (histfreq(ns) == 'm' .or. histfreq(ns) == 'M') then
-            if (month /= 1) then
-                ltime=time/int(secday)-real(daymo(month-1))/2.0
-            else
-                ltime=time/int(secday)-real(daymo(12))/2.0
-            endif
-        else if(histfreq(ns) == 'd') then 
-            ltime=time/int(secday) - 1
-        else
-            ltime=time/int(secday)
-        endif
-#else
         ltime=time/int(secday)
-#endif
 
         call construct_filename(ncfile(ns),'nc',ns)
 
@@ -214,15 +192,6 @@
         if (status /= nf90_noerr) call abort_ice( &
                       'ice Error: time units')
 
-#ifdef AusCOM
-        if (caltype == 0) then
-           status = nf90_put_att(ncid,varid,'calendar','noleap')
-        else if (caltype == 1) then
-           status = nf90_put_att(ncid,varid,'calendar','proleptic_gregorian')
-        else   !'default'
-          status = nf90_put_att(ncid,varid,'calendar','360_day')
-        endif   
-#else
         if (days_per_year == 360) then
            status = nf90_put_att(ncid,varid,'calendar','360_day')
            if (status /= nf90_noerr) call abort_ice( &
@@ -238,7 +207,6 @@
         else
            call abort_ice( 'ice Error: invalid calendar settings')
         endif
-#endif
 
         if (hist_avg) then
           status = nf90_put_att(ncid,varid,'bounds','time_bounds')

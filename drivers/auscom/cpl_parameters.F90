@@ -1,13 +1,6 @@
 !============================================================================
 !
 module cpl_parameters
-!
-! * since the CICE model is too 'small' and needs far less processors than *
-! * the other models (UM, MOM4) in the ACCESS system, it is NOT practical  *
-! * at all to use "parallel coupling" between CICE and UM and CICE and MOM4*
-! * via oasis3. we've thus removed the unlikely "parallel coupling" option *
-! * to simplify the coupling code (in cpl_interface_mod)   Feburary, 2008. *
-!----------------------------------------------------------------------------
 
 use ice_kinds_mod
 
@@ -54,29 +47,12 @@ logical :: &                         !pop_icediag is as that for ocn model, if t
    gfdl_surface_flux = .true., &     !.t. use gfdl ocean surface flux calculation (dec2009)
    chk_gfdl_roughness = .false.      !.t. output u_star & roughness once a cpl interval (jan2010)
 
-        integer(kind=int_kind) :: dt_cice = 3600       !time step of this model      (seconds) 
         integer(kind=int_kind) :: dt_cpl_ai = 21600    !atm<==>ice coupling interval (seconds) 
         integer(kind=int_kind) :: dt_cpl_io = 3600    !ice<==>ocn coupling interval (seconds)
-        integer(kind=int_kind) :: caltype = 0          !calendar type: 0 (365daye/yr, 'Juilian?' ) 
-                                               ! 1 (365/366 days/yr, 'Gregorian')
-                                               ! n (n days/yr)
-        integer(kind=int_kind) :: jobnum = 1           !job nubmer for this run (1 for initial, >1 restart)
-        integer(kind=int_kind) :: inidate = 01010101   !beginning date of this run (yyyymmdd)
-        integer(kind=int_kind) :: init_date = 00010101 !beginning date of this EXP (yyyymmdd)
-!        integer(kind=int_kind) :: runtime0            !accumulated run time by the end of last run (s)   
-    real(kind=dbl_kind) :: runtime0 = 0.0          !runtime0 can be too large as int to read in correctly!
-        integer(kind=int_kind) :: runtime = 86400      !the time length for this run segment (s)
 
     real(kind=dbl_kind) :: precip_factor = 1.0   !test the precip (temporary use)
 
 namelist/coupling_nml/       &
-         caltype,        &
-         jobnum,         &
-         inidate,        &
-         init_date,      &
-         runtime0,       &   
-         runtime,        &
-         dt_cice,        &
          dt_cpl_ai,      &
          dt_cpl_io,      &
          pop_icediag,    &
@@ -114,11 +90,11 @@ namelist/coupling_nml/       &
 
 contains
 
-!===============================================================================
 subroutine get_cpl_timecontrol
 
 use ice_exit
 use ice_fileunits
+use ice_calendar, only : dt, npt
 
 implicit none
 
@@ -155,18 +131,12 @@ endif
 
 ! * make sure runtime is mutliple of dt_cpl_ai, dt_cpl_ai is mutliple of dt_cpl_io, 
 ! * and dt_cpl_io is mutliple of dt_cice!
-num_cpl_ai = runtime/dt_cpl_ai
+num_cpl_ai = (npt*dt)/dt_cpl_ai
 num_cpl_io = dt_cpl_ai/dt_cpl_io
-num_ice_io = dt_cpl_io/dt_cice
+num_ice_io = dt_cpl_io/dt
 
-coef_ic = float(dt_cice)/float(dt_cpl_io)
+coef_ic = real(dt)/real(dt_cpl_io)
 
-iniday  = mod(inidate, 100)
-inimon  = mod( (inidate - iniday)/100, 100)
-iniyear = inidate / 10000
-
-return
 end subroutine get_cpl_timecontrol
 
-!===============================================================================
 end module cpl_parameters

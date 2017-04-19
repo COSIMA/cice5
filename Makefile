@@ -1,8 +1,8 @@
 
-access-om01:
-	bld/build.sh nci auscom 3600x2700
 access-om1:
 	bld/build.sh nci auscom 360x300
+access-om01:
+	bld/build.sh nci auscom 3600x2700
 access-cm1:
 	bld/build.sh nci access 360x300
 access-om025:
