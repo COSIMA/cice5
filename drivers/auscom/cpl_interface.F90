@@ -335,8 +335,8 @@
     cl_writ(n_i2a+13)='aice_io'
     cl_writ(n_i2a+14)='melt_io'
     cl_writ(n_i2a+15)='form_io'
-    cl_writ(n_i2a+16)='co2_i1'
-    cl_writ(n_i2a+17)='wnd_i1'
+    !cl_writ(n_i2a+16)='co2_i1'
+    !cl_writ(n_i2a+17)='wnd_i1'
 
     do jf=1, jpfldout
       call prism_def_var_proto (il_var_id_out(jf),cl_writ(jf), il_part_id, &
@@ -365,8 +365,8 @@
     cl_read(n_a2i+5)='sslx_i'
     cl_read(n_a2i+6)='ssly_i'
     cl_read(n_a2i+7)='pfmice_i'
-    cl_read(n_a2i+8)='co2_oi'
-    cl_read(n_a2i+9)='co2fx_oi'
+    !cl_read(n_a2i+8)='co2_oi'
+    !cl_read(n_a2i+9)='co2fx_oi'
     !
     do jf=1, jpfldin
       call prism_def_var_proto (il_var_id_in(jf), cl_read(jf), il_part_id, &
@@ -554,6 +554,17 @@
   ! ...and, as we use direct o-i communication and o-i share the same grid, 
   ! no need for any t2u and/or u2t shift before/after i-o coupling!
 
+  write(il_out,*)'chk swflx0:', isteps, minval(swflx0), maxval(swflx0), sum(swflx0)
+  write(il_out,*)'chk lwflx0:', isteps, minval(lwflx0), maxval(lwflx0), sum(lwflx0)
+  write(il_out,*)'chk rain0:', isteps, minval(rain0), maxval(rain0), sum(rain0)
+  write(il_out,*)'chk snow0:', isteps, minval(snow0), maxval(snow0), sum(snow0)
+  write(il_out,*)'chk press0:', isteps, minval(press0), maxval(press0), sum(press0)
+  write(il_out,*)'chk runof0:', isteps, minval(runof0), maxval(runof0), sum(runof0)
+  write(il_out,*)'chk tair0:', isteps, minval(tair0), maxval(tair0), sum(tair0)
+  write(il_out,*)'chk qair0:', isteps, minval(qair0), maxval(qair0), sum(qair0)
+  write(il_out,*)'chk uwnd0:', isteps, minval(uwnd0), maxval(uwnd0), sum(uwnd0)
+  write(il_out,*)'chk vwnd0:', isteps, minval(vwnd0), maxval(vwnd0), sum(vwnd0)
+
   if ( chk_a2i_fields ) then
     call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
   endif
@@ -667,8 +678,8 @@
     !!!
     if (jf == n_i2a+14) vwork = scale * iomelt
     if (jf == n_i2a+15) vwork = scale * ioform
-    if (jf == n_i2a+16) vwork = 0. !dummy co2_i1 
-    if (jf == n_i2a+17) vwork = 0. !dummy wnd_i1
+    !if (jf == n_i2a+16) vwork = 0. !dummy co2_i1 
+    !if (jf == n_i2a+17) vwork = 0. !dummy wnd_i1
 
     if(.not. ll_comparal) then
       call gather_global(gwork, vwork, master_task, distrb_info)
