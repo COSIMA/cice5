@@ -103,11 +103,11 @@
       !    last run from ocn and ice model;
       ! initial run needs the pre-processed o2i and i2o fields.
 
-      call get_time0_o2i_fields('o2i.nc')
+      call get_time0_o2i_fields('INPUT/o2i.nc')
 
 !write(il_out,*) 'after get_time0_o2i_fields, ssto=', ssto
 
-      call get_time0_i2o_fields('i2o.nc')
+      call get_time0_i2o_fields('INPUT/i2o.nc')
       call get_sicemass('INPUT/sicemass.nc')
 
       if (use_core_nyf_runoff) then 
@@ -150,7 +150,7 @@
            !call gather_global(gwork, u_star0, master_task, distrb_info)
            !if (my_task == master_task) write(54,'(10e12.4)')gwork
            !
-           call check_roughness('fields_roughness.nc',stimestamp_io)
+           call check_roughness('INPUT/fields_roughness.nc',stimestamp_io)
         endif
         ! ----------------------------------- 
 
@@ -253,11 +253,11 @@
 
 !XXX      call save_time0_a2i_fields('CICE_input/A2I_time1.nc', stimestamp_io)
 
-      call save_time0_i2o_fields('i2o.nc', stimestamp_io) 
+      call save_time0_i2o_fields('RESTART/i2o.nc', stimestamp_io) 
 
-      call save_u_star('u_star.nc',stimestamp_io)    
+      call save_u_star('RESTART/u_star.nc',stimestamp_io)    
 
-      call save_sicemass('sicemass.nc',stimestamp_io)    
+      call save_sicemass('RESTART/sicemass.nc',stimestamp_io)    
 
    !--------------------------------------------------------------------
    ! end of timestep loop
