@@ -473,19 +473,25 @@
 !call write_nc_1Dtime(real(isteps),currstep,'time',ncid)
 
 
+#if defined(DEBUG)
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
+#endif
 
 
   do jf = 1, n_a2i       !10, not jpfldin, only 10 fields from cpl (atm) 
 
       !jf-th field in
+#if defined(DEBUG)
       write(il_out,*) '*** receiving coupling field No. ', jf, cl_read(jf)
+#endif
         call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
       if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
         write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
         call prism_abort_proto(il_comp_id, 'cice from_atm','stop 1') 
       else 
+#if defined(DEBUG)
         write(il_out,*)'(from_atm) rcvd at time with err: ',cl_read(jf),isteps,ierror
+#endif
       endif
 
     select case (jf)
@@ -534,6 +540,7 @@
   ! ...and, as we use direct o-i communication and o-i share the same grid, 
   ! no need for any t2u and/or u2t shift before/after i-o coupling!
 
+#if defined(DEBUG)
   write(il_out,*)'chk swflx0:', isteps, minval(swflx0), maxval(swflx0), sum(swflx0)
   write(il_out,*)'chk lwflx0:', isteps, minval(lwflx0), maxval(lwflx0), sum(lwflx0)
   write(il_out,*)'chk rain0:', isteps, minval(rain0), maxval(rain0), sum(rain0)
@@ -544,6 +551,7 @@
   write(il_out,*)'chk qair0:', isteps, minval(qair0), maxval(qair0), sum(qair0)
   write(il_out,*)'chk uwnd0:', isteps, minval(uwnd0), maxval(uwnd0), sum(uwnd0)
   write(il_out,*)'chk vwnd0:', isteps, minval(vwnd0), maxval(vwnd0), sum(vwnd0)
+#endif
 
   if ( chk_a2i_fields ) then
     call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
@@ -559,18 +567,25 @@
  
   integer(kind=int_kind) :: jf, field_type
   
+#if defined(DEBUG)
     write(il_out,*) '(from_ocn) receiving coupling fields at rtime: ', isteps
+#endif
 
   do jf = n_a2i+1, jpfldin          !no 11-17 from ocn
 
       !jf-th field in
+#if defined(DEBUG)
       write(il_out,*) '*** receiving coupling fields No. ', jf, cl_read(jf)
+#endif
+
         call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
       if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
         write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
         call prism_abort_proto(il_comp_id, 'cice from_atm','stop 1')
       else
+#if defined(DEBUG)
         write(il_out,*)'(from_ocn) rcvd at time with err: ',cl_read(jf),isteps,ierror
+#endif
       endif
 
     ! Copy over non-ghost part of coupled field.
@@ -608,6 +623,7 @@
     call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
   endif
 
+#if defined(DEBUG)
   write(il_out,*)'chk ssto:', isteps, minval(ssto), maxval(ssto), sum(ssto)
   write(il_out,*)'chk ssso:', isteps, minval(ssso), maxval(ssso), sum(ssso)
   write(il_out,*)'chk ssuo:', isteps, minval(ssuo), maxval(ssuo), sum(ssuo)
@@ -615,6 +631,7 @@
   write(il_out,*)'chk sslx:', isteps, minval(sslx), maxval(sslx), sum(sslx)
   write(il_out,*)'chk ssly:', isteps, minval(ssly), maxval(ssly), sum(ssly)
   write(il_out,*)'chk pfmice:', isteps, minval(pfmice), maxval(pfmice), sum(pfmice)
+#endif
 
   end subroutine from_ocn
 
@@ -630,7 +647,8 @@
   real, intent(in) :: scale             !only 1 or 1/coef_ic allowed! 
   integer(kind=int_kind) :: jf
 
-    write(il_out,*) '(into_ocn) sending coupling fields at stime= ', isteps
+#if defined(DEBUG)
+  write(il_out,*) '(into_ocn) sending coupling fields at stime= ', isteps
 
   write(il_out,*)'chk iostrsu:', isteps, minval(iostrsu), maxval(iostrsu), sum(iostrsu)
   write(il_out,*)'chk iostrsv:', isteps, minval(iostrsv), maxval(iostrsv), sum(iostrsv)
@@ -646,6 +664,7 @@
   write(il_out,*)'chk ioaice:', isteps, minval(ioaice), maxval(ioaice), sum(ioaice)
   write(il_out,*)'chk iomelt:', isteps, minval(iomelt), maxval(iomelt), sum(iomelt)
   write(il_out,*)'chk ioform:', isteps, minval(ioform), maxval(ioform), sum(ioform)
+#endif
 
   do jf = n_i2a+1, jpfldout       !no 2-14 are for the ocn
 
@@ -674,13 +693,17 @@
     call pack_global_dbl(gwork, vwork, master_task, distrb_info)
     vwork2d(l_ilo:l_ihi, l_jlo:l_jhi) = gwork(l_ilo:l_ihi, l_jlo:l_jhi)
 
+#if defined(DEBUG)
       write(il_out,*) '*** sending coupling field No. ', jf, cl_writ(jf)
+#endif
       call prism_put_proto(il_var_id_out(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
       if ( ierror /= PRISM_Ok .and. ierror < PRISM_Sent) then
         write(il_out,*) '(into_ocn) Err in _put_ ', cl_writ(jf), isteps, ierror
         call prism_abort_proto(il_comp_id, 'cice into_ocn','STOP 1') 
       else
+#if defined(DEBUG)
         write(il_out,*)'(into_ocn) sent: ', cl_writ(jf), isteps, ierror
+#endif
       endif
 
   enddo     !jf = 6, jpfldout
@@ -698,7 +721,9 @@
   integer(kind=int_kind), intent(in) :: isteps
   integer(kind=int_kind) :: jf
 
+#if defined(DEBUG)
   write(il_out,*) '(into_atm) sending coupling fields at stime= ', isteps
+#endif
 
   do jf = 1, n_i2a      !1
     if (jf ==  1) then
@@ -706,15 +731,18 @@
       vwork2d(l_ilo:l_ihi, l_jlo:l_jhi) = gwork(l_ilo:l_ihi, l_jlo:l_jhi)
     end if
 
+#if defined(DEBUG)
       write(il_out,*) '*** sending coupling field No. ', jf, cl_writ(jf)
-
       write(il_out,*) '(into_atm) what to do with this var==> Err= ',ierror
+#endif
       call prism_put_proto(il_var_id_out(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
       if ( ierror /= PRISM_Ok .and. ierror < PRISM_Sent) then
         write(il_out,*) '(into_atm) Err in _put_ ', cl_writ(jf), isteps, ierror
         call prism_abort_proto(il_comp_id, 'cice into_atm','STOP 1')
       else
+#if defined(DEBUG)
         write(il_out,*)'(into_atm) sent: ', cl_writ(jf), isteps, ierror
+#endif
       endif
 
   enddo

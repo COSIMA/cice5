@@ -105,8 +105,6 @@
 
       call get_time0_o2i_fields('INPUT/o2i.nc')
 
-!write(il_out,*) 'after get_time0_o2i_fields, ssto=', ssto
-
       call get_time0_i2o_fields('INPUT/i2o.nc')
       call get_sicemass('INPUT/sicemass.nc')
 
@@ -122,8 +120,10 @@
       ! receive forcing of the 'second coupling point' at the 'first coupling point'
       rtimestamp_ai = time_sec
       if (my_task == 0) then
+#if defined(DEBUG)
         write(il_out,*) ' calling from_atm at icpl_ai, rtimestamp_ai = ',&
     &   icpl_ai,rtimestamp_ai
+#endif
       endif
       call ice_timer_start(timer_from_atm)  ! atm/ocn coupling
       call from_atm(rtimestamp_ai)
@@ -134,8 +134,10 @@
         call calendar(time)
         if (imon /= month ) then
           imon = month
+#if defined(DEBUG)
           print *, "use_core_iaf_runoff: icpl_ai, month, mday", icpl_ai, month, mday
           write(1001,*)'icpl_ai, month, mday = ',icpl_ai, month, mday
+#endif
           call get_core_runoff('INPUT/core_runoff_regrid.nc','RUNOFF', month)
         endif
       endif
@@ -159,8 +161,10 @@
         call t2ugrid_vector(iostrsv)
 
         if (my_task == 0) then
+#if defined(DEBUG)
            write(il_out,*) ' calling into_ocn at icpl_ai, icpl_io = ', icpl_ai,icpl_io
            write(il_out,*) '                       stimestamp_io = ', stimestamp_io
+#endif
         endif
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
@@ -175,13 +179,9 @@
 
           !put in place all (atm and ocn) 'raw' forcing fields:
           call newt_forcing_raw
-!write(il_out,*) 'after newt_forcing_raw, tair=', tair
-!write(il_out,*) 'after newt_forcing_raw, sst=', sst
 
           !convert the 'raw' atm forcing into that required by cice
           call get_forcing_atmo_ready
-!write(il_out,*) 'after get_forcing_atmo_ready, trcr=', trcr
-!write(il_out,*) 'after get_forcing_atmo_ready, sst=', sst
 
           call ice_step
 
@@ -214,8 +214,10 @@
         rtimestamp_io = time_sec
         if (rtimestamp_io < (dt*npt)) then
           if (my_task == 0) then
+#if defined(DEBUG)
              write(il_out,*) ' calling from_ocn at icpl_ai, icpl_io = ', icpl_ai,icpl_io
              write(il_out,*) '                       rtimestamp_io = ', rtimestamp_io
+#endif
           endif
           call ice_timer_start(timer_from_ocn)  ! atm/ocn coupling
           call from_ocn(rtimestamp_io)
@@ -224,19 +226,25 @@
 
       tmp_time = time_sec + dt
       if (my_task == 0) then
+#if defined(DEBUG)
          write(il_out, *), 'time_sec, dt, dt_cpl_ai''time_sec, dt, dt_cpl_ai'
+#endif
       endif
 
       if (mod(tmp_time, dt_cpl_ai) == 0) then 
       ! merge sst and Tsfc etc and then send i2a fields to coupler
       call ice_timer_start(timer_into_atm)  ! atm/ocn coupling
+#if defined(DEBUG)
       write(il_out,*) ' called get_i2a_fields at ', time_sec
+#endif
       call get_i2a_fields
       ! * because of using lag=+dt_ice, we must take one step off the time_sec 
       ! * to make the sending happen at right time:
       stimestamp_ai = time_sec !- dt
       if (my_task == 0) then
+#if defined(DEBUG)
          write(il_out,*) ' calling into_atm at icpl_ai, time_sec = ', icpl_ai,time_sec, stimestamp_ai
+#endif
       endif
       call into_atm(stimestamp_ai)
       call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling

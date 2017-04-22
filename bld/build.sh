@@ -23,10 +23,12 @@ setenv SRCDIR $cwd
 setenv CBLD   $SRCDIR/bld
 
 if ($debug == 'debug') then
-    setenv DEBUG yes
+    setenv DEBUG 1
+else
+    setenv DEBUG 0
 endif
 if ($debug == 'unit_testing') then
-    setenv DEBUG yes
+    setenv DEBUG 1
     setenv UNIT_TESTING yes
 endif
 

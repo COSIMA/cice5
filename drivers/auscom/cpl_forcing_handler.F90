@@ -715,18 +715,6 @@ tioshflx = fsens_ocn
 tiolwflx = flw + flwout_ocn   !net lw flux (down) into ocean 
 tioswflx = swabs_ocn
 
-!PU17052011
-!if (my_task == master_task) then
-   !write(il_out,*) "get_i2o_fluxes: after gfld_ocean_fluxes"
-   !write(il_out,*) "get_i2o_fluxes: tioswflx(97,301)",tioswflx(97,301,1)
-   !write(il_out,*) "get_i2o_fluxes: sum(tioswflx)",sum(tioswflx(2:361,2:301,1))
-   !write(il_out,*) "get_i2o_fluxes: aice(97,301)",aice(97,301,1)
-   !write(il_out,*) "get_i2o_fluxes: sum(aice)",sum(aice(2:361,2:301,1))
-   !write(il_out,*) "get_i2o_fluxes: swabs_ocn(97,301)",swabs_ocn(97,301,1)
-   !write(il_out,*) "get_i2o_fluxes: sum(swabs_ocn)",sum(swabs_ocn(2:361,2:301,1))
-!endif
-!PU
-
 ! === double checked with Siobhan the following mergeing under sea ice:  ===
 !     Note: for those i2o fluxes which are already weighted with ice catagory
 !     fractions in routine 'merge_fluxes', they must NOT be weighted here

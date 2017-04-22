@@ -147,14 +147,17 @@
       call calendar(time)       ! determine the initial date
 
 #ifdef AusCOM
+#if defined(DEBUG)
       write(il_out,*)' CICE: calendar called!'
+#endif
 
       if (runtype == 'initial') then
         nrec = month - 1            !month is from calendar
         if (nrec == 0) nrec = 12 
-        write(il_out,*) 'CICE calling get_time0_sstsss... my_task = ',my_task
         call get_time0_sstsss('INPUT/monthly_sstsss.nc', nrec)
+#if defined(DEBUG)
         write(il_out,*) 'CICE called  get_time0_sstsss. my_task = ',my_task
+#endif
       endif
       !the read in sst/sss determines the initial ice state (in init_state)
       !which is overwritten by call to restartfile if restart=.t.
@@ -176,8 +179,10 @@
       call init_restart         ! initialize restart variables
 
 #ifdef AusCOM
+#if defined(DEBUG)
       write(il_out,*) 'CICE (cice_init) 2      time = ', my_task, time
       write(il_out,*) 'CICE (cice_init) 2     idate = ', my_task, idate
+#endif
 #endif
 
       call init_diags           ! initialize diagnostic output points
@@ -195,8 +200,10 @@
          time = time + dt       ! determine the time and date
          call calendar(time)    ! at the end of the first timestep
 
+#if defined(DEBUG)
       write(il_out,*) 'CICE (cice_init) 3     time = ', my_task, time
       write(il_out,*) 'CICE (cice_init) 3    idate = ', my_task, idate
+#endif
 
    !--------------------------------------------------------------------
    ! coupler communication or forcing data initialization
