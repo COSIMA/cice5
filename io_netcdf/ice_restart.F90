@@ -75,29 +75,40 @@
          status = nf90_open(trim(filename), nf90_nowrite, ncid)
          if (status /= nf90_noerr) call abort_ice( &
             'ice: Error reading restart ncfile '//trim(filename))
-      
+
          if (use_restart_time) then
          status = nf90_get_att(ncid, nf90_global, 'istep1', istep0)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_read, on nf90_get_att(istep1)', status)
+
          status = nf90_get_att(ncid, nf90_global, 'time', time)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_read, on nf90_get_att(time)', status)
+
          status = nf90_get_att(ncid, nf90_global, 'time_forc', time_forc)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_read, on nf90_get_att(time_forc)', status)
+
          status = nf90_get_att(ncid, nf90_global, 'nyr', nyr)
-         if (status == nf90_noerr) then
-            status = nf90_get_att(ncid, nf90_global, 'month', month)
-            status = nf90_get_att(ncid, nf90_global, 'mday', mday)
-            status = nf90_get_att(ncid, nf90_global, 'sec', sec)
-         endif
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_read, on nf90_get_att(nyr)', status)
+
+         status = nf90_get_att(ncid, nf90_global, 'month', month)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_read, on nf90_get_att(month)', status)
+
+         status = nf90_get_att(ncid, nf90_global, 'mday', mday)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_read, on nf90_get_att(mday)', status)
+
+         status = nf90_get_att(ncid, nf90_global, 'sec', sec)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_read, on nf90_get_att(sec)', status)
+
          endif ! use namelist values if use_restart_time = F
 
          write(nu_diag,*) 'Restart read at istep=',istep0,time,time_forc
       endif
-
-!ars599: 21032014 mark out cuz no more call calendar.
-!	but still in restartfile_v4 under ice_restart_driver.F90.
-!#ifndef AusCOM
-!      call calendar(time)
-!#else
-!      call calendar(time-runtime0)
-!#endif
 
       call broadcast_scalar(istep0,master_task)
       call broadcast_scalar(time,master_task)
@@ -139,7 +150,6 @@
 !	since need to output idate so use ice_calendar
 #ifdef AusCOM
       use ice_calendar, only: idate
-!      use cpl_parameters, only: il_out
 #endif
 
       character(len=char_len_long), intent(in), optional :: filename_spec
@@ -164,23 +174,6 @@
 
       character (len=3) :: nchar
 
-#ifdef AusCOM
-!ars599: 21032014 change 
-!	#ifndef AusCOM to #ifdef AusCOM
-!	cuz the new codes are way too long
-!B: back to the CICE3.14 convention, ie, no path ahead of the iced.xxxxx:
-!   for the restart filename in restart pointer file (doing so to make 
-!   sure the cice model works all right with the current AusCOM setup) 
-!   -- this old CICE3.14 convention may be dropped later when confident --
-
-      write(filename,'(a,a,i8.8)') &
-         restart_file(1:lenstr(restart_file)),'.',idate
-      if (my_task == master_task) then
-        open(nu_rst_pointer,file=pointer_file)
-        write(nu_rst_pointer,'(a)') trim(filename) // '.nc'
-        close(nu_rst_pointer)
-      endif
-
       ! construct path/file
       if (present(filename_spec)) then
          filename = trim(filename_spec)
@@ -189,28 +182,12 @@
          imonth = month
          iday = mday
 
-         write(filename,'(a,a,a,i8.8)') &
-              restart_dir(1:lenstr(restart_dir)), &
-              restart_file(1:lenstr(restart_file)),'.',idate
-      end if
-!      wirte(il_out,*)'(init_restart_write) XXX restart filename =',trim(filename)
-#else
-
-      ! construct path/file
-      if (present(filename_spec)) then
-         filename = trim(filename_spec)
-      else
-         iyear = nyr + year_init - 1
-         imonth = month
-         iday = mday
-      
          write(filename,'(a,a,a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
               restart_dir(1:lenstr(restart_dir)), &
               restart_file(1:lenstr(restart_file)),'.', &
               iyear,'-',month,'-',mday,'-',sec
       end if
-!dhb599 20140415: move #endif here from downunder to create restart file!
-#endif
+
       ! write pointer (path/file)
       if (my_task == master_task) then
          filename = trim(filename) // '.nc'
@@ -225,12 +202,32 @@
             'ice: Error creating restart ncfile '//trim(filename))
 
          status = nf90_put_att(ncid,nf90_global,'istep1',istep1)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_put_att(istep1)', status)
+
          status = nf90_put_att(ncid,nf90_global,'time',time)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_put_att(time)', status)
+
          status = nf90_put_att(ncid,nf90_global,'time_forc',time_forc)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_put_att(time_forc)', status)
+
          status = nf90_put_att(ncid,nf90_global,'nyr',nyr)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_put_att(nyr)', status)
+
          status = nf90_put_att(ncid,nf90_global,'month',month)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_put_att(month)', status)
+
          status = nf90_put_att(ncid,nf90_global,'mday',mday)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_put_att(mday)', status)
+
          status = nf90_put_att(ncid,nf90_global,'sec',sec)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_put_att(sec)', status)
 
          nx = nx_global
          ny = ny_global
@@ -239,9 +236,15 @@
             ny = ny_global + 2*nghost
          endif
          status = nf90_def_dim(ncid,'ni',nx,dimid_ni)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_def_dim(ni)', status)
          status = nf90_def_dim(ncid,'nj',ny,dimid_nj)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_def_dim(nj)', status)
 
          status = nf90_def_dim(ncid,'ncat',ncat,dimid_ncat)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_def_dim(ncat)', status)
 
       !-----------------------------------------------------------------
       ! 2D restart fields
@@ -421,15 +424,12 @@
 
          deallocate(dims)
          status = nf90_enddef(ncid)
+         call assert(status == NF90_NOERR, &
+                     'in init_restart_write on nf90_enddef', status)
 
          write(nu_diag,*) 'Writing ',filename(1:lenstr(filename))
-#ifdef AusCOM
-!         write(il_out,*)'(init_restart_write) netcdf file defined:',trim(filename)
-#endif
 
       endif ! master_task
-!#endif (ars599 x)
-!dhb599 20140415 (moved, see note above)
 
       end subroutine init_restart_write
 
@@ -472,8 +472,7 @@
 
       integer (kind=int_kind) :: &
         n,     &      ! number of dimensions for variable
-        varid, &      ! variable id
-        status        ! status variable from netCDF routine
+        varid         ! variable id
 
       real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: &
            work2              ! input array (real, 8-byte)
@@ -529,6 +528,7 @@
       use ice_domain_size, only: max_blocks, ncat
       use ice_fileunits, only: nu_diag
       use ice_read_write, only: ice_write, ice_write_nc
+      use ice_communicate, only: my_task, master_task
 
       integer (kind=int_kind), intent(in) :: &
            nu            , & ! unit number
@@ -559,6 +559,10 @@
            work2              ! input array (real, 8-byte)
 
          status = nf90_inq_varid(ncid,trim(vname),varid)
+         if (my_task == master_task) then
+             call assert(status == NF90_NOERR, &
+                         'in write_restart_field on '//trim(vname), status)
+         endif
          if (ndim3 == ncat) then 
             if (restart_ext) then
                call ice_write_nc(ncid, 1, varid, work, diag, restart_ext)
@@ -591,10 +595,11 @@
 
       integer (kind=int_kind) :: status
 
-      status = nf90_close(ncid)
-
-      if (my_task == master_task) &
-         write(nu_diag,*) 'Restart read/written ',istep1,time,time_forc
+      if (my_task == master_task) then
+          status = nf90_close(ncid)
+          call assert(status == NF90_NOERR, 'in final_restart', status)
+          write(nu_diag,*) 'Restart read/written ',istep1,time,time_forc
+      endif
 
       end subroutine final_restart
 
@@ -615,10 +620,27 @@
         status        ! status variable from netCDF routine
 
       status = nf90_def_var(ncid,trim(vname),nf90_double,dims,varid)
-        
+      call assert(status == NF90_NOERR, &
+                  'in define_rest_field, on '//trim(vname), status)
+
       end subroutine define_rest_field
 
 !=======================================================================
+
+      subroutine assert(logical_arg, str_msg, error_code)
+
+      logical, intent(in) :: logical_arg
+      character(len=*), intent(in) :: str_msg
+      integer, intent(in) :: error_code
+      character(len=3) :: err_code_str
+
+      write(err_code_str, '(I3)') error_code
+
+      if (.not. logical_arg) then
+        call abort_ice('ice: Error '//err_code_str//' '//str_msg)
+      endif
+
+      end subroutine assert
 
       end module ice_restart
 
