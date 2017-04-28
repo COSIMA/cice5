@@ -246,7 +246,7 @@
          write(il_out,*) ' calling into_atm at icpl_ai, time_sec = ', icpl_ai,time_sec, stimestamp_ai
 #endif
       endif
-      call into_atm(stimestamp_ai)
+      !call into_atm(stimestamp_ai)
       call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling
       end if
 
