@@ -169,12 +169,12 @@
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
         call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
+        !set i2o fields back to 0 for next i2o coupling period 'sum-up'
+        call nullify_i2o_fluxes(first_step) 
 
         ! Communication with atmosphere and ocean has completed. Update halos
         ! ready for ice timestep.
-
-        !set i2o fields back to 0 for next i2o coupling period 'sum-up'
-        call nullify_i2o_fluxes(first_step) 
+        call update_halos_from_ocn(time_sec)
 
         sss=ssso
         call new_freezingT

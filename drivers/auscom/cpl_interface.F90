@@ -46,7 +46,7 @@
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
-            from_atm, into_ocn, from_ocn, il_commlocal
+            from_atm, into_ocn, from_ocn, il_commlocal, update_halos_from_ocn
 
   private
 
@@ -519,17 +519,6 @@
 
   enddo
 
-    call ice_HaloUpdate(swflx0, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(lwflx0, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(rain0, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(snow0, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(press0, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(runof0, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(tair0, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
-    call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
-    call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
-
   ! need do t-grid to u-grid shift for vectors since all coupling occur on
   ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
   ! (see comment in code ice_flux.F)
@@ -537,6 +526,17 @@
   !call t2ugrid(vwnd1)
   ! ...and, as we use direct o-i communication and o-i share the same grid, 
   ! no need for any t2u and/or u2t shift before/after i-o coupling!
+
+  call ice_HaloUpdate(swflx0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(lwflx0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(rain0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(snow0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(press0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(runof0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(tair0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
 
 #if defined(DEBUG)
   write(il_out,*)'chk swflx0:', isteps, minval(swflx0), maxval(swflx0), sum(swflx0)
@@ -550,6 +550,8 @@
   write(il_out,*)'chk uwnd0:', isteps, minval(uwnd0), maxval(uwnd0), sum(uwnd0)
   write(il_out,*)'chk vwnd0:', isteps, minval(vwnd0), maxval(vwnd0), sum(vwnd0)
 #endif
+
+
 
   if ( chk_a2i_fields ) then
     call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
@@ -608,28 +610,10 @@
 
   enddo
 
-  ! Now update the halos for each. FIXME: better to do this later, when they're actually needed.
-  call ice_HaloUpdate(ssto, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(ssso, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(ssuo, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(ssvo, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(sslx, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(ssly, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(pfmice, halo_info, field_loc_center, field_type_scalar)
-
   if (chk_o2i_fields) then
     call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
   endif
 
-#if defined(DEBUG)
-  write(il_out,*)'chk ssto:', isteps, minval(ssto), maxval(ssto), sum(ssto)
-  write(il_out,*)'chk ssso:', isteps, minval(ssso), maxval(ssso), sum(ssso)
-  write(il_out,*)'chk ssuo:', isteps, minval(ssuo), maxval(ssuo), sum(ssuo)
-  write(il_out,*)'chk ssvo:', isteps, minval(ssvo), maxval(ssvo), sum(ssvo)
-  write(il_out,*)'chk sslx:', isteps, minval(sslx), maxval(sslx), sum(sslx)
-  write(il_out,*)'chk ssly:', isteps, minval(ssly), maxval(ssly), sum(ssly)
-  write(il_out,*)'chk pfmice:', isteps, minval(pfmice), maxval(pfmice), sum(pfmice)
-#endif
 
   end subroutine from_ocn
 
@@ -711,6 +695,31 @@
   endif
 
   end subroutine into_ocn
+
+subroutine update_halos_from_ocn(time)
+
+  integer(kind=int_kind), intent(in) :: time
+
+  ! Fields from ocean.
+  call ice_HaloUpdate(ssto, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ssso, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(ssuo, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ssvo, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(sslx, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(ssly, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(pfmice, halo_info, field_loc_center, field_type_scalar)
+
+#if defined(DEBUG)
+  write(il_out,*)'chk ssto:', time, minval(ssto), maxval(ssto), sum(ssto)
+  write(il_out,*)'chk ssso:', time, minval(ssso), maxval(ssso), sum(ssso)
+  write(il_out,*)'chk ssuo:', time, minval(ssuo), maxval(ssuo), sum(ssuo)
+  write(il_out,*)'chk ssvo:', time, minval(ssvo), maxval(ssvo), sum(ssvo)
+  write(il_out,*)'chk sslx:', time, minval(sslx), maxval(sslx), sum(sslx)
+  write(il_out,*)'chk ssly:', time, minval(ssly), maxval(ssly), sum(ssly)
+  write(il_out,*)'chk pfmice:', time, minval(pfmice), maxval(pfmice), sum(pfmice)
+#endif
+
+end subroutine
 
 !=======================================================================
   subroutine coupler_termination
