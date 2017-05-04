@@ -81,55 +81,6 @@ subroutine tavg_i2o_fluxes
 return
 end subroutine tavg_i2o_fluxes
 
-!=====================================================================
-!subroutine init_i2a_fields
-!
-!implicit none
-!
-!isst(:,:,:)   = 0
-!albvdr(:,:,:) = 0
-!albidr(:,:,:) = 0
-!albvdf(:,:,:) = 0
-!albidf(:,:,:) = 0
-!
-!return
-!end subroutine init_i2a_fields 
-!
-!===============================================================================
-!subroutine sum_i2a_fields
-!
-!implicit none
-!
-!isst(ilo:ihi,jlo:jhi) = isst(ilo:ihi,jlo:jhi) + Tsfcice(ilo:ihi,jlo:jhi) 
-! note Tsfc and ist are of different shape!
-!
-!albvdr = albvdr + alvdr
-!albidr = albidr + alidr
-!albvdf = albvdf + alvdf
-!albidf = albidf + alidf
-!
-!return
-!end subroutine sum_i2a_fields
-!
-!===============================================================================
-!subroutine tavg_i2a_fields(nstep)
-!
-!implicit none
-!
-!    integer(kind=int_kind), intent(in) :: nstep
-!real(kind=dbl_kind) :: coef 
-!
-!coef = 1.0/float(nstep)
-!
-!isst   = isst   * coef
-!albvdr = albvdr * coef
-!albidr = albidr * coef
-!albvdf = albvdf * coef
-!albidf = albidf * coef
-!
-!return
-!end subroutine tavg_i2a_fields
-!
 !===============================================================================
 subroutine get_core_runoff(fname, vname, nrec)
 ! read in the remapped core runoff data (S.Marsland) which will be used to replace
@@ -502,16 +453,6 @@ endif
 
 return
 end subroutine save_sicemass
-
-!===============================================================================
-subroutine get_i2a_fields
-
-implicit none
-
-isst(:,:,:) = sst(:,:,:) * (1. - aice(:,:,:)) + trcr(:,:,1,:) * aice(:,:,:)
-
-return
-end subroutine get_i2a_fields
 
 !===============================================================================
 
@@ -1111,38 +1052,6 @@ if (my_task == 0) call ncheck(nf_close(ncid))
 
 return
 end subroutine check_roughness
-
-!===============================================================================
-subroutine check_i2a_fields(ncfile,nstep)
-
-implicit none
-
-character*(*), intent(in) :: ncfile
-    integer(kind=int_kind), intent(in) :: nstep
-    integer(kind=int_kind) :: ilout, ll
-    integer(kind=int_kind), save :: ncid,currstep 
-data currstep/0/ 
-
-currstep=currstep+1
-
-if ( my_task == 0 .and. .not. file_exist(trim(ncfile)) ) then
-  !call create_nc_3D('fields_i2a_in_ice.nc',ncid,nx_global,ny_global)
-  call create_ncfile(trim(ncfile),ncid,nx_global,ny_global,ll=1,ilout=il_out)
-endif
-
-if (my_task == 0) then
-  write(il_out,*) 'opening file ',trim(ncfile), ' at nstep = ', nstep
-  call ncheck( nf_open(trim(ncfile),nf_write,ncid) )
-  call write_nc_1Dtime(real(nstep),currstep,'time',ncid) 
-end if
-
-call gather_global(gwork, isst,   master_task, distrb_info) 
-if (my_task == 0) call write_nc2D(ncid, 'isst', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
-
-if (my_task == 0) call ncheck(nf_close(ncid))
-
-return
-end subroutine check_i2a_fields
 
 !============================================================================
 subroutine check_a2i_fields(ncfile,nstep)

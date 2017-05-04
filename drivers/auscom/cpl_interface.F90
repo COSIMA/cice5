@@ -46,7 +46,7 @@
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
-            from_atm, into_ocn, from_ocn, into_atm, il_commlocal
+            from_atm, into_ocn, from_ocn, il_commlocal
 
   private
 
@@ -393,8 +393,6 @@
   allocate (ssly(nx_block,ny_block,max_blocks));  ssly(:,:,:) = 0
   allocate (pfmice(nx_block,ny_block,max_blocks));  pfmice(:,:,:) = 0
 
-  ! fields out: (local domain)
-  allocate (  isst(nx_block,ny_block,max_blocks));   isst(:,:,:) = 0
   !
   allocate (iostrsu(nx_block,ny_block,max_blocks)); iostrsu(:,:,:) = 0
   allocate (iostrsv(nx_block,ny_block,max_blocks)); iostrsv(:,:,:) = 0
@@ -715,45 +713,6 @@
   end subroutine into_ocn
 
 !=======================================================================
-  subroutine into_atm(isteps)
-!-------------------------------------------!    
-
-  integer(kind=int_kind), intent(in) :: isteps
-  integer(kind=int_kind) :: jf
-
-#if defined(DEBUG)
-  write(il_out,*) '(into_atm) sending coupling fields at stime= ', isteps
-#endif
-
-  do jf = 1, n_i2a      !1
-    if (jf ==  1) then
-      call pack_global_dbl(gwork, isst, master_task, distrb_info)
-      vwork2d(l_ilo:l_ihi, l_jlo:l_jhi) = gwork(l_ilo:l_ihi, l_jlo:l_jhi)
-    end if
-
-#if defined(DEBUG)
-      write(il_out,*) '*** sending coupling field No. ', jf, cl_writ(jf)
-      write(il_out,*) '(into_atm) what to do with this var==> Err= ',ierror
-#endif
-      call prism_put_proto(il_var_id_out(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-      if ( ierror /= PRISM_Ok .and. ierror < PRISM_Sent) then
-        write(il_out,*) '(into_atm) Err in _put_ ', cl_writ(jf), isteps, ierror
-        call prism_abort_proto(il_comp_id, 'cice into_atm','STOP 1')
-      else
-#if defined(DEBUG)
-        write(il_out,*)'(into_atm) sent: ', cl_writ(jf), isteps, ierror
-#endif
-      endif
-
-  enddo
-
-  if (chk_i2a_fields) then
-    call check_i2a_fields('fields_i2a_in_ice.nc',isteps)
-  endif
-
-  end subroutine into_atm
-
-!=======================================================================
   subroutine coupler_termination
 !-------------------------------!
   !
@@ -767,7 +726,6 @@
   deallocate (runof, press)
   deallocate (core_runoff)
   deallocate (ssto, ssso, ssuo, ssvo, sslx, ssly, pfmice)
-  deallocate (isst)
   deallocate (iostrsu, iostrsv, iorain, iosnow, iostflx, iohtflx, ioswflx, &
               ioqflux, iolwflx, ioshflx, iorunof, iopress)
   deallocate (tiostrsu, tiostrsv, tiorain, tiosnow, tiostflx, tiohtflx, tioswflx, &

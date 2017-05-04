@@ -28,10 +28,6 @@ module cpl_arrays_setup
 ! (6) sea surface gradient (meridional)(m/m)    	ssly
 ! (7) potential ice frm/mlt heatflux (W/m^2)    	pfmice
 !
-! C> ice ==>atm 
-!                          
-! (1) temperature of ocean/ice-snow top surface (C)  	isst
-!
 ! D> ice==>ocn
 !             
 ! (1) ice-ocean stress, x-direction (kg/m s^2)    	iostrsu
@@ -99,9 +95,6 @@ real(kind=dbl_kind), dimension(:,:), allocatable :: gwork
     !global domain work array, used for coupling data passing and global data output. 
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: vwork  
 
-! Fields out
-real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to atm
-    isst, albvdr, albidr, albvdf, albidf  
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to ocn (time averaged)
     iostrsu, iostrsv, iorain, iosnow, iostflx, iohtflx, ioswflx &
    ,ioqflux, ioshflx, iolwflx, iorunof, iopress, ioaice &

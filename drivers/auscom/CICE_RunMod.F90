@@ -66,11 +66,11 @@
 #ifdef AusCOM 
 !ars599: 27032014 add in
       use ice_timers, only: timer_from_ocn, timer_into_ocn, &
-          timer_from_atm, timer_into_atm
+          timer_from_atm
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
 
 
-      integer (kind=int_kind) :: time_sec, itap, icpl_ai, icpl_io, tmp_time
+      integer (kind=int_kind) :: time_sec, itap, icpl_ai, icpl_io
       integer (kind=int_kind) :: rtimestamp_ai, stimestamp_ai
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
@@ -169,6 +169,10 @@
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
         call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
+
+        ! Communication with atmosphere and ocean has completed. Update halos
+        ! ready for ice timestep.
+
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
         call nullify_i2o_fluxes(first_step) 
 
@@ -224,36 +228,8 @@
           call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
         endif
 
-      tmp_time = time_sec + dt
-      if (my_task == 0) then
-#if defined(DEBUG)
-         write(il_out, *), 'time_sec, dt, dt_cpl_ai''time_sec, dt, dt_cpl_ai'
-#endif
-      endif
-
-      if (mod(tmp_time, dt_cpl_ai) == 0) then 
-      ! merge sst and Tsfc etc and then send i2a fields to coupler
-      call ice_timer_start(timer_into_atm)  ! atm/ocn coupling
-#if defined(DEBUG)
-      write(il_out,*) ' called get_i2a_fields at ', time_sec
-#endif
-      call get_i2a_fields
-      ! * because of using lag=+dt_ice, we must take one step off the time_sec 
-      ! * to make the sending happen at right time:
-      stimestamp_ai = time_sec !- dt
-      if (my_task == 0) then
-#if defined(DEBUG)
-         write(il_out,*) ' calling into_atm at icpl_ai, time_sec = ', icpl_ai,time_sec, stimestamp_ai
-#endif
-      endif
-      !call into_atm(stimestamp_ai)
-      call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling
-      end if
-
       End Do      !icpl_io
 
-      ! replace the time0 i2a data with new values
-!XXX      call update_time0_a2i_fields 
       END DO        !icpl_ia
 
       ! final update of the stimestamp_io, ie., put back the last dt_ice:
