@@ -75,8 +75,11 @@
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
       integer (kind=int_kind) :: imon 
-      logical :: first_step = .true.  !1st time step of experiment or not
+      logical :: first_step
 #endif
+
+   ! 1st time step of experiment or not
+   first_step = .true.
 
    !--------------------------------------------------------------------
    !  initialize error code and step timer
@@ -174,7 +177,11 @@
 
         ! Communication with atmosphere and ocean has completed. Update halos
         ! ready for ice timestep.
-        call update_halos_from_ocn(time_sec)
+        if (.not. first_step) then
+            call ice_timer_start(timer_post_couple_halos)
+            call update_halos_from_ocn(time_sec)
+            call ice_timer_stop(timer_post_couple_halos)
+        endif
 
         sss=ssso
         call new_freezingT

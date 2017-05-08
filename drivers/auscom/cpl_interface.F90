@@ -11,15 +11,8 @@
 !----------------------------------------------------------------------------
 
   !prism stuff
-#ifdef OASIS3_MCT
+  use mpi
   use mod_prism
-#else
-  use mod_kinds_model
-  use mod_prism_proto
-  use mod_prism_def_partition_proto
-  use mod_prism_put_proto
-  use mod_prism_get_proto
-#endif
 
   !cice stuff
   use ice_kinds_mod
@@ -62,6 +55,8 @@
   integer(kind=int_kind) :: il_nbtotproc   ! Total number of processes
   integer(kind=int_kind) :: il_nbcplproc   ! Number of processes involved in the coupling
   integer(kind=int_kind) :: l_ilo, l_ihi, l_jlo, l_jhi !local partition
+
+  integer(kind=int_kind) :: il_commatm, my_commatm_task
 
   integer :: sendsubarray, recvsubarray , resizedrecvsubarray
   integer, dimension(:), allocatable :: counts, disps
@@ -188,6 +183,9 @@
   !endif
 
   print *, '* CICE: prism_init called OK!'  
+
+  call prism_get_intercomm(il_commatm, 'matmxx', ierror)
+  call mpi_comm_rank(il_commatm, my_commatm_task, ierror)
 
   end subroutine prism_init
 
@@ -451,7 +449,11 @@
 
   integer(kind=int_kind), intent(in) :: isteps
 
-  integer(kind=int_kind) :: jf, field_type
+  integer(kind=int_kind) :: jf, field_type, tag, request
+  integer(kind=int_kind) :: buf(1)
+
+  tag = mpi_any_tag
+
 !..............
 !character (len=2) ::ch_out
 !character (len=20):: ncfile;
@@ -557,9 +559,14 @@
 #endif
 
 
-
   if ( chk_a2i_fields ) then
     call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
+  endif
+
+  ! Allow atm to progress. It is waiting on a receive.
+  if (my_commatm_task == 0) then
+    tag = 0
+    call MPI_send(buf, 1, MPI_INTEGER, 0, tag, il_commatm, ierror)
   endif
 
   end subroutine from_atm
