@@ -40,7 +40,8 @@
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
-            from_atm, into_ocn, from_ocn, il_commlocal, update_halos_from_ocn
+            from_atm, into_ocn, from_ocn, il_commlocal
+  public :: update_halos_from_ocn, update_halos_from_atm
 
   private
 
@@ -530,35 +531,6 @@
   ! ...and, as we use direct o-i communication and o-i share the same grid, 
   ! no need for any t2u and/or u2t shift before/after i-o coupling!
 
-  call ice_timer_start(timer_from_atm_halos)
-  call ice_HaloUpdate(swflx0, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(lwflx0, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(rain0, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(snow0, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(press0, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(runof0, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(tair0, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
-  call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
-  call ice_timer_stop(timer_from_atm_halos)
-
-
-
-#if defined(DEBUG)
-  write(il_out,*)'chk swflx0:', isteps, minval(swflx0), maxval(swflx0), sum(swflx0)
-  write(il_out,*)'chk lwflx0:', isteps, minval(lwflx0), maxval(lwflx0), sum(lwflx0)
-  write(il_out,*)'chk rain0:', isteps, minval(rain0), maxval(rain0), sum(rain0)
-  write(il_out,*)'chk snow0:', isteps, minval(snow0), maxval(snow0), sum(snow0)
-  write(il_out,*)'chk press0:', isteps, minval(press0), maxval(press0), sum(press0)
-  write(il_out,*)'chk runof0:', isteps, minval(runof0), maxval(runof0), sum(runof0)
-  write(il_out,*)'chk tair0:', isteps, minval(tair0), maxval(tair0), sum(tair0)
-  write(il_out,*)'chk qair0:', isteps, minval(qair0), maxval(qair0), sum(qair0)
-  write(il_out,*)'chk uwnd0:', isteps, minval(uwnd0), maxval(uwnd0), sum(uwnd0)
-  write(il_out,*)'chk vwnd0:', isteps, minval(vwnd0), maxval(vwnd0), sum(vwnd0)
-#endif
-
-
   if ( chk_a2i_fields ) then
     call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
   endif
@@ -662,33 +634,47 @@
 
   do jf = n_i2a+1, jpfldout       !no 2-14 are for the ocn
 
-    if (jf == n_i2a+1 ) vwork = scale * iostrsu
-    if (jf == n_i2a+2 ) vwork = scale * iostrsv
-    if (jf == n_i2a+3 ) vwork = scale * iorain
-    if (jf == n_i2a+4 ) vwork = scale * iosnow
-    if (jf == n_i2a+5 ) vwork = scale * iostflx
-    if (jf == n_i2a+6 ) vwork = scale * iohtflx
-    if (jf == n_i2a+7 ) vwork = scale * ioswflx
-    if (jf == n_i2a+8 ) vwork = scale * ioqflux
-    if (jf == n_i2a+9 ) vwork = scale * ioshflx
-    if (jf == n_i2a+10 ) vwork = scale * iolwflx
-    if (jf == n_i2a+11) then 
+    if (jf == n_i2a+1 ) then
+        vwork2d(:,:) = scale * iostrsu(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+2 ) then
+        vwork2d(:,:) = scale * iostrsv(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+3 ) then
+        vwork2d(:,:) = scale * iorain(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+4 ) then
+        vwork2d(:,:) = scale * iosnow(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+5 ) then
+        vwork2d(:,:) = scale * iostflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+6 ) then
+         vwork2d(:,:) = scale * iohtflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+7 ) then
+         vwork2d(:,:) = scale * ioswflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+8 ) then
+        vwork2d(:,:) = scale * ioqflux(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+9 ) then
+        vwork2d(:,:) = scale * ioshflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+10 ) then
+        vwork2d(:,:) = scale * iolwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+11) then 
        if ( use_core_nyf_runoff .or. use_core_iaf_runoff ) then 
-         vwork = core_runoff
+         vwork2d(:,:) = core_runoff(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
        else 
-         vwork = scale * iorunof
+         vwork2d(:,:) = scale * iorunof(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
        endif 
-    endif 
-    if (jf == n_i2a+12) vwork = scale * iopress
-    if (jf == n_i2a+13) vwork = scale * ioaice
-    if (jf == n_i2a+14) vwork = scale * iomelt
-    if (jf == n_i2a+15) vwork = scale * ioform
+    elseif (jf == n_i2a+12) then
+        vwork2d(:,:) = scale * iopress(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+13) then
+        vwork2d(:,:) = scale * ioaice(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+14) then
+        vwork2d(:,:) = scale * iomelt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    elseif (jf == n_i2a+15) then
+        vwork2d(:,:) = scale * ioform(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    endif
 
-    call pack_global_dbl(gwork, vwork, master_task, distrb_info)
-    vwork2d(l_ilo:l_ihi, l_jlo:l_jhi) = gwork(l_ilo:l_ihi, l_jlo:l_jhi)
+    !vwork2d(l_ilo:l_ihi, l_jlo:l_jhi) = vwork(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
 
 #if defined(DEBUG)
       write(il_out,*) '*** sending coupling field No. ', jf, cl_writ(jf)
+      write(il_out,*) 'chk: vwork2d', isteps, minval(vwork2d), maxval(vwork2d), sum(vwork2d)
 #endif
       call prism_put_proto(il_var_id_out(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
       if ( ierror /= PRISM_Ok .and. ierror < PRISM_Sent) then
@@ -732,6 +718,38 @@ subroutine update_halos_from_ocn(time)
 #endif
 
 end subroutine
+
+subroutine update_halos_from_atm(time)
+
+  integer(kind=int_kind), intent(in) :: time
+
+  call ice_timer_start(timer_from_atm_halos)
+  call ice_HaloUpdate(swflx0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(lwflx0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(rain0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(snow0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(press0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(runof0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(tair0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
+  call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
+  call ice_timer_stop(timer_from_atm_halos)
+
+#if defined(DEBUG)
+  write(il_out,*)'chk swflx0:', time, minval(swflx0), maxval(swflx0), sum(swflx0)
+  write(il_out,*)'chk lwflx0:', time, minval(lwflx0), maxval(lwflx0), sum(lwflx0)
+  write(il_out,*)'chk rain0:', time, minval(rain0), maxval(rain0), sum(rain0)
+  write(il_out,*)'chk snow0:', time, minval(snow0), maxval(snow0), sum(snow0)
+  write(il_out,*)'chk press0:', time, minval(press0), maxval(press0), sum(press0)
+  write(il_out,*)'chk runof0:', time, minval(runof0), maxval(runof0), sum(runof0)
+  write(il_out,*)'chk tair0:', time, minval(tair0), maxval(tair0), sum(tair0)
+  write(il_out,*)'chk qair0:', time, minval(qair0), maxval(qair0), sum(qair0)
+  write(il_out,*)'chk uwnd0:', time, minval(uwnd0), maxval(uwnd0), sum(uwnd0)
+  write(il_out,*)'chk vwnd0:', time, minval(vwnd0), maxval(vwnd0), sum(vwnd0)
+#endif
+
+end subroutine update_halos_from_atm
 
 !=======================================================================
   subroutine coupler_termination
@@ -909,112 +927,5 @@ end subroutine
   endif
 
   end subroutine decomp_def
-
- subroutine pack_global_dbl(ARRAY_G, ARRAY, dst_task, src_dist)
-
-! !DESCRIPTION:
-!  This subroutine gathers a distributed array to a global-sized
-!  array on the processor dst_task.
-!
-! !REVISION HISTORY:
-!  same as module
-!
-! !REMARKS:
-!  This is the specific inteface for double precision arrays
-!  corresponding to the generic interface gather_global.  It is shown
-!  to provide information on the generic interface (the generic
-!  interface is identical, but chooses a specific inteface based
-!  on the data type of the input argument).
-
-
-! !USES:
-
-   include 'mpif.h'
-
-! !INPUT PARAMETERS:
-
-   integer (int_kind), intent(in) :: &
-     dst_task   ! task to which array should be gathered
-
-   type (distrb), intent(in) :: &
-     src_dist   ! distribution of blocks in the source array
-
-   real (dbl_kind), dimension(:,:,:), intent(in) :: &
-     ARRAY      ! array containing horizontal slab of distributed field
-
-! !OUTPUT PARAMETERS:
-
-
-   real (dbl_kind), dimension(:,:), intent(inout) :: &
-     ARRAY_G    ! array containing global horizontal field on dst_task
-
-!EOP
-!BOC
-!-----------------------------------------------------------------------
-!
-!  local variables
-!
-!-----------------------------------------------------------------------
-
-   integer (int_kind) :: &
-     i,j,n          ,&! dummy loop counters
-     nsends         ,&! number of actual sends
-     src_block      ,&! block locator for send
-     ierr             ! MPI error flag
-
-   integer (int_kind), dimension(MPI_STATUS_SIZE) :: &
-     status
-
-   integer (int_kind), dimension(:), allocatable :: &
-     snd_request
-
-   integer (int_kind), dimension(:,:), allocatable :: &
-     snd_status
-
-   real (dbl_kind), dimension(:,:), allocatable :: &
-     msg_buffer
-
-   type (block) :: &
-     this_block  ! block info for current block
-
-     do n=1,nblocks_tot
-
-       !*** copy local blocks
-
-       if (src_dist%blockLocation(n) == my_task+1) then
-
-         this_block = get_block(n,n)
-
-!         do j=this_block%jlo,this_block%jhi
-!         do i=this_block%ilo,this_block%ihi
-!           ARRAY_G(this_block%i_glob(i), &
-!                   this_block%j_glob(j)) = &
-!                  ARRAY(i,j,src_dist%blockLocalID(n))
-!         end do
-!         end do
-          ARRAY_G(this_block%i_glob(this_block%ilo):this_block%i_glob(this_block%ihi), &
-                 this_block%j_glob(this_block%jlo):this_block%j_glob(this_block%jhi)) = &
-                 ARRAY(this_block%ilo:this_block%ihi,this_block%jlo:this_block%jhi,src_dist%blockLocalID(n))
-
-       !*** fill land blocks with special values
-
-       else if (src_dist%blockLocation(n) == 0) then
-
-         this_block = get_block(n,n)
-
-!         do j=this_block%jlo,this_block%jhi
-!         do i=this_block%ilo,this_block%ihi
-!           ARRAY_G(this_block%i_glob(i), &
-!                   this_block%j_glob(j)) = spval_dbl
-!         end do
-!         end do
-         ARRAY_G(this_block%i_glob(this_block%ilo):this_block%i_glob(this_block%ihi), &
-                 this_block%j_glob(this_block%jlo):this_block%j_glob(this_block%jhi)) = spval_dbl
-       endif
-
-     end do
-
-  end subroutine pack_global_dbl
-!============================================================================
 
   end module cpl_interface

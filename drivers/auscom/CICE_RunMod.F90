@@ -75,7 +75,7 @@
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
       integer (kind=int_kind) :: imon 
-      logical :: first_step
+      logical :: first_step, do_update_halos_from_atm
 #endif
 
    ! 1st time step of experiment or not
@@ -130,6 +130,7 @@
       endif
       call ice_timer_start(timer_from_atm)  ! atm/ocn coupling
       call from_atm(rtimestamp_ai)
+      do_update_halos_from_atm = .true.
       call ice_timer_stop(timer_from_atm)  ! atm/ocn coupling
 
 ! In case of CORE-IAF RUNOFF:
@@ -169,11 +170,17 @@
            write(il_out,*) '                       stimestamp_io = ', stimestamp_io
 #endif
         endif
+
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
         call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
         call nullify_i2o_fluxes(first_step) 
+
+        if (do_update_halos_from_atm) then
+          call update_halos_from_atm(time_sec)
+          do_update_halos_from_atm = .false.
+        endif
 
         ! Communication with atmosphere and ocean has completed. Update halos
         ! ready for ice timestep.
