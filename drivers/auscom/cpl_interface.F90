@@ -39,6 +39,7 @@
   use cpl_arrays_setup
   use cpl_forcing_handler
 
+  use ice_timers, only: timer_from_atm_halos, ice_timer_start, ice_timer_stop
 !ars599: 27032014 add distrb
   !mpi stuff
   use ice_broadcast, only :  broadcast_array
@@ -145,7 +146,7 @@
   !
   ! PSMILe attribution of local communicator.
   ! 
-  !   Either MPI_COMM_WORLD if MPI2 is used, 
+  !   Either MPI_COMM_WORLD if MPI2 is used,
   !   or a local communicator created by Oasis if MPI1 is used.
   !
   call prism_get_localcomm_proto(il_commlocal, ierror)
@@ -527,6 +528,7 @@
   ! ...and, as we use direct o-i communication and o-i share the same grid, 
   ! no need for any t2u and/or u2t shift before/after i-o coupling!
 
+  call ice_timer_start(timer_from_atm_halos)
   call ice_HaloUpdate(swflx0, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(lwflx0, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(rain0, halo_info, field_loc_center, field_type_scalar)
@@ -537,6 +539,9 @@
   call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
   call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
+  call ice_timer_stop(timer_from_atm_halos)
+
+
 
 #if defined(DEBUG)
   write(il_out,*)'chk swflx0:', isteps, minval(swflx0), maxval(swflx0), sum(swflx0)

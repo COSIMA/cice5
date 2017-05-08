@@ -66,7 +66,7 @@
 #ifdef AusCOM 
 !ars599: 27032014 add in
       use ice_timers, only: timer_from_ocn, timer_into_ocn, &
-          timer_from_atm
+          timer_from_atm, timer_post_couple_halos
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
 
 
