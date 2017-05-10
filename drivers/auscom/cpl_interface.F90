@@ -34,7 +34,9 @@
 
   use ice_timers, only: ice_timer_start, ice_timer_stop
   use ice_timers, only: timer_from_atm_halos, timer_from_ocn_halos
-  use ice_timers, only: timer_from_atm, timer_waiting_atm
+  use ice_timers, only: timer_from_atm, timer_waiting_atm, timer_waiting_ocn
+  use ice_timers, only: timer_from_ocn
+
 !ars599: 27032014 add distrb
   !mpi stuff
   use ice_broadcast, only :  broadcast_array
@@ -562,12 +564,20 @@
   integer(kind=int_kind), intent(in) :: isteps
  
   integer(kind=int_kind) :: jf, field_type
-  
+
+  call ice_timer_start(timer_from_ocn)
+
 #if defined(DEBUG)
     write(il_out,*) '(from_ocn) receiving coupling fields at rtime: ', isteps
 #endif
 
   do jf = n_a2i+1, jpfldin          !no 11-17 from ocn
+
+      if (jf == n_a2i+1) then
+        call ice_timer_start(timer_waiting_ocn)
+      elseif (jf == n_a2i+2) then
+        call ice_timer_stop(timer_waiting_ocn)
+      endif
 
       !jf-th field in
 #if defined(DEBUG)
@@ -610,6 +620,7 @@
     call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
   endif
 
+  call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
 
   end subroutine from_ocn
 

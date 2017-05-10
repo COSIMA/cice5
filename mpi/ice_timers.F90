@@ -59,6 +59,7 @@
 #endif
 #ifdef AusCOM
       timer_from_ocn,          &! 
+      timer_waiting_ocn,       &!
       timer_into_ocn,          &! 
       timer_from_atm,          &!
       timer_waiting_atm,       &!
@@ -191,6 +192,7 @@
 #endif
 #ifdef AusCOM
    call get_ice_timer(timer_from_ocn,   'from_ocn', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_waiting_ocn,   'waiting_ocn', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_into_ocn,   'into_ocn', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_from_atm,   'from_atm', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_waiting_atm,   'waiting_atm', nblocks,distrb_info%nprocs)

@@ -65,7 +65,7 @@
 
 #ifdef AusCOM 
 !ars599: 27032014 add in
-      use ice_timers, only: timer_from_ocn, timer_into_ocn
+      use ice_timers, only: timer_into_ocn
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
 
 
@@ -233,9 +233,7 @@
              write(il_out,*) '                       rtimestamp_io = ', rtimestamp_io
 #endif
           endif
-          call ice_timer_start(timer_from_ocn)  ! atm/ocn coupling
           call from_ocn(rtimestamp_io)
-          call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
         endif
 
       End Do      !icpl_io
