@@ -32,7 +32,9 @@
   use cpl_arrays_setup
   use cpl_forcing_handler
 
-  use ice_timers, only: timer_from_atm_halos, ice_timer_start, ice_timer_stop
+  use ice_timers, only: ice_timer_start, ice_timer_stop
+  use ice_timers, only: timer_from_atm_halos, timer_from_ocn_halos
+  use ice_timers, only: timer_from_atm, timer_waiting_atm
 !ars599: 27032014 add distrb
   !mpi stuff
   use ice_broadcast, only :  broadcast_array
@@ -480,8 +482,15 @@
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
 #endif
 
+  call ice_timer_start(timer_from_atm)
 
   do jf = 1, n_a2i       !10, not jpfldin, only 10 fields from cpl (atm) 
+
+      if (jf == 1) then
+        call ice_timer_start(timer_waiting_atm)
+      elseif (jf == 2) then
+        call ice_timer_stop(timer_waiting_atm)
+      endif
 
       !jf-th field in
 #if defined(DEBUG)
@@ -541,6 +550,8 @@
     tag = 0
     call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, il_commatm, request, ierror)
   endif
+
+  call ice_timer_stop(timer_from_atm)
 
   end subroutine from_atm
 
@@ -700,6 +711,7 @@ subroutine update_halos_from_ocn(time)
   integer(kind=int_kind), intent(in) :: time
 
   ! Fields from ocean.
+  call ice_timer_start(timer_from_ocn_halos)
   call ice_HaloUpdate(ssto, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(ssso, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(ssuo, halo_info, field_loc_center, field_type_vector)
@@ -707,6 +719,7 @@ subroutine update_halos_from_ocn(time)
   call ice_HaloUpdate(sslx, halo_info, field_loc_center, field_type_vector)
   call ice_HaloUpdate(ssly, halo_info, field_loc_center, field_type_vector)
   call ice_HaloUpdate(pfmice, halo_info, field_loc_center, field_type_scalar)
+  call ice_timer_stop(timer_from_ocn_halos)
 
 #if defined(DEBUG)
   write(il_out,*)'chk ssto:', time, minval(ssto), maxval(ssto), sum(ssto)

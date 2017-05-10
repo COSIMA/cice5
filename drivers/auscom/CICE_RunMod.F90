@@ -65,8 +65,7 @@
 
 #ifdef AusCOM 
 !ars599: 27032014 add in
-      use ice_timers, only: timer_from_ocn, timer_into_ocn, &
-          timer_from_atm, timer_post_couple_halos
+      use ice_timers, only: timer_from_ocn, timer_into_ocn
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
 
 
@@ -128,10 +127,9 @@
     &   icpl_ai,rtimestamp_ai
 #endif
       endif
-      call ice_timer_start(timer_from_atm)  ! atm/ocn coupling
+
       call from_atm(rtimestamp_ai)
       do_update_halos_from_atm = .true.
-      call ice_timer_stop(timer_from_atm)  ! atm/ocn coupling
 
 ! In case of CORE-IAF RUNOFF:
       if (use_core_iaf_runoff) then
@@ -185,9 +183,7 @@
         ! Communication with atmosphere and ocean has completed. Update halos
         ! ready for ice timestep.
         if (.not. first_step) then
-            call ice_timer_start(timer_post_couple_halos)
             call update_halos_from_ocn(time_sec)
-            call ice_timer_stop(timer_post_couple_halos)
         endif
 
         sss=ssso

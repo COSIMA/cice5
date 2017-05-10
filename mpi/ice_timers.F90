@@ -61,8 +61,9 @@
       timer_from_ocn,          &! 
       timer_into_ocn,          &! 
       timer_from_atm,          &!
+      timer_waiting_atm,       &!
       timer_into_atm,          &! 
-      timer_post_couple_halos, &!
+      timer_from_ocn_halos,    &!
       timer_from_atm_halos,    &!
 #endif
 
@@ -192,8 +193,9 @@
    call get_ice_timer(timer_from_ocn,   'from_ocn', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_into_ocn,   'into_ocn', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_from_atm,   'from_atm', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_waiting_atm,   'waiting_atm', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_into_atm,   'into_atm', nblocks,distrb_info%nprocs)
-   call get_ice_timer(timer_post_couple_halos, 'ocn_halos', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_from_ocn_halos, 'ocn_halos', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_from_atm_halos,   'atm_halos', nblocks,distrb_info%nprocs)
 #endif
 !   call get_ice_timer(timer_tmp,      '         ',nblocks,distrb_info%nprocs)
