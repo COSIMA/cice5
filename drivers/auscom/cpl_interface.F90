@@ -446,39 +446,18 @@
 
   end subroutine init_cpl
 
-!=======================================================================
-  subroutine from_atm(isteps)
-!-------------------------------------------!
+
+subroutine from_atm(isteps)
 
   implicit none
 
   integer(kind=int_kind), intent(in) :: isteps
 
-  integer(kind=int_kind) :: jf, field_type, tag, request
+  integer(kind=int_kind) :: tag, request, info
   integer(kind=int_kind) :: buf(1)
 
   tag = MPI_ANY_TAG
   request = MPI_REQUEST_NULL
-
-!..............
-!character (len=2) ::ch_out
-!character (len=20):: ncfile;
-!integer(kind=int_kind) :: ncid,currstep,ll,ilout
-!data currstep/0/
-!save currstep
-!
-!currstep=currstep+1
-!
-!    write(ch_out,'(I2.2)') my_task
-!    ncfile='chk_a2i_out_'//ch_out//'.nc'
-!
-!if (.not. file_exist(trim(ncfile)) ) then
-!  call create_ncfile(trim(ncfile),ncid,nx_global,ny_global,ll=1,ilout=il_out)
-!else
-!  call ncheck( nf_open(trim(ncfile),nf_write,ncid) )
-!endif
-!call write_nc_1Dtime(real(isteps),currstep,'time',ncid)
-
 
 #if defined(DEBUG)
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
@@ -486,54 +465,20 @@
 
   call ice_timer_start(timer_from_atm)
 
-  do jf = 1, n_a2i       !10, not jpfldin, only 10 fields from cpl (atm) 
-
-      if (jf == 1) then
-        call ice_timer_start(timer_waiting_atm)
-      elseif (jf == 2) then
-        call ice_timer_stop(timer_waiting_atm)
-      endif
-
-      !jf-th field in
-#if defined(DEBUG)
-      write(il_out,*) '*** receiving coupling field No. ', jf, cl_read(jf)
-#endif
-        call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-      if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
-        write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
-        call prism_abort_proto(il_comp_id, 'cice from_atm','stop 1') 
-      else 
-#if defined(DEBUG)
-        write(il_out,*)'(from_atm) rcvd at time with err: ',cl_read(jf),isteps,ierror
-#endif
-      endif
-
-    select case (jf)
-        case (1)
-            swflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (2)
-            lwflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (3)
-            rain0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (4)
-            snow0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
-        case (5)
-            press0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (6)
-            runof0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (7)
-            tair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
-        case (8)
-            qair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
-        case (9)
-            uwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
-        case (10)
-            vwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)  = vwork2d
-        case default
-            stop "Error: invalid case in subroutine from_atm()"
-    end select
-
-  enddo
+  ! The return value 'info' is not checked, oasis does not return errors, it
+  ! will abort if there is any problem.
+  call ice_timer_start(timer_waiting_atm)
+  call prism_get_proto(il_var_id_in(1), isteps, swflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call ice_timer_stop(timer_waiting_atm)
+  call prism_get_proto(il_var_id_in(2), isteps, lwflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(3), isteps, rain0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(4), isteps, snow0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(5), isteps, press0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(6), isteps, runof0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(7), isteps, tair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(8), isteps, qair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(9), isteps, uwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(10), isteps, vwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
 
   ! need do t-grid to u-grid shift for vectors since all coupling occur on
   ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
@@ -555,7 +500,7 @@
 
   call ice_timer_stop(timer_from_atm)
 
-  end subroutine from_atm
+end subroutine from_atm
 
 !=======================================================================
   subroutine from_ocn(isteps)
