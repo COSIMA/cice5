@@ -453,7 +453,8 @@
   integer(kind=int_kind) :: jf, field_type, tag, request
   integer(kind=int_kind) :: buf(1)
 
-  tag = mpi_any_tag
+  tag = MPI_ANY_TAG
+  request = MPI_REQUEST_NULL
 
 !..............
 !character (len=2) ::ch_out
@@ -538,7 +539,7 @@
   ! Allow atm to progress. It is waiting on a receive.
   if (my_commatm_task == 0) then
     tag = 0
-    call MPI_send(buf, 1, MPI_INTEGER, 0, tag, il_commatm, ierror)
+    call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, il_commatm, request, ierror)
   endif
 
   end subroutine from_atm
