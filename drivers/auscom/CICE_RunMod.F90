@@ -70,7 +70,7 @@
 
 
       integer (kind=int_kind) :: time_sec, itap, icpl_ai, icpl_io
-      integer (kind=int_kind) :: rtimestamp_ai, stimestamp_ai
+      integer (kind=int_kind) :: stimestamp_ai
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
       integer (kind=int_kind) :: imon 
@@ -120,15 +120,7 @@
       DO icpl_ai = 1, num_cpl_ai   !begin I <==> A coupling iterations
 
       ! receive forcing of the 'second coupling point' at the 'first coupling point'
-      rtimestamp_ai = time_sec
-      if (my_task == 0) then
-#if defined(DEBUG)
-        write(il_out,*) ' calling from_atm at icpl_ai, rtimestamp_ai = ',&
-    &   icpl_ai,rtimestamp_ai
-#endif
-      endif
-
-      call from_atm(rtimestamp_ai)
+      call from_atm(time_sec)
       do_update_halos_from_atm = .true.
 
 ! In case of CORE-IAF RUNOFF:
@@ -161,13 +153,6 @@
         !shift windstress/ice-ocean stress from T onto U grid before sending into ocn
         call t2ugrid_vector(iostrsu)
         call t2ugrid_vector(iostrsv)
-
-        if (my_task == 0) then
-#if defined(DEBUG)
-           write(il_out,*) ' calling into_ocn at icpl_ai, icpl_io = ', icpl_ai,icpl_io
-           write(il_out,*) '                       stimestamp_io = ', stimestamp_io
-#endif
-        endif
 
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
@@ -227,12 +212,6 @@
 
         rtimestamp_io = time_sec
         if (rtimestamp_io < (dt*npt)) then
-          if (my_task == 0) then
-#if defined(DEBUG)
-             write(il_out,*) ' calling from_ocn at icpl_ai, icpl_io = ', icpl_ai,icpl_io
-             write(il_out,*) '                       rtimestamp_io = ', rtimestamp_io
-#endif
-          endif
           call from_ocn(rtimestamp_io)
         endif
 
