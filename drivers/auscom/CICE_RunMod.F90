@@ -74,7 +74,7 @@
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
       integer (kind=int_kind) :: imon 
-      logical :: first_step, do_update_halos_from_atm
+      logical :: first_step
 #endif
 
    ! 1st time step of experiment or not
@@ -117,11 +117,13 @@
       time_sec = 0
       imon = 0
 
-      DO icpl_ai = 1, num_cpl_ai   !begin I <==> A coupling iterations
-
-      ! receive forcing of the 'second coupling point' at the 'first coupling point'
       call from_atm(time_sec)
-      do_update_halos_from_atm = .true.
+      call update_halos_from_atm(time_sec)
+      ! Shift windstress/ice-ocean stress from T onto U grid before sending into ocn
+      call t2ugrid_vector(iostrsu)
+      call t2ugrid_vector(iostrsv)
+
+      DO icpl_ai = 1, num_cpl_ai   !begin I <==> A coupling iterations
 
 ! In case of CORE-IAF RUNOFF:
       if (use_core_iaf_runoff) then
@@ -137,7 +139,7 @@
       endif
 
       Do icpl_io = 1, num_cpl_io   !begin I <==> O coupling iterations
-     
+
         stimestamp_io = time_sec
 
         ! ---temp check for roughness etc.---
@@ -150,20 +152,11 @@
         endif
         ! ----------------------------------- 
 
-        !shift windstress/ice-ocean stress from T onto U grid before sending into ocn
-        call t2ugrid_vector(iostrsu)
-        call t2ugrid_vector(iostrsv)
-
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
         call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
         call nullify_i2o_fluxes(first_step) 
-
-        if (do_update_halos_from_atm) then
-          call update_halos_from_atm(time_sec)
-          do_update_halos_from_atm = .false.
-        endif
 
         ! Communication with atmosphere and ocean has completed. Update halos
         ! ready for ice timestep.
@@ -209,6 +202,13 @@
         !   call check_roughness(time_sec)
         !endif
         ! ----------------------------------- 
+        if (icpl_io == num_cpl_io .and. icpl_ai < num_cpl_ai) then
+          call from_atm(time_sec)
+          call update_halos_from_atm(time_sec)
+          ! Shift windstress/ice-ocean stress from T onto U grid before sending into ocn
+          call t2ugrid_vector(iostrsu)
+          call t2ugrid_vector(iostrsv)
+        endif
 
         rtimestamp_io = time_sec
         if (rtimestamp_io < (dt*npt)) then
@@ -217,7 +217,7 @@
 
       End Do      !icpl_io
 
-      END DO        !icpl_ia
+      END DO        !icpl_ai
 
       ! final update of the stimestamp_io, ie., put back the last dt_ice:
       stimestamp_io = stimestamp_io + dt
