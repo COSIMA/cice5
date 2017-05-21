@@ -48,7 +48,7 @@ else
     setenv ACCESS   no
 endif
 setenv OASIS3_MCT yes	  # oasis3-mct version
-setenv NICELYR    7       # number of vertical layers in the ice
+setenv NICELYR    4       # number of vertical layers in the ice
 setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
 
@@ -112,7 +112,6 @@ else
 endif
 echo COMMDIR: $COMMDIR
 
-set N_ILYR = 1
 setenv DRVDIR $driver
 
 cd $OBJDIR
@@ -130,7 +129,6 @@ cc -o makdep $CBLD/makdep.c || exit 2
 
 make VPFILE=Filepath EXEC=$EXE \
            NXGLOB=$NXGLOB NYGLOB=$NYGLOB \
-           N_ILYR=$N_ILYR \
            BLCKX=$BLCKX BLCKY=$BLCKY MXBLCKS=$MXBLCKS \
       -j 8 -f  $CBLD/Makefile MACFILE=$CBLD/Macros.$platform || exit 2
 

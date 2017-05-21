@@ -24,11 +24,7 @@
         nx_global = NXGLOB    , & ! i-axis size
         ny_global = NYGLOB    , & ! j-axis size
         ncat      = NICECAT   , & ! number of categories
-#ifdef AusCOM
-        nilyr     = N_ILYR    , & ! number of ice layers per category
-#else
         nilyr     = NICELYR   , & ! number of ice layers per category
-#endif
         nslyr     = NSNWLYR   , & ! number of snow layers per category
 
         max_aero  =   6       , & ! maximum number of aerosols 
