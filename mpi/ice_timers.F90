@@ -66,6 +66,7 @@
       timer_into_atm,          &! 
       timer_from_ocn_halos,    &!
       timer_from_atm_halos,    &!
+      timer_runoff_remap,      &!
 #endif
 
       timer_bound,            &! boundary updates
@@ -199,6 +200,7 @@
    call get_ice_timer(timer_into_atm,   'into_atm', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_from_ocn_halos, 'ocn_halos', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_from_atm_halos,   'atm_halos', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_runoff_remap,   'runoff_remap', nblocks,distrb_info%nprocs)
 #endif
 !   call get_ice_timer(timer_tmp,      '         ',nblocks,distrb_info%nprocs)
 

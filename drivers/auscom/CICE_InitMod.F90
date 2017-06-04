@@ -120,13 +120,14 @@
 
       call init_domain_blocks   ! set up block decomposition
       call init_grid1           ! domain distribution
-#ifdef AusCOM
-      call init_cpl     ! initialize message passing
-#endif
+
       call init_ice_timers      ! initialize all timers
       call ice_timer_start(timer_total)   ! start timing entire run
       call init_grid2           ! grid variables
 
+#ifdef AusCOM
+      call init_cpl     ! initialize message passing
+#endif
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
 

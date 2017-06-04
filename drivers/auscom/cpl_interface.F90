@@ -18,7 +18,9 @@
   use ice_kinds_mod
   use ice_communicate, only : my_task, master_task, MPI_COMM_ICE
   use ice_blocks,      only : nx_block, ny_block, nghost
-  use ice_domain_size  
+  use ice_grid,        only : tmask, TLON, TLAT
+  use ice_domain_size
+  use ice_exit, only: abort_ice
 !ars599: 26032014 add distrb
   use ice_distribution, only : nprocsX, nprocsY, distrb
   use ice_gather_scatter
@@ -35,11 +37,13 @@
   use ice_timers, only: ice_timer_start, ice_timer_stop
   use ice_timers, only: timer_from_atm_halos, timer_from_ocn_halos
   use ice_timers, only: timer_from_atm, timer_waiting_atm, timer_waiting_ocn
-  use ice_timers, only: timer_from_ocn
+  use ice_timers, only: timer_from_ocn, timer_runoff_remap
 
 !ars599: 27032014 add distrb
   !mpi stuff
   use ice_broadcast, only :  broadcast_array
+
+  use kdrunoff, only : kdrunoff_init, kdrunoff_remap, kdrunoff_end
 
   implicit none
 
@@ -71,6 +75,9 @@
   real(kind=dbl_kind), dimension(:,:), allocatable :: rla_array
   real(kind=dbl_kind), dimension(:),   allocatable :: rla_bufsend
   real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d
+
+  integer(kind=int_kind), dimension(:,:), allocatable :: land_points
+  integer(int_kind) :: num_land_points
 
   contains
 
@@ -222,6 +229,7 @@
 !-------------------------------------------------------------------------
 
   integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
+  integer :: isc, iec, jsc, jec
   type (block) ::  this_block           ! block information for current block
 
 !calculate partition using nprocsX and nprocsX
@@ -444,7 +452,16 @@
   !
   allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
 
-  end subroutine init_cpl
+  ! For online remapping of runoff we may need to move runoff from land
+  ! to ocean points.
+  isc = 1+nghost
+  iec = nx_block-nghost
+  jsc = isc
+  jec = ny_block-nghost
+  call kdrunoff_init(tmask(isc:iec, jsc:jec, 1), TLON(isc:iec, jsc:jec, 1), &
+                           TLAT(isc:iec, jsc:jec, 1), num_land_points)
+
+end subroutine init_cpl
 
 
 subroutine from_atm(isteps)
@@ -453,8 +470,13 @@ subroutine from_atm(isteps)
 
   integer(kind=int_kind), intent(in) :: isteps
 
-  integer(kind=int_kind) :: tag, request, info
+  integer(kind=int_kind) :: tag, request, info, i, j, n
   integer(kind=int_kind) :: buf(1)
+  integer :: isc, iec, jsc, jec
+
+#if defined(DEBUG)
+  real(kind=dbl_kind) :: total_runoff
+#endif
 
   tag = MPI_ANY_TAG
   request = MPI_REQUEST_NULL
@@ -463,22 +485,27 @@ subroutine from_atm(isteps)
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
 #endif
 
+  isc = 1+nghost
+  iec = nx_block-nghost
+  jsc = isc
+  jec = ny_block-nghost
+
   call ice_timer_start(timer_from_atm)
 
   ! The return value 'info' is not checked, oasis does not return errors, it
   ! will abort if there is any problem.
   call ice_timer_start(timer_waiting_atm)
-  call prism_get_proto(il_var_id_in(1), isteps, swflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(1), isteps, swflx0(isc:iec, jsc:jec, 1), info)
   call ice_timer_stop(timer_waiting_atm)
-  call prism_get_proto(il_var_id_in(2), isteps, lwflx0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
-  call prism_get_proto(il_var_id_in(3), isteps, rain0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
-  call prism_get_proto(il_var_id_in(4), isteps, snow0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
-  call prism_get_proto(il_var_id_in(5), isteps, press0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
-  call prism_get_proto(il_var_id_in(6), isteps, runof0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
-  call prism_get_proto(il_var_id_in(7), isteps, tair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
-  call prism_get_proto(il_var_id_in(8), isteps, qair0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
-  call prism_get_proto(il_var_id_in(9), isteps, uwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
-  call prism_get_proto(il_var_id_in(10), isteps, vwnd0(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1), info)
+  call prism_get_proto(il_var_id_in(2), isteps, lwflx0(isc:iec, jsc:jec, 1), info)
+  call prism_get_proto(il_var_id_in(3), isteps, rain0(isc:iec, jsc:jec, 1), info)
+  call prism_get_proto(il_var_id_in(4), isteps, snow0(isc:iec, jsc:jec, 1), info)
+  call prism_get_proto(il_var_id_in(5), isteps, press0(isc:iec, jsc:jec, 1), info)
+  call prism_get_proto(il_var_id_in(6), isteps, runof0(isc:iec, jsc:jec, 1), info)
+  call prism_get_proto(il_var_id_in(7), isteps, tair0(isc:iec, jsc:jec, 1), info)
+  call prism_get_proto(il_var_id_in(8), isteps, qair0(isc:iec, jsc:jec, 1), info)
+  call prism_get_proto(il_var_id_in(9), isteps, uwnd0(isc:iec, jsc:jec, 1), info)
+  call prism_get_proto(il_var_id_in(10), isteps, vwnd0(isc:iec, jsc:jec, 1), info)
 
   ! need do t-grid to u-grid shift for vectors since all coupling occur on
   ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
@@ -487,6 +514,32 @@ subroutine from_atm(isteps)
   !call t2ugrid(vwnd1)
   ! ...and, as we use direct o-i communication and o-i share the same grid, 
   ! no need for any t2u and/or u2t shift before/after i-o coupling!
+
+#if defined(DEBUG)
+  total_runoff = sum(runof0(isc:iec, jsc:jec, 1))
+#endif
+
+  ! Runoff may have arrived on land points. Move to nearest neighbour ocean
+  ! points.
+  call ice_timer_start(timer_runoff_remap)
+  call kdrunoff_remap(runof0(isc:iec, jsc:jec, 1), 1)
+  call ice_timer_stop(timer_runoff_remap)
+
+#if defined(DEBUG)
+  ! Check that no runoff has been lost
+  if (total_runoff - sum(runof0(isc:iec, jsc:jec, 1)) > 1e-15) then
+    call abort_ice('Large change in total runoff after remap')
+  endif
+
+  ! Check that there is no runoff on land.
+  do j=jsc, jec
+    do i=isc, iec
+      if ((.not. tmask(i, j, 1)) .and. runof0(i, j, 1) > 0.0) then
+        call abort_ice('There is runoff on land')
+      endif
+    enddo
+  enddo
+#endif
 
   if ( chk_a2i_fields ) then
     call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
