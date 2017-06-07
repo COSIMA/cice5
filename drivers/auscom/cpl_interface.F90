@@ -18,7 +18,8 @@
   use ice_kinds_mod
   use ice_communicate, only : my_task, master_task, MPI_COMM_ICE
   use ice_blocks,      only : nx_block, ny_block, nghost
-  use ice_grid,        only : tmask, TLON, TLAT
+  use ice_grid,        only : grid_file, kmt_file
+  use ice_read_write,  only : ice_read_global_nc, ice_open_nc, ice_close_nc
   use ice_domain_size
   use ice_exit, only: abort_ice
 !ars599: 26032014 add distrb
@@ -42,8 +43,6 @@
 !ars599: 27032014 add distrb
   !mpi stuff
   use ice_broadcast, only :  broadcast_array
-
-  use kdrunoff, only : kdrunoff_init, kdrunoff_remap, kdrunoff_end
 
   implicit none
 
@@ -77,7 +76,7 @@
   real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d
 
   integer(kind=int_kind), dimension(:,:), allocatable :: land_points
-  integer(int_kind) :: num_land_points
+  integer(int_kind) :: num_land_points, num_ocean_points
 
   contains
 
@@ -229,8 +228,11 @@
 !-------------------------------------------------------------------------
 
   integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
-  integer :: isc, iec, jsc, jec
-  type (block) ::  this_block           ! block information for current block
+
+ type (block) ::  this_block           ! block information for current block
+
+  ! Send ice grid details to atmosphere. This is used to regrid runoff.
+  call send_grid_to_atm()
 
 !calculate partition using nprocsX and nprocsX
   write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
@@ -452,17 +454,58 @@
   !
   allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
 
-  ! For online remapping of runoff we may need to move runoff from land
-  ! to ocean points.
-  isc = 1+nghost
-  iec = nx_block-nghost
-  jsc = isc
-  jec = ny_block-nghost
-  call kdrunoff_init(tmask(isc:iec, jsc:jec, 1), TLON(isc:iec, jsc:jec, 1), &
-                           TLAT(isc:iec, jsc:jec, 1), num_land_points)
-
 end subroutine init_cpl
 
+subroutine send_grid_to_atm()
+
+  integer(kind=int_kind) :: tag, buf_int(2)
+  real(kind=dbl_kind), dimension(:), allocatable :: buf_real
+
+  integer :: fid
+  real(kind=dbl_kind), dimension(:, :), allocatable :: tlat_global, tlon_global
+  real(kind=dbl_kind), dimension(:, :), allocatable :: mask_global
+
+  if (my_task == master_task) then
+    call ice_open_nc(grid_file, fid)
+
+    allocate(tlat_global(nx_global, ny_global))
+    allocate(tlon_global(nx_global, ny_global))
+    call ice_open_nc(grid_file, fid)
+    call ice_read_global_nc(fid , 1, 'tlat' , tlat_global, .false.)
+    call ice_read_global_nc(fid , 1, 'tlon' , tlon_global, .false.)
+    call ice_close_nc(fid)
+
+    allocate(mask_global(nx_global, ny_global))
+    call ice_open_nc(kmt_file, fid)
+    call ice_read_global_nc(fid , 1, 'kmt' , mask_global, .false.)
+    call ice_close_nc(fid)
+
+    ! Send my details to the atm.
+    tag = 0
+    buf_int(1) = nx_global
+    buf_int(2) = ny_global
+    call MPI_send(buf_int, 2, MPI_INTEGER, 0, tag, il_commatm, ierror)
+
+    allocate(buf_real(nx_global*ny_global))
+    buf_real(:) = reshape(tlat_global(:, :), (/ size(tlat_global) /))
+    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
+                  il_commatm, ierror)
+
+    buf_real(:) = reshape(tlon_global(:, :), (/ size(tlon_global) /))
+    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
+                  il_commatm, ierror)
+
+    buf_real(:) = reshape(mask_global(:, :), (/ size(mask_global) /))
+    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
+                  il_commatm, ierror)
+
+    deallocate(buf_real)
+    deallocate(tlat_global)
+    deallocate(tlon_global)
+    deallocate(mask_global)
+  endif
+
+end subroutine send_grid_to_atm
 
 subroutine from_atm(isteps)
 
@@ -473,13 +516,7 @@ subroutine from_atm(isteps)
   integer(kind=int_kind) :: tag, request, info, i, j, n
   integer(kind=int_kind) :: buf(1)
   integer :: isc, iec, jsc, jec
-
-#if defined(DEBUG)
   real(kind=dbl_kind) :: total_runoff
-#endif
-
-  tag = MPI_ANY_TAG
-  request = MPI_REQUEST_NULL
 
 #if defined(DEBUG)
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
@@ -515,38 +552,13 @@ subroutine from_atm(isteps)
   ! ...and, as we use direct o-i communication and o-i share the same grid, 
   ! no need for any t2u and/or u2t shift before/after i-o coupling!
 
-#if defined(DEBUG)
-  total_runoff = sum(runof0(isc:iec, jsc:jec, 1))
-#endif
-
-  ! Runoff may have arrived on land points. Move to nearest neighbour ocean
-  ! points.
-  call ice_timer_start(timer_runoff_remap)
-  call kdrunoff_remap(runof0(isc:iec, jsc:jec, 1), 1)
-  call ice_timer_stop(timer_runoff_remap)
-
-#if defined(DEBUG)
-  ! Check that no runoff has been lost
-  if (total_runoff - sum(runof0(isc:iec, jsc:jec, 1)) > 1e-15) then
-    call abort_ice('Large change in total runoff after remap')
-  endif
-
-  ! Check that there is no runoff on land.
-  do j=jsc, jec
-    do i=isc, iec
-      if ((.not. tmask(i, j, 1)) .and. runof0(i, j, 1) > 0.0) then
-        call abort_ice('There is runoff on land')
-      endif
-    enddo
-  enddo
-#endif
-
   if ( chk_a2i_fields ) then
     call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
   endif
 
   ! Allow atm to progress. It is waiting on a receive.
   if (my_commatm_task == 0) then
+    request = MPI_REQUEST_NULL
     tag = 0
     call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, il_commatm, request, ierror)
   endif
