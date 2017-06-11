@@ -146,8 +146,6 @@
               ' because use_leap_years = .true.'
       end if
 
-      write(*,*)'CICE (calendar) days_per_year = ', days_per_year
-
       dayyr = real(days_per_year, kind=dbl_kind)
       if (days_per_year == 360) then
          daymo  = daymo360

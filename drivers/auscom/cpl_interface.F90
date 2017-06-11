@@ -68,15 +68,8 @@
 
   integer :: sendsubarray, recvsubarray , resizedrecvsubarray
   integer, dimension(:), allocatable :: counts, disps
-!  integer :: subgw_type
 
-  integer(kind=int_kind) :: il_bufsize
-  real(kind=dbl_kind), dimension(:,:), allocatable :: rla_array
-  real(kind=dbl_kind), dimension(:),   allocatable :: rla_bufsend
   real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d
-
-  integer(kind=int_kind), dimension(:,:), allocatable :: land_points
-  integer(int_kind) :: num_land_points, num_ocean_points
 
   contains
 
@@ -85,9 +78,6 @@
 !-----------------------!
 
   include 'mpif.h'
-
-  integer(kind=int_kind) :: io_size, ii, integer_byte_size, integer_io_size
-  integer(kind=int_kind) :: il_real, il_bufsizebyt
 
   logical :: mpiflag
 
@@ -98,9 +88,6 @@
   ! 'define' the model global domain: 
   !-----------------------------------
   nt_cells = nx_global * ny_global
-
-  !allocate rla_array to be used below
-  allocate (rla_array(nx_global,ny_global) )
 
   !-------------------
   ! Initialize PSMILe.
@@ -116,39 +103,12 @@
 
   call MPI_Initialized (mpiflag, ierror)
 
-  print *, 'CICE: (prism_init) calling prism_init_comp_proto...'
-
   call prism_init_comp_proto (il_comp_id, cp_modnam, ierror)
 
   if (ierror /= PRISM_Ok) then 
-      call prism_abort_proto(il_comp_id, 'cice prism_init','STOP 1')
-  else
-      print *, 'CICE: (prism_init) called prism_init_comp_proto !'
+    call prism_abort_proto(il_comp_id, 'cice prism_init', 'STOP 1')
   endif
 
-  !B: the following part may not be really needed(?)
-  !
-  ! Let's suppose the model attaches to a MPI buffer for its own use
-  !
-  ! ! Sophisticated way to determine buffer size needed (without "kind")
-  ! ! Here one message containing rla_array
-
-  integer_byte_size = BIT_SIZE(ii)/8
-  inquire (iolength=io_size) ii
-  integer_io_size = io_size
-  inquire (iolength=io_size) rla_array(1,1)
-  il_real = io_size/integer_io_size*integer_byte_size
-  il_bufsize = nt_cells + MPI_BSEND_OVERHEAD/il_real + 1
-  allocate (rla_bufsend(il_bufsize), stat = ierror)
-  il_bufsizebyt = il_bufsize * il_real
-  call MPI_Buffer_Attach(rla_bufsend, il_bufsizebyt, ierror)
-
-  if (ierror /= PRISM_Ok) then
-      print *, 'CICE: (prism_init) Error in MPI_Buffer_Attach.'
-      call prism_abort_proto(il_comp_id, 'cice prism_init','STOP 2')
-  else
-      print *, 'CICE: (prism_init) MPI_Buffer_Attach ok!'
-  endif
   !
   ! PSMILe attribution of local communicator.
   ! 
@@ -158,42 +118,29 @@
   call prism_get_localcomm_proto(il_commlocal, ierror)
   !
   if (ierror /= PRISM_Ok) then
-      print *, 'CICE: Error in prism_get_localcomm_proto'
-      call prism_abort_proto(il_comp_id, 'cice prism_init','STOP 3')
-  else
-      print *, 'CICE: _get_localcomm_ OK! il_commlocal= ',il_commlocal
+    call prism_abort_proto(il_comp_id, 'cice prism_init', 'STOP 2')
   endif
   !
   ! Inquire if model is parallel or not and open the process log file
   !
-  print *, '* CICE: Entering init_cpl.....'
 
-  print *, '* CICE4 (init_cpl) calling MPI_Comm_Size ...'
   call MPI_Comm_Size(il_commlocal, il_nbtotproc, ierror)
-  print *, '* CICE4 (init_cpl) calling MPI_Comm_Rank ...'
   call MPI_Comm_Rank(il_commlocal, my_task, ierror)
-
-  print *, '* CICE4 (init_cpl) il_commlocal, il_nbtotproc, my_task = ',&
-                             il_commlocal, il_nbtotproc, my_task
 
   il_nbcplproc = il_nbtotproc   !multi-process coupling
 
   ! Open the process log file
-  !if (my_task == 0 .or. ll_comparal) then
-    il_out = 85 + my_task
-    write(chout,'(I6.6)')il_out
-    chiceout='iceout'//trim(chout)
-    open(il_out,file=chiceout,form='formatted')
-  
-    write(il_out,*) 'Number of processes:', il_nbtotproc
-    write(il_out,*) 'Local process number:', my_task
-    write(il_out,*) 'Local communicator is : ',il_commlocal
-    write(il_out,*) 'Grid layout: nx_global,ny_global= ',nx_global,ny_global
-    write(il_out,*) 'Grid decomposition: nx_block,ny_block,max_blocks= ',&
-                     nx_block,ny_block,max_blocks
-  !endif
+  il_out = 85 + my_task
+  write(chout,'(I6.6)')il_out
+  chiceout='iceout'//trim(chout)
+  open(il_out,file=chiceout,form='formatted')
 
-  print *, '* CICE: prism_init called OK!'  
+  write(il_out,*) 'Number of processes:', il_nbtotproc
+  write(il_out,*) 'Local process number:', my_task
+  write(il_out,*) 'Local communicator is : ',il_commlocal
+  write(il_out,*) 'Grid layout: nx_global,ny_global= ',nx_global,ny_global
+  write(il_out,*) 'Grid decomposition: nx_block,ny_block,max_blocks= ',&
+                   nx_block,ny_block,max_blocks
 
   call prism_get_intercomm(il_commatm, 'matmxx', ierror)
   call mpi_comm_rank(il_commatm, my_commatm_task, ierror)
@@ -260,6 +207,7 @@
     sizes(1)=l_ihi-l_ilo+1; sizes(2)=l_jhi-l_jlo+1
     subsizes(1)=l_ihi-l_ilo+1; subsizes(2)=l_jhi-l_jlo+1
     starts(1)=0; starts(2)=0
+
     call mpi_type_create_subarray(2, sizes, subsizes, starts, mpi_order_fortran, &
                                 mpi_real8, sendsubarray, ierror)
     call mpi_type_commit(sendsubarray,ierror)
@@ -275,6 +223,7 @@
      call mpi_type_create_resized(recvsubarray, start, extent, resizedrecvsubarray, ierror)
      call mpi_type_commit(resizedrecvsubarray,ierror)
     end if
+
     allocate(counts(nprocs),disps(nprocs))
     forall (jf=1:nprocs) counts(jf) = 1
     do jf=1, nprocs
@@ -795,12 +744,6 @@ end subroutine update_halos_from_atm
 !=======================================================================
   subroutine coupler_termination
 !-------------------------------!
-  !
-  ! Detach from MPI buffer
-  !
-  call MPI_Buffer_Detach(rla_bufsend, il_bufsize, ierror) 
-  write(il_out,*) 'il_bufsize =', il_bufsize
-  deallocate (rla_bufsend)
 
   deallocate (tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0, runof0, press0)
   deallocate (runof, press)

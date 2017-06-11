@@ -134,9 +134,7 @@ implicit none
 integer(kind=int_kind), intent(in) :: ii,jj
 character(len=*), intent(in) :: ncfile
 integer(kind=int_kind), intent(out) :: ncid
- 
-print *
-print *, 'creating a new netcdf file: ',ncfile
+
 
 !create a new NetCDF and define the grid:
 call ncheck(nf_create(trim(ncfile),nf_write,ncid))
@@ -174,8 +172,6 @@ character(len=*), intent(in) :: vname
 character*80 ctimeatt
 
 vtmp = real(vin)  ! isn't this real here real*8 ?
-print *, 'write_nc_1Dtime: time to write field -- ', vtmp, vname
-print *, 'write_nc_1Dtime: idate, sec          -- ', idate, sec
 
 ncstatus=nf_inq_varid(ncid,vname,varid)
 
