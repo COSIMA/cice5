@@ -199,9 +199,7 @@ contains
 
  call get_fileunit(nu_nml)
  open(unit=nu_nml,file="input_ice_gfdl.nml",form="formatted",status="old",iostat=nml_error)
- !
- write(6,*)'CICE: input_ice_gfdl.nml opened at unit = ', nu_nml
- !
+
  if (nml_error /= 0) then
     nml_error = -1
  else

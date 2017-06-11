@@ -466,6 +466,8 @@ subroutine send_grid_to_atm()
   real(kind=dbl_kind), dimension(:, :), allocatable :: mask_global
 
   if (my_task == master_task) then
+    write(il_out,*) 'Before send_grid_to_atm'
+
     call ice_open_nc(grid_file, fid)
 
     allocate(tlat_global(nx_global, ny_global))
@@ -479,6 +481,8 @@ subroutine send_grid_to_atm()
     call ice_open_nc(kmt_file, fid)
     call ice_read_global_nc(fid , 1, 'kmt' , mask_global, .false.)
     call ice_close_nc(fid)
+
+    write(il_out,*) 'After reading files'
 
     ! Send my details to the atm.
     tag = 0
@@ -503,6 +507,8 @@ subroutine send_grid_to_atm()
     deallocate(tlat_global)
     deallocate(tlon_global)
     deallocate(mask_global)
+
+    write(il_out,*) 'After send_grid_to_atm'
   endif
 
 end subroutine send_grid_to_atm

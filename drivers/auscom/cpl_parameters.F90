@@ -104,9 +104,7 @@ implicit none
 
     call get_fileunit(nu_nml)
 open(unit=nu_nml,file="input_ice.nml",form="formatted",status="old",iostat=nml_error)
-!
-    write(6,*)'CICE: input_ice.nml opened at unit = ', nu_nml
-!
+
 if (nml_error /= 0) then
    nml_error = -1
 else
@@ -118,15 +116,10 @@ do while (nml_error > 0)
 end do
 if (nml_error == 0) close(nu_nml)
 
-    write(6,coupling_nml)
-
     call release_fileunit(nu_nml)
 
 if (nml_error /= 0) then
-   !!!    call abort_ice('ice: error reading coupling_nml')
-       write(6, *)
-       write(6, *)'XXX Warning: after reading coupling_nml, nml_error = ',nml_error
-       write(6, *)
+    call abort_ice('ice: error reading coupling_nml')
 endif
 
 ! * make sure runtime is mutliple of dt_cpl_ai, dt_cpl_ai is mutliple of dt_cpl_io, 
