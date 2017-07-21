@@ -49,6 +49,7 @@
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
             from_atm, into_ocn, from_ocn, il_commlocal
   public :: update_halos_from_ocn, update_halos_from_atm
+  public :: write_boundary_checksums
 
   private
 
@@ -601,26 +602,7 @@ end subroutine from_atm
   real, intent(in) :: scale             !only 1 or 1/coef_ic allowed! 
   integer(kind=int_kind) :: jf
 
-#if defined(DEBUG)
-  write(il_out,*) '(into_ocn) sending coupling fields at stime= ', isteps
-
-  write(il_out,*)'chk iostrsu:', isteps, minval(iostrsu), maxval(iostrsu), sum(iostrsu)
-  write(il_out,*)'chk iostrsv:', isteps, minval(iostrsv), maxval(iostrsv), sum(iostrsv)
-  write(il_out,*)'chk iorain:', isteps, minval(iorain), maxval(iorain), sum(iorain)
-  write(il_out,*)'chk iosnow:', isteps, minval(iosnow), maxval(iosnow), sum(iosnow)
-  write(il_out,*)'chk iostflx:', isteps, minval(iostflx), maxval(iostflx), sum(iostflx)
-  write(il_out,*)'chk iohtflx:', isteps, minval(iohtflx), maxval(iohtflx), sum(iohtflx)
-  write(il_out,*)'chk ioswflx:', isteps, minval(ioswflx), maxval(ioswflx), sum(ioswflx)
-  write(il_out,*)'chk ioqflux:', isteps, minval(ioqflux), maxval(ioqflux), sum(ioqflux)
-  write(il_out,*)'chk ioshflx:', isteps, minval(ioshflx), maxval(ioshflx), sum(ioshflx)
-  write(il_out,*)'chk iolwflx:', isteps, minval(iolwflx), maxval(iolwflx), sum(iolwflx)
-  write(il_out,*)'chk iopress:', isteps, minval(iopress), maxval(iopress), sum(iopress)
-  write(il_out,*)'chk ioaice:', isteps, minval(ioaice), maxval(ioaice), sum(ioaice)
-  write(il_out,*)'chk iomelt:', isteps, minval(iomelt), maxval(iomelt), sum(iomelt)
-  write(il_out,*)'chk ioform:', isteps, minval(ioform), maxval(ioform), sum(ioform)
-#endif
-
-  do jf = n_i2a+1, jpfldout       !no 2-14 are for the ocn
+    do jf = n_i2a+1, jpfldout       !no 2-14 are for the ocn
 
     if (jf == n_i2a+1 ) then
         vwork2d(:,:) = scale * iostrsu(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
@@ -697,16 +679,6 @@ subroutine update_halos_from_ocn(time)
   call ice_HaloUpdate(pfmice, halo_info, field_loc_center, field_type_scalar)
   call ice_timer_stop(timer_from_ocn_halos)
 
-#if defined(DEBUG)
-  write(il_out,*)'chk ssto:', time, minval(ssto), maxval(ssto), sum(ssto)
-  write(il_out,*)'chk ssso:', time, minval(ssso), maxval(ssso), sum(ssso)
-  write(il_out,*)'chk ssuo:', time, minval(ssuo), maxval(ssuo), sum(ssuo)
-  write(il_out,*)'chk ssvo:', time, minval(ssvo), maxval(ssvo), sum(ssvo)
-  write(il_out,*)'chk sslx:', time, minval(sslx), maxval(sslx), sum(sslx)
-  write(il_out,*)'chk ssly:', time, minval(ssly), maxval(ssly), sum(ssly)
-  write(il_out,*)'chk pfmice:', time, minval(pfmice), maxval(pfmice), sum(pfmice)
-#endif
-
 end subroutine
 
 subroutine update_halos_from_atm(time)
@@ -725,19 +697,6 @@ subroutine update_halos_from_atm(time)
   call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
   call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
   call ice_timer_stop(timer_from_atm_halos)
-
-#if defined(DEBUG)
-  write(il_out,*)'chk swflx0:', time, minval(swflx0), maxval(swflx0), sum(swflx0)
-  write(il_out,*)'chk lwflx0:', time, minval(lwflx0), maxval(lwflx0), sum(lwflx0)
-  write(il_out,*)'chk rain0:', time, minval(rain0), maxval(rain0), sum(rain0)
-  write(il_out,*)'chk snow0:', time, minval(snow0), maxval(snow0), sum(snow0)
-  write(il_out,*)'chk press0:', time, minval(press0), maxval(press0), sum(press0)
-  write(il_out,*)'chk runof0:', time, minval(runof0), maxval(runof0), sum(runof0)
-  write(il_out,*)'chk tair0:', time, minval(tair0), maxval(tair0), sum(tair0)
-  write(il_out,*)'chk qair0:', time, minval(qair0), maxval(qair0), sum(qair0)
-  write(il_out,*)'chk uwnd0:', time, minval(uwnd0), maxval(uwnd0), sum(uwnd0)
-  write(il_out,*)'chk vwnd0:', time, minval(vwnd0), maxval(vwnd0), sum(vwnd0)
-#endif
 
 end subroutine update_halos_from_atm
 
@@ -911,5 +870,60 @@ end subroutine update_halos_from_atm
   endif
 
   end subroutine decomp_def
+
+subroutine write_boundary_checksums(time)
+   integer, intent(in) :: time
+
+   integer isc, iec, jsc, jec
+
+   if (my_task == master_task) then
+     isc = 1+nghost
+     iec = nx_block-nghost
+     jsc = 1+nghost
+     jec = ny_block-nghost
+
+     print*, '[ice chksum] time:', time
+     print*,   '[ice chksum] iostrsu:', sum(iostrsu(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iostrsv:', sum(iostrsv(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iorain:', sum(iorain(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iosnow:', sum(iosnow(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iostflx:', sum(iostflx(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iohtflx:', sum(iohtflx(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ioswflx:', sum(ioswflx(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ioqflux:', sum(ioqflux(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ioshflx:', sum(ioshflx(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iolwflx:', sum(iolwflx(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iopress:', sum(iopress(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ioaice:', sum(ioaice(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iomelt:', sum(iomelt(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ioform:', sum(ioform(isc:iec, jsc:jec, 1))
+
+     print*,   '[ice chksum] ssto:', sum(ssto(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ssso:', sum(ssso(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ssuo:', sum(ssuo(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ssvo:', sum(ssvo(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] sslx:', sum(sslx(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ssly:', sum(ssly(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] pfmice:', sum(pfmice(isc:iec, jsc:jec, 1))
+
+     print*,   '[ice chksum] swflx0:', sum(swflx0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] lwflx0:', sum(lwflx0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] rain0:', sum(rain0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] snow0:', sum(snow0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] press0:',  sum(press0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] runof0:',  sum(runof0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] tair0:',  sum(tair0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] qair0:',  sum(qair0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] uwnd0:',  sum(uwnd0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] vwnd0:',  sum(vwnd0(isc:iec, jsc:jec, 1))
+
+     print*,   '[ice chksum] u_star0:', sum(u_star0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] rough_mom0:', sum(rough_mom0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] rough_heat0:', sum(rough_heat0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] rough_moist0:', sum(rough_moist0(isc:iec, jsc:jec, 1))
+  endif
+
+end subroutine
+
 
   end module cpl_interface
