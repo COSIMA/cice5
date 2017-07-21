@@ -28,11 +28,7 @@ implicit none
 contains
 
 !===============================================================================
-subroutine nullify_i2o_fluxes(first_step)
-! PU Fri 13052011
-! If run is first_step we should not 
-! nullify iopress and iorunof
-    logical, intent(in) :: first_step
+subroutine nullify_i2o_fluxes()
 
     iostrsu(:,:,:) = 0.0
     iostrsv(:,:,:) = 0.0
@@ -44,18 +40,12 @@ subroutine nullify_i2o_fluxes(first_step)
     ioqflux(:,:,:) = 0.0
     ioshflx(:,:,:) = 0.0
     iolwflx(:,:,:) = 0.0
-    if (first_step) then
-        runof = iorunof
-        press = iopress
-    end if
     iopress(:,:,:) = 0.0
     iorunof(:,:,:) = 0.0
     ioaice(:,:,:)  = 0.0
-!!!
     iomelt(:,:,:)  = 0.0
     ioform(:,:,:)  = 0.0
 
-return
 end subroutine nullify_i2o_fluxes
 
 !===============================================================================
@@ -215,6 +205,7 @@ if ( file_exist(fname) ) then
   if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) reading in i2o fields......'
   call ice_open_nc(fname, ncid_i2o) 
   do jf = n_i2a + 1, jpfldout   !2:14
+    vwork(:, :, :) = 0.0
     call ice_read_nc(ncid_i2o, 1, cl_writ(jf) , vwork, dbug)
     if (jf == n_i2a+1 ) iostrsu = vwork
     if (jf == n_i2a+2 ) iostrsv = vwork

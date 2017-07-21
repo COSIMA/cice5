@@ -27,6 +27,7 @@
       use cpl_arrays_setup
       use cpl_interface
       use cpl_forcing_handler
+      use cpl_interface, only : write_boundary_checksums
 #endif
 
       implicit none
@@ -62,6 +63,7 @@
       use ice_timers, only: ice_timer_start, ice_timer_stop, &
           timer_couple, timer_step
       use ice_zbgc_shared, only: skl_bgc
+      use ice_restart_shared, only: restart_dir
 
 #ifdef AusCOM 
 !ars599: 27032014 add in
@@ -74,11 +76,7 @@
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
       integer (kind=int_kind) :: imon 
-      logical :: first_step
 #endif
-
-   ! 1st time step of experiment or not
-   first_step = .true.
 
    !--------------------------------------------------------------------
    !  initialize error code and step timer
@@ -105,12 +103,13 @@
       !    last run from ocn and ice model;
       ! initial run needs the pre-processed o2i and i2o fields.
 
-      call get_time0_o2i_fields('INPUT/o2i.nc')
+      call get_time0_o2i_fields(trim(restart_dir)//'o2i.nc')
 
-      call get_time0_i2o_fields('INPUT/i2o.nc')
-      call get_sicemass('INPUT/sicemass.nc')
+      call get_time0_i2o_fields(trim(restart_dir)//'i2o.nc')
+      call get_sicemass(trim(restart_dir)//'sicemass.nc')
 
-      if (use_core_nyf_runoff) then 
+      if (use_core_nyf_runoff) then
+         stop "Don't do this"
         call get_core_runoff('INPUT/core_runoff_regrid.nc','runoff',1)
       endif
 
@@ -127,6 +126,7 @@
 
 ! In case of CORE-IAF RUNOFF:
       if (use_core_iaf_runoff) then
+         stop "Don't do this either"
         call calendar(time)
         if (imon /= month ) then
           imon = month
@@ -148,21 +148,21 @@
            !call gather_global(gwork, u_star0, master_task, distrb_info)
            !if (my_task == master_task) write(54,'(10e12.4)')gwork
            !
-           call check_roughness('INPUT/fields_roughness.nc',stimestamp_io)
+           call check_roughness(trim(restart_dir)//'fields_roughness.nc',stimestamp_io)
         endif
         ! ----------------------------------- 
+
+        call write_boundary_checksums(time_sec)
 
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
         call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
-        call nullify_i2o_fluxes(first_step) 
+        call nullify_i2o_fluxes() 
 
         ! Communication with atmosphere and ocean has completed. Update halos
         ! ready for ice timestep.
-        if (.not. first_step) then
-            call update_halos_from_ocn(time_sec)
-        endif
+        call update_halos_from_ocn(time_sec)
 
         sss=ssso
         call new_freezingT
@@ -189,7 +189,6 @@
           !initialize fluxes sent to coupler (WHY should still need do this?)
           call init_flux_atm
           call init_flux_ocn
-          first_step = .false.
   
         end do     ! itap
 
@@ -224,11 +223,11 @@
 
 !XXX      call save_time0_a2i_fields('CICE_input/A2I_time1.nc', stimestamp_io)
 
-      call save_time0_i2o_fields('RESTART/i2o.nc', stimestamp_io) 
+      call save_time0_i2o_fields(trim(restart_dir)//'i2o.nc', stimestamp_io) 
 
-      call save_u_star('RESTART/u_star.nc',stimestamp_io)    
+      call save_u_star(trim(restart_dir)//'u_star.nc',stimestamp_io)    
 
-      call save_sicemass('RESTART/sicemass.nc',stimestamp_io)    
+      call save_sicemass(trim(restart_dir)//'sicemass.nc',stimestamp_io)    
 
    !--------------------------------------------------------------------
    ! end of timestep loop

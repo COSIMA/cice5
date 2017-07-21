@@ -100,6 +100,7 @@
       use ice_transport_driver, only: init_transport
       use ice_zbgc, only: init_zbgc
       use ice_zbgc_shared, only: skl_bgc
+      use ice_restart_shared, only: restart_dir
 #ifdef popcice
       use drv_forcing, only: sst_sss
 #endif
@@ -155,7 +156,7 @@
       if (runtype == 'initial') then
         nrec = month - 1            !month is from calendar
         if (nrec == 0) nrec = 12 
-        call get_time0_sstsss('INPUT/monthly_sstsss.nc', nrec)
+        call get_time0_sstsss(trim(restart_dir)//'monthly_sstsss.nc', nrec)
 #if defined(DEBUG)
         write(il_out,*) 'CICE called  get_time0_sstsss. my_task = ',my_task
 #endif
@@ -166,7 +167,7 @@
       !20100111: get the surface friction velocity for gfdl surface flux calculation
       !          (roughness calculation requires last time step u_star...)
       if (gfdl_surface_flux) then
-         call get_u_star('INPUT/u_star.nc')
+         call get_u_star(trim(restart_dir)//'u_star.nc')
       endif  
 
 #else
