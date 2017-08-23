@@ -304,9 +304,6 @@
          call ice_timer_start(timer_column)  ! column physics
          call ice_timer_start(timer_thermo)  ! thermodynamics
 
-!ars599: 04042014 remove iblk do loop
-!	however get_i2o_fluxes and tavg_i2o_fluxes will count iblk times
-!	so remove to the out of iblk loop.
          !$OMP PARALLEL DO PRIVATE(iblk)
          do iblk = 1, nblocks
 
@@ -321,33 +318,17 @@
       !-----------------------------------------------------------------
       ! thermodynamics
       !-----------------------------------------------------------------
-            
+
             call step_therm1     (dt, iblk) ! vertical thermodynamics
-!ars599: 04042014 remove iblk do loop
-!#ifdef AusCOM
          enddo ! iblk
-!         !calculate/merge -11- i2o fields for each ice time step
-         call get_i2o_fluxes
-! 
-!         !do time-weighted sum-up for the -11- i2o fields:
-         call tavg_i2o_fluxes
+
         !$OMP PARALLEL DO PRIVATE(iblk)
          do iblk = 1, nblocks
-!#endif
             call biogeochemistry (dt, iblk) ! biogeochemistry
             call step_therm2     (dt, iblk) ! ice thickness distribution thermo
-
          enddo ! iblk
          !$OMP END PARALLEL DO
 
-!ars599: 04042014 remove iblk do loop
-#ifdef AusCOM
-         !calculate/merge -11- i2o fields for each ice time step
-!         call get_i2o_fluxes
- 
-         !do time-weighted sum-up for the -11- i2o fields:
-!         call tavg_i2o_fluxes
-#endif
          call post_thermo (dt)             ! finalize thermo update
 
          call ice_timer_stop(timer_thermo) ! thermodynamics
@@ -368,7 +349,6 @@
          call ice_timer_start(timer_column)  ! column physics
          call ice_timer_start(timer_thermo)  ! thermodynamics
 
-!ars599: 04042014: remove iblk do loop
          !$OMP PARALLEL DO PRIVATE(iblk)
          do iblk = 1, nblocks
 
@@ -382,6 +362,12 @@
 
          enddo ! iblk
          !$OMP END PARALLEL DO
+
+         ! Calculate/merge i2o fields for each ice time step
+         call get_i2o_fluxes
+
+         ! Do time-weighted sum-up for the i2o fields
+         call tavg_i2o_fluxes
 
          call ice_timer_start(timer_bound)
          call ice_HaloUpdate (scale_factor,     halo_info, &
