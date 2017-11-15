@@ -101,7 +101,9 @@ integer(kind=int_kind), optional :: ilout  !format io file id
 character(len=*), intent(in) :: ncfile  
 integer(kind=int_kind), intent(out) :: ncid
 
+#if defined(DEBUG)
 if (present(ilout)) write(ilout,*) 'creating a new netcdf file: ',ncfile
+#endif
 
 !create a new NetCDF and define the grid:
 call ncheck(nf_create(trim(ncfile),nf_write,ncid))
@@ -218,7 +220,9 @@ real(kind=dbl_kind), dimension(nx,ny), intent(in) :: vin
 integer(kind=int_kind) :: varid, ncstatus 
 real*4, dimension(nx,ny) :: vtmp   !single precision
 
+#if defined(DEBUG)
 if (present(ilout)) write(ilout,*) 'write_nc2D: handling var *** ',vname, ' rec: ', istep
+#endif
 
 ncstatus=nf_inq_varid(ncid,vname,varid)
 if (ncstatus/=nf_noerr) then
@@ -231,9 +235,13 @@ if (ncstatus/=nf_noerr) then
             (/pLonDimId, pLatDimId, timeDimId/),varid))
   endif
   call ncheck(nf_enddef(ncid))
+#if defined(DEBUG)
   if (present(ilout)) write(ilout,*) 'write_nc2D: defined new var ***', vname 
+#endif
 else
+#if defined(DEBUG)
   if (present(ilout)) write(ilout,*) 'write_nc2D: found   old var ***', vname
+#endif
 end if
 
 select case(prcn)

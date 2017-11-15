@@ -131,6 +131,7 @@
   il_nbcplproc = il_nbtotproc   !multi-process coupling
 
   ! Open the process log file
+#if defined(DEBUG) 
   il_out = 85 + my_task
   write(chout,'(I6.6)')il_out
   chiceout='iceout'//trim(chout)
@@ -142,6 +143,7 @@
   write(il_out,*) 'Grid layout: nx_global,ny_global= ',nx_global,ny_global
   write(il_out,*) 'Grid decomposition: nx_block,ny_block,max_blocks= ',&
                    nx_block,ny_block,max_blocks
+#endif
 
   call prism_get_intercomm(il_commatm, 'matmxx', ierror)
   call mpi_comm_rank(il_commatm, my_commatm_task, ierror)
@@ -183,14 +185,16 @@
   call send_grid_to_atm()
 
 !calculate partition using nprocsX and nprocsX
-  write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
   l_ilo=mod(my_task,nprocsX)*nx_global/nprocsX+1
   l_ihi=l_ilo + nx_global/nprocsX -1
   l_jlo=int(my_task/nprocsX) * ny_global/nprocsY+1
   l_jhi=l_jlo+ny_global/nprocsY - 1
 
+#if defined(DEBUG) 
+  write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
   write(il_out,*) '  2local partion, ilo, ihi, jlo, jhi=', l_ilo, l_ihi, l_jlo, l_jhi
   write(il_out,*) '  2partition x,y sizes:', l_ihi-l_ilo+1, l_jhi-l_jlo+1
+#endif
 
 !#ifdef _SLOW___
   nprocs = il_nbtotproc
@@ -232,10 +236,12 @@
       !disps(n) = ((vilo(n)-1)*ny_global + (vjlo(n)-1))
     end do
 
+#if defined(DEBUG) 
     write(il_out,*) ' vilo ', vilo
     write(il_out,*) ' vjlo ', vjlo
     write(il_out,*) ' counts ', counts
     write(il_out,*) ' disps ', disps
+#endif
 !#endif
 
     !
@@ -249,7 +255,9 @@
     call decomp_def (il_part_id, il_length, nt_cells, &
          my_task, il_nbcplproc, .true., il_out)
 
+#if defined(DEBUG) 
     write(il_out,*)'(init_cpl) called decomp_def, my_task, ierror = ',my_task, ierror
+#endif
 
     !
     ! PSMILe coupling fields declaration
@@ -416,8 +424,6 @@ subroutine send_grid_to_atm()
   real(kind=dbl_kind), dimension(:, :), allocatable :: mask_global
 
   if (my_task == master_task) then
-    write(il_out,*) 'Before send_grid_to_atm'
-
     call ice_open_nc(grid_file, fid)
 
     allocate(tlat_global(nx_global, ny_global))
@@ -431,8 +437,6 @@ subroutine send_grid_to_atm()
     call ice_open_nc(kmt_file, fid)
     call ice_read_global_nc(fid , 1, 'kmt' , mask_global, .false.)
     call ice_close_nc(fid)
-
-    write(il_out,*) 'After reading files'
 
     ! Send my details to the atm.
     tag = 0
@@ -458,7 +462,6 @@ subroutine send_grid_to_atm()
     deallocate(tlon_global)
     deallocate(mask_global)
 
-    write(il_out,*) 'After send_grid_to_atm'
   endif
 
 end subroutine send_grid_to_atm
@@ -552,7 +555,9 @@ end subroutine from_atm
 
         call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
       if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
+#if defined(DEBUG)
         write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
+#endif
         call prism_abort_proto(il_comp_id, 'cice from_atm','stop 1')
       else
 #if defined(DEBUG)
@@ -648,7 +653,9 @@ end subroutine from_atm
 #endif
       call prism_put_proto(il_var_id_out(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
       if ( ierror /= PRISM_Ok .and. ierror < PRISM_Sent) then
+#if defined(DEBUG)
         write(il_out,*) '(into_ocn) Err in _put_ ', cl_writ(jf), isteps, ierror
+#endif
         call prism_abort_proto(il_comp_id, 'cice into_ocn','STOP 1') 
       else
 #if defined(DEBUG)
@@ -720,20 +727,17 @@ end subroutine update_halos_from_atm
   call prism_terminate_proto (ierror)
   if (ierror /= PRISM_Ok) then
     if (my_task == 0) then
-      write (il_out,*) 'An error occured in prism_terminate = ', ierror
+      print *, 'CICE: an error occured in prism_terminate = ', ierror
     endif
   else 
     if (my_task == 0) then
-      write(il_out,*) '(main) calling prism_terminate_proto done!'
-      write(il_out,*) '==================*** END ***================='
+      print *,  '==================*** CICE END ***================='
     endif
   endif
-  ! 
-  print *
-  print *, '********** End of CICE **********'
-  print *
 
+#if defined(DEBUG)
   close(il_out)
+#endif
   call MPI_Finalize (ierror)
 
   end subroutine coupler_termination

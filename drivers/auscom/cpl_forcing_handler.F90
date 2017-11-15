@@ -92,7 +92,7 @@ if ( file_exist(fname) ) then
                       field_loc_center, field_type_scalar)
   if (my_task == master_task) call ice_close_nc(ncid)
 else
-  if (my_task == 0) write(il_out,*) '(get_core_runoff) file doesnt exist: ', fname
+  if (my_task == 0) print *, '(get_core_runoff) file doesnt exist: ', fname
   stop 'CICE stopped: core runoff (remapped) file not found.'
 endif
 
@@ -121,8 +121,8 @@ if ( file_exist(fname) ) then
                       field_loc_center, field_type_scalar)
   if (my_task == master_task) call ice_close_nc(ncid)
 else
-  if (my_task == 0) write(il_out,*) '(get_time0_sstsss) file doesnt exist: ', fname
-  stop 'CICE stopped--initial SST and SSS ncfile not found.'  
+  if (my_task == 0) print *, '(get_time0_sstsss) file doesnt exist: ', fname
+  stop 'CICE stopped--initial SST and SSS ncfile not found.'
 endif
 
 return
@@ -141,18 +141,15 @@ character*(*), intent(in) :: fname
 dbug = .true.
 !dbug = .false.
 if ( file_exist(fname) ) then
-  if (my_task == 0) write(il_out,*) '(get_time0_sstsss) opening ncfile: ',fname
   call ice_open_nc(fname, ncid)
-  if (my_task == 0) write(il_out,*) '(get_time0_sstsss) reading in initial SST...'
   call ice_read_nc(ncid, nmonth, 'TEMP', sst, dbug)
   call gather_global(gwork, sst, master_task, distrb_info)
-  if (my_task == 0) write(il_out,*) '(get_time0_sstsss) reading in initial SSS...' 
   call ice_read_nc(ncid, nmonth, 'SALT', sss, dbug)
   call gather_global(gwork, sss, master_task, distrb_info)
   if (my_task == master_task) call ice_close_nc(ncid)
 else
-  if (my_task == 0) write(il_out,*) '(get_time0_sstsss) file doesnt exist: ', fname
-  stop 'CICE stopped--initial SST and SSS ncfile not found.'  
+  if (my_task == 0) print*, '(get_time0_sstsss) file doesnt exist: ', fname
+  stop 'CICE stopped--initial SST and SSS ncfile not found.'
 endif
 
 return
@@ -170,7 +167,6 @@ character*(*), intent(in) :: fname
 
 dbug = .true.
 if ( file_exist(fname) ) then
-  if (my_task == 0) write(il_out,*) '(get_time0_o2i_fields) reading in o2i fields......'
   call ice_open_nc(fname, ncid_o2i)
   call ice_read_nc(ncid_o2i, 1, 'sst_i',    ssto,   dbug, field_loc_center, field_type_scalar)
   call ice_read_nc(ncid_o2i, 1, 'sss_i',    ssso,   dbug)
@@ -180,9 +176,7 @@ if ( file_exist(fname) ) then
   call ice_read_nc(ncid_o2i, 1, 'ssly_i',   ssly,   dbug)
   call ice_read_nc(ncid_o2i, 1, 'pfmice_i', pfmice, dbug)
   if (my_task == master_task) call ice_close_nc(ncid_o2i)
-  if (my_task == 0) write(il_out,*) '(get_time0_o2i_fields) has read in 7 o2i fields.'
 else
-  if (my_task == 0) write(il_out,*) 'ERROR: (get_time0_o2i_fields) not found file *** ',fname
   print *, 'CICE: (get_time0_o2i_fields_old) not found file *** ',fname
   stop 'CICE stopped -- Need time0 o2i data file.'
 endif
@@ -202,7 +196,9 @@ character*(*), intent(in) :: fname
 
 dbug = .true.
 if ( file_exist(fname) ) then
+#if defined(DEBUG)
   if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) reading in i2o fields......'
+#endif
   call ice_open_nc(fname, ncid_i2o) 
   do jf = n_i2a + 1, jpfldout   !2:14
     vwork(:, :, :) = 0.0
@@ -225,9 +221,10 @@ if ( file_exist(fname) ) then
     if (jf == n_i2a+15) ioform = vwork
   enddo
   if (my_task == master_task) call ice_close_nc(ncid_i2o)
+#if defined(DEBUG)
   if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) has read in 11 i2o fields.'
+#endif
 else
-  if (my_task == master_task) write(il_out,*) 'ERROR: (get_time0_i2o_fields) not found file *** ',fname
   print *, 'CICE: (get_time0_i2o_fields_old) not found file *** ',fname
   stop 'CICE stopped -- Need time0 i2o data file.'
 endif
@@ -247,14 +244,17 @@ character*(*), intent(in) :: fname
 
 dbug = .true.
 if ( file_exist(fname) ) then
+#if defined(DEBUG)
   if (my_task == master_task) write(il_out,*) '(get_u_star) reading in initial u_star field ......'
+#endif
   call ice_open_nc(fname, ncid)
   call ice_read_nc(ncid, 1, 'u_star', vwork, dbug)
   u_star0 = vwork
   if (my_task == master_task) call ice_close_nc(ncid)
+#if defined(DEBUG)
   if (my_task == master_task) write(il_out,*) '(get_u_star) has read in u_star field.'
+#endif
 else
-  if (my_task == master_task) write(il_out,*) 'ERROR: (get_u_star) not found file *** ',fname
   print *, 'CICE: (get_u_star) not found file *** ',fname
   stop 'CICE stopped -- Need u_star restart datafile.'
 endif
@@ -278,14 +278,18 @@ if ( file_exist(fname) ) then
   sicemass = vwork
   if (my_task == master_task) then
       call ice_close_nc(ncid)
+#if defined(DEBUG)
       write(il_out,*) '(sicemass) reading in initial sicemass field ......'
       write(il_out,*) '(get_sicemass) has read in sicemass field.'
+#endif
   endif
 else
   if (my_task == master_task) then
+#if defined(DEBUG)
       write(il_out,*) 'WARNING: (get_sicemass) not found file *** ',fname
       write(il_out,*) 'CICE: (get_sicemass) not found file *** ',fname
       write(il_out,*) 'CICE: Will estimate sicemass as iopress/(ioaice*gravit) *** '
+#endif
   endif
   ! below crashes for some reason when cold start
   !where (ioaice>0.0) 
@@ -1021,7 +1025,9 @@ if ( my_task == 0 .and. .not. file_exist(trim(ncfile)) )  then
 endif
 
 if (my_task == 0) then
+#if defined(DEBUG)
   write(il_out,*) 'opening file ',trim(ncfile), ' at nstep = ', nstep
+#endif
   call ncheck( nf_open(trim(ncfile),nf_write,ncid) )
   call write_nc_1Dtime(real(nstep),currstep,'time',ncid)
 end if
@@ -1062,7 +1068,9 @@ if (my_task == 0 .and. .not. file_exist(trim(ncfile)) ) then
 endif
 
 if (my_task == 0) then
+#if defined(DEBUG)
   write(il_out,*) 'opening file ',trim(ncfile),' at nstep = ', nstep
+#endif
   call ncheck( nf_open(trim(ncfile),nf_write,ncid) )
   call write_nc_1Dtime(real(nstep),currstep,'time',ncid)
 end if
@@ -1112,7 +1120,9 @@ if (my_task == 0 .and. .not. file_exist(trim(ncfile)) ) then
 endif
 
 if (my_task == 0) then
+#if defined(DEBUG)
   write(il_out,*) 'opening file ', trim(ncfile), ' at nstep = ', nstep
+#endif
   call ncheck( nf_open('fields_i2o_in_ice.nc',nf_write,ncid) )
   call write_nc_1Dtime(real(nstep),currstep,'time',ncid)
 end if
@@ -1172,7 +1182,9 @@ if (my_task == 0 .and. .not. file_exist(trim(ncfile)) ) then
 endif
 
 if (my_task == 0) then
+#if defined(DEBUG)
   write(il_out,*) 'opening file ',trim(ncfile),' at nstep = ', nstep
+#endif
   call ncheck( nf_open(trim(ncfile),nf_write,ncid) )
   call write_nc_1Dtime(real(nstep),currstep,'time',ncid)
 end if
@@ -1217,7 +1229,9 @@ if (my_task == 0 .and. .not. file_exist(ncfilenm) ) then
 endif
 
 if (my_task == 0) then
+#if defined(DEBUG)
   write(il_out,*) 'opening ncfile at nstep ', ncfilenm,  currstep
+#endif
   call ncheck( nf_open(ncfilenm, nf_write,ncid) )
   call write_nc_1Dtime(real(currstep),currstep,'time',ncid)
 end if
