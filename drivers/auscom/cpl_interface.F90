@@ -793,12 +793,15 @@ end subroutine update_halos_from_atm
           ! Each process is responsible for a part of field defined by
           ! the number of grid points and the offset of the first point
           !
-          write (ld_mparout,*) 'APPLE partitioning'
           ig_nsegments = 1
           ig_parsize = 3
           allocate(il_paral(ig_parsize))
-          write(ld_mparout,*)'ig_parsize',ig_parsize
-          !
+
+#if defined(DEBUG)
+          write(ld_mparout,*) 'APPLE partitioning'
+          write(ld_mparout,*) 'ig_parsize',ig_parsize
+#endif
+
           if (id_rank .LT. (id_nbcplproc-1)) then
               il_paral ( clim_strategy ) = clim_apple
               il_paral ( clim_length   ) = id_imjm/id_nbcplproc
@@ -823,11 +826,14 @@ end subroutine update_halos_from_atm
           !  
           ! Each process is responsible for a rectangular box 
           !
-          write (ld_mparout,*) 'BOX partitioning'
           ig_parsize = 5
           allocate(il_paral(ig_parsize))
+
+#if defined(DEBUG)
+          write(ld_mparout,*) 'BOX partitioning'
           write(ld_mparout,*)'ig_parsize',ig_parsize
-          
+#endif
+
           il_paral ( clim_strategy ) = clim_Box
           il_paral ( clim_offset   ) = (l_ilo-1)+(l_jlo-1)*nx_global
           il_paral ( clim_SizeX    ) = l_ihi-l_ilo+1
@@ -836,8 +842,10 @@ end subroutine update_halos_from_atm
 
           id_length = il_paral(clim_sizeX) * il_paral(clim_sizeY)
 
+#if defined(DEBUG)
           write(ld_mparout,*)'il_paral: ',il_paral
-          
+#endif
+
           call prism_def_partition_proto (id_part_id, il_paral, ierror)
           deallocate(il_paral)
           !
@@ -846,12 +854,15 @@ end subroutine update_halos_from_atm
           ! Each process is responsible for arbitrarily distributed
           ! pieces of the field (here two segments by process)
           !
-          write (ld_mparout,*) 'ORANGE partitioning'
           ig_nsegments = 2
           ig_parsize = 2 * ig_nsegments + 2
-          write(ld_mparout,*)'ig_parsize',ig_parsize
           allocate(il_paral(ig_parsize))
-          !
+
+#if defined(DEBUG)
+          write(ld_mparout,*) 'ORANGE partitioning'
+          write(ld_mparout,*)'ig_parsize',ig_parsize
+#endif
+
           il_paral ( clim_strategy   ) = clim_orange
           il_paral ( clim_segments   ) = 2
           il_paral ( clim_segments+1 ) = id_rank*768
@@ -869,7 +880,9 @@ end subroutine update_halos_from_atm
           deallocate(il_paral)
           !
       else
+#if defined(DEBUG)
           write (ld_mparout,*) 'incorrect decomposition '
+#endif
       endif
   endif
 
