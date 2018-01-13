@@ -79,7 +79,7 @@
       integer (kind=int_kind), parameter, public :: &
          ice_stdin  =  5, & ! reserved unit for standard input
          ice_stdout =  6, & ! reserved unit for standard output
-         ice_stderr =  6    ! reserved unit for standard error
+         ice_stderr =  0    ! reserved unit for standard error
 
       integer (kind=int_kind), parameter :: &
          ice_IOUnitsMinUnit = NUMIN, & ! do not use unit numbers below 
@@ -105,12 +105,7 @@
 
       subroutine init_fileunits
 
-#ifndef AusCOM
-         nu_diag = ice_stdout  ! default
-#else
-         nu_diag = 111
-         open(nu_diag,file='ice_diag_out',form='formatted')  ! status='new')
-#endif
+         nu_diag = ice_stderr  ! default
 
          ice_IOUnitsInUse = .false.
          ice_IOUnitsInUse(ice_stdin)  = .true. ! reserve unit 5
