@@ -460,11 +460,16 @@
             write(ice_stdout,*) 'Diagnostic output will be in file ',diag_file
             open (nu_diag, file=diag_file, status='unknown')
          endif
-         write(nu_diag,*) '--------------------------------'
-         write(nu_diag,*) '  CICE model diagnostic output  '
-         write(nu_diag,*) '--------------------------------'
-         write(nu_diag,*) ' '
+      else
+         ! each task gets unique ice log filename.
+        call get_fileUnit(nu_diag)
+        write(str,'(a,i4.4)') "ice.log.task_",my_task
+        open(nu_diag,file=str)
       endif
+      write(nu_diag,*) '--------------------------------'
+      write(nu_diag,*) '  CICE model diagnostic output  '
+      write(nu_diag,*) '--------------------------------'
+      write(nu_diag,*) ' '
 
       if (trim(runtype) == 'continue') restart = .true.
       if (trim(runtype) /= 'continue' .and. (restart)) then
