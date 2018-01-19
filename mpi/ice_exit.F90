@@ -54,7 +54,7 @@
       call flush_fileunit(ice_stderr)
 
 #if defined(__INTEL_COMPILER)
-      call TRACEBACKQQ()
+      call TRACEBACKQQ(USER_EXIT_CODE=-1)
 #elif defined(__GFORTRAN__)
       call BACKTRACE()
 #endif
