@@ -16,9 +16,9 @@ setenv BLCKX `expr $NXGLOB / 24`       # x-dimension of blocks ( not including )
 setenv BLCKY `expr $NYGLOB / 20`         # y-dimension of blocks (  ghost cells  )
 
 source /etc/profile.d/nf_csh_modules
-if ( -f ../../../modules.nci ) then
+if ( -f ../../modules.nci ) then
     echo "Loading common modules via modules.nci"
-    source ../../../modules.nci
+    source ../../modules.nci
 else
     echo "WARNING: modules.nci not found. Module versions might differ between model components."
     module purge
