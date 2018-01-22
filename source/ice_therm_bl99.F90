@@ -146,7 +146,7 @@
       ! local variables
 
       integer (kind=int_kind), parameter :: &
-         nitermax = 100, & ! max number of iterations in temperature solver
+         nitermax = 500, & ! max number of iterations in temperature solver
          nmat = nslyr + nilyr + 1  ! matrix dimension
 
       real (kind=dbl_kind), parameter :: &
@@ -552,7 +552,7 @@
       !        conductive flux, fcondtopn.
       !    (5) The net energy added to the ice per unit time must equal 
       !        the net change in internal ice energy per unit time,
-      !        withinic the prescribed error ferrmax.
+      !        within the prescribed error ferrmax.
       !
       ! For briny ice (the standard case), zTsn and zTin are limited
       !  to prevent them from exceeding their melting temperatures.
