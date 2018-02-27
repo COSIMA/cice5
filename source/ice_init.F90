@@ -53,8 +53,8 @@
                               npt, dt, ndtd, days_per_year, use_leap_years, &
                               write_ic, dump_last
       use ice_restart_shared, only: &
-          restart, restart_ext, restart_dir, restart_file, pointer_file, &
-          runid, runtype, use_restart_time, restart_format, lcdf64
+           restart, restart_ext, input_dir, input_dir, restart_dir, restart_file, &
+           pointer_file, runid, runtype, use_restart_time, restart_format, lcdf64
       use ice_history_shared, only: hist_avg, history_dir, history_file, &
                              incond_dir, incond_file
       use ice_exit, only: abort_ice
@@ -126,7 +126,7 @@
       namelist /setup_nml/ &
         days_per_year,  use_leap_years, year_init,       istep0,        &
         dt,             npt,            ndtd,                           &
-        runtype,        runid,          bfbflag,                        &
+        runtype,        runid,          bfbflag,         input_dir,     &
         ice_ic,         restart,        restart_dir,     restart_file,  &
         restart_ext,    use_restart_time, restart_format, lcdf64,       &
         pointer_file,   dumpfreq,       dumpfreq_n,      dump_last,     &
@@ -230,7 +230,9 @@
       dumpfreq_n = 1         ! restart frequency
       dump_last = .false.    ! write restart on last time step
       restart = .false.      ! if true, read restart files for initialization
-      restart_dir  = './'     ! write to executable dir for default
+      restart_dir  = './'    ! write to executable dir for default
+      input_dir  = char(0)   ! set to null char, test later and set to same as
+                             ! restart_dir for backwards compatibility
       restart_file = 'iced'  ! restart file name prefix
       restart_ext  = .false. ! if true, read/write ghost cells
       use_restart_time = .true.     ! if true, use time info written in file
@@ -392,7 +394,13 @@
          do while (nml_error > 0)
             print*,'Reading setup_nml'
                read(nu_nml, nml=setup_nml,iostat=nml_error)
-               if (nml_error /= 0) exit
+               if (nml_error /= 0) then
+                  exit
+               else
+                  ! Make input_dir same as restart_dir for backwards
+                  ! compatibility
+                  if (input_dir == char(0)) input_dir = restart_dir
+               end if
             print*,'Reading grid_nml'
                read(nu_nml, nml=grid_nml,iostat=nml_error)
                if (nml_error /= 0) exit
@@ -718,6 +726,7 @@
       call broadcast_scalar(dump_last,          master_task)
       call broadcast_scalar(restart_file,       master_task)
       call broadcast_scalar(restart,            master_task)
+      call broadcast_scalar(input_dir,          master_task)
       call broadcast_scalar(restart_dir,        master_task)
       call broadcast_scalar(restart_ext,        master_task)
       call broadcast_scalar(use_restart_time,   master_task)
@@ -886,6 +895,8 @@
          write(nu_diag,1020) ' dumpfreq_n                = ', dumpfreq_n
          write(nu_diag,1010) ' dump_last                 = ', dump_last
          write(nu_diag,1010) ' restart                   = ', restart
+         write(nu_diag,*)    ' input_dir                 = ', &
+                               trim(input_dir)
          write(nu_diag,*)    ' restart_dir               = ', &
                                trim(restart_dir)
          write(nu_diag,*)    ' restart_ext               = ', restart_ext

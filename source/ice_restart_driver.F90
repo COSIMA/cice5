@@ -20,7 +20,7 @@
 
       use ice_kinds_mod
       use ice_restart_shared, only: &
-          restart, restart_ext, restart_dir, restart_file, pointer_file, &
+          restart, restart_ext, input_dir, restart_dir, restart_file, pointer_file, &
           runid, runtype, use_restart_time, restart_format, lcdf64, lenstr
       use ice_restart
 
@@ -571,6 +571,7 @@
          read(nu_rst_pointer,'(a)') filename0
          filename = trim(filename0)
 #ifdef AusCOM
+         write(nu_diag,*) 'XXX: input_dir = ', input_dir
          write(nu_diag,*) 'XXX: restart_dir = ', restart_dir
          write(nu_diag,*) 'XXX: org restart file => ', filename
 !ars599: 28042015 restart issue
