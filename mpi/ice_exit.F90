@@ -39,7 +39,10 @@
       ! local variables
 
 #ifndef CCSMCOUPLED
-      integer (int_kind) :: ierr ! MPI error flag
+      ! MPI error flag, default to non-zero error
+      integer (int_kind) :: errorcode = 1 
+      ! MPI return value
+      integer (int_kind) :: ierr
 #endif
 
 #if (defined CCSMCOUPLED)
@@ -58,7 +61,7 @@
 #elif defined(__GFORTRAN__)
       call BACKTRACE()
 #endif
-      call MPI_ABORT(MPI_COMM_WORLD, ierr)
+      call MPI_ABORT(MPI_COMM_WORLD, errorcode, ierr)
 
       stop
 #endif
