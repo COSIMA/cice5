@@ -47,7 +47,7 @@
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
-            from_atm, into_ocn, from_ocn, il_commlocal
+            from_atm, into_ocn, from_ocn, il_commlocal, il_commatm
   public :: update_halos_from_ocn, update_halos_from_atm
   public :: write_boundary_checksums
 

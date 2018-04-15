@@ -36,7 +36,8 @@
 !
 ! author Elizabeth C. Hunke, LANL
 
-      subroutine input_data
+      subroutine input_data(total_runtime_in_seconds, timestep, &
+                            calendar_type)
 
       use ice_age, only: restart_age
       use ice_broadcast, only: broadcast_scalar, broadcast_array
@@ -105,6 +106,8 @@
 #ifdef CCSMCOUPLED
       use shr_file_mod, only: shr_file_setIO
 #endif
+      integer, optional, intent(in) :: total_runtime_in_seconds, timestep
+      character(len=9), optional, intent(in) :: calendar_type
 
       ! local variables
 
@@ -430,6 +433,21 @@
          call abort_ice('ice: error reading namelist')
       endif
       call release_fileunit(nu_nml)
+
+      ! Overwrite some run details if present
+      if (present(timestep)) then 
+        dt = timestep
+      endif
+      if (present(total_runtime_in_seconds)) then 
+        npt = total_runtime_in_seconds / dt
+      endif
+      if (present(calendar_type)) then
+        if (index(calendar_type, 'noleap') /= 0) then
+            use_leap_years = .false.
+        else
+            use_leap_years = .true.
+        endif
+      endif
 
       !-----------------------------------------------------------------
       ! set up diagnostics output and resolve conflicts

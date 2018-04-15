@@ -28,6 +28,7 @@
       use cpl_interface
       use cpl_forcing_handler
       use cpl_interface, only : write_boundary_checksums
+      use accessom2_mod, only : accessom2_type => accessom2
 #endif
 
       implicit none
@@ -47,7 +48,7 @@
 !         Philip W. Jones, LANL
 !         William H. Lipscomb, LANL
 
-      subroutine CICE_Run
+      subroutine CICE_Run(accessom2)
 
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
@@ -69,6 +70,8 @@
 !ars599: 27032014 add in
       use ice_timers, only: timer_into_ocn
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
+
+      type(accessom2_type), intent(inout) :: accessom2
 
 
       integer (kind=int_kind) :: time_sec, itap, icpl_ai, icpl_io
@@ -185,6 +188,7 @@
           time = time + dt       ! determine the time and date
 
           time_sec = time_sec + dt
+          call accessom2%progress_date(int(dt))
  
           call calendar(time)
 
