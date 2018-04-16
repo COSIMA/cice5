@@ -423,7 +423,10 @@ subroutine send_grid_to_atm()
   real(kind=dbl_kind), dimension(:, :), allocatable :: tlat_global, tlon_global
   real(kind=dbl_kind), dimension(:, :), allocatable :: mask_global
 
+
   if (my_task == master_task) then
+    print*, 'CICE send_grid_to_atm begin'
+
     call ice_open_nc(grid_file, fid)
 
     allocate(tlat_global(nx_global, ny_global))
@@ -462,7 +465,9 @@ subroutine send_grid_to_atm()
     deallocate(tlon_global)
     deallocate(mask_global)
 
+    print*, 'CICE send_grid_to_atm end'
   endif
+
 
 end subroutine send_grid_to_atm
 
@@ -516,7 +521,7 @@ subroutine from_atm(isteps)
   endif
 
   ! Allow atm to progress. It is waiting on a receive.
-  if (my_commatm_task == 0) then
+  if (my_task == master_task) then
     request = MPI_REQUEST_NULL
     tag = 0
     call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, 0, request, ierror)
