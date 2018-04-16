@@ -419,14 +419,12 @@ subroutine send_grid_to_atm()
   integer(kind=int_kind) :: tag, buf_int(2)
   real(kind=dbl_kind), dimension(:), allocatable :: buf_real
 
-  integer :: fid
+  integer :: fid, ierror
   real(kind=dbl_kind), dimension(:, :), allocatable :: tlat_global, tlon_global
   real(kind=dbl_kind), dimension(:, :), allocatable :: mask_global
 
 
   if (my_task == master_task) then
-    print*, 'CICE send_grid_to_atm begin'
-
     call ice_open_nc(grid_file, fid)
 
     allocate(tlat_global(nx_global, ny_global))
@@ -445,27 +443,26 @@ subroutine send_grid_to_atm()
     tag = 0
     buf_int(1) = nx_global
     buf_int(2) = ny_global
-    call MPI_send(buf_int, 2, MPI_INTEGER, 0, tag, 0, ierror)
+    call MPI_send(buf_int, 2, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, ierror)
 
     allocate(buf_real(nx_global*ny_global))
     buf_real(:) = reshape(tlat_global(:, :), (/ size(tlat_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  0, ierror)
+                  MPI_COMM_WORLD, ierror)
 
     buf_real(:) = reshape(tlon_global(:, :), (/ size(tlon_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  0, ierror)
+                  MPI_COMM_WORLD, ierror)
 
     buf_real(:) = reshape(mask_global(:, :), (/ size(mask_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  0, ierror)
+                  MPI_COMM_WORLD, ierror)
 
     deallocate(buf_real)
     deallocate(tlat_global)
     deallocate(tlon_global)
     deallocate(mask_global)
 
-    print*, 'CICE send_grid_to_atm end'
   endif
 
 
@@ -524,7 +521,7 @@ subroutine from_atm(isteps)
   if (my_task == master_task) then
     request = MPI_REQUEST_NULL
     tag = 0
-    call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, 0, request, ierror)
+    call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, request, ierror)
   endif
 
   call ice_timer_stop(timer_from_atm)
