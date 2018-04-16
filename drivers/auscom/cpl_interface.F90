@@ -145,8 +145,8 @@
                    nx_block,ny_block,max_blocks
 #endif
 
-  call prism_get_intercomm(il_commatm, 'matmxx', ierror)
-  call mpi_comm_rank(il_commatm, my_commatm_task, ierror)
+  !call prism_get_intercomm(il_commatm, 'matmxx', ierror)
+  !call mpi_comm_rank(il_commatm, my_commatm_task, ierror)
 
   end subroutine prism_init
 
@@ -442,20 +442,20 @@ subroutine send_grid_to_atm()
     tag = 0
     buf_int(1) = nx_global
     buf_int(2) = ny_global
-    call MPI_send(buf_int, 2, MPI_INTEGER, 0, tag, il_commatm, ierror)
+    call MPI_send(buf_int, 2, MPI_INTEGER, 0, tag, 0, ierror)
 
     allocate(buf_real(nx_global*ny_global))
     buf_real(:) = reshape(tlat_global(:, :), (/ size(tlat_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  il_commatm, ierror)
+                  0, ierror)
 
     buf_real(:) = reshape(tlon_global(:, :), (/ size(tlon_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  il_commatm, ierror)
+                  0, ierror)
 
     buf_real(:) = reshape(mask_global(:, :), (/ size(mask_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  il_commatm, ierror)
+                  0, ierror)
 
     deallocate(buf_real)
     deallocate(tlat_global)
@@ -519,7 +519,7 @@ subroutine from_atm(isteps)
   if (my_commatm_task == 0) then
     request = MPI_REQUEST_NULL
     tag = 0
-    call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, il_commatm, request, ierror)
+    call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, 0, request, ierror)
   endif
 
   call ice_timer_stop(timer_from_atm)
