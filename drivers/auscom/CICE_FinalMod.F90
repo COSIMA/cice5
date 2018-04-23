@@ -35,6 +35,7 @@
       use ice_fileunits, only: nu_diag, release_all_fileunits
       use ice_restart_shared, only: runid
       use ice_timers, only: ice_timer_stop, ice_timer_print_all, timer_total
+      use ice_communicate, only: my_task, master_task
 
       type(accessom2_type), intent(inout) :: accessom2
    !-------------------------------------------------------------------
@@ -60,6 +61,9 @@
    !-------------------------------------------------------------------
    ! quit MPI
    !-------------------------------------------------------------------
+   if (my_task == master_task) then
+      call accessom2%deinit()
+   endif
 
 #ifdef AusCOM
       call coupler_termination  !quit MPI and release memory 
@@ -68,7 +72,6 @@
       call end_run       ! quit MPI
 #endif
 #endif
-      call accessom2%deinit()
 
       end subroutine CICE_Finalize
 

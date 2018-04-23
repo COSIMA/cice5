@@ -18,6 +18,7 @@
 #ifdef AusCOM
       use accessom2_mod, only : accessom2_type => accessom2
       use cpl_parameters
+      use cpl_parameters, only : read_namelist_parameters, accessom2_config_dir
       use cpl_forcing_handler, only : get_time0_sstsss, get_u_star
       use cpl_interface , only : prism_init, init_cpl, il_commlocal, il_commatm
       use cpl_arrays_setup, only : gwork, u_star0
@@ -74,6 +75,7 @@
 !ars599: 27032014
       use ice_communicate, only: MPI_COMM_ICE
       use ice_communicate, only: init_communicate
+      use ice_communicate, only: my_task, master_task
       use ice_diagnostics, only: init_diags
       use ice_domain, only: init_domain_blocks
       use ice_dyn_eap, only: init_eap
@@ -105,21 +107,29 @@
 
       integer(kind=int_kind) :: idate_save
 
-      call init_communicate     ! initial setup for message passing
-      call accessom2%init('cicexx')
-      call prism_init  ! called in init_communicate
+      call read_namelist_parameters()
 
-      ! Synchronise accessom2 'state' (i.e. configuration) between all models.
-      call accessom2%sync_config(il_commatm, -1, -1)
+      ! initial setup for message passing
+      call init_communicate()     
+      call accessom2%init('cicexx', config_dir=accessom2_config_dir)
 
+      call prism_init(accessom2_config_dir) 
       MPI_COMM_ICE = il_commlocal
 
       call init_fileunits       ! unit numbers
 
-      ! namelist variables, pass in model runtime and dt.
-      call input_data(accessom2%get_total_runtime_in_seconds(), &
-                      accessom2%get_ice_timestep(), &
-                      accessom2%get_calendar_type())           
+      if (my_task == master_task) then
+          ! Synchronise accessom2 configuration between all models.
+          call accessom2%sync_config(il_commatm, -1, -1)
+          ! namelist variables, pass in model runtime and dt.
+          call input_data(accessom2%get_cur_exp_date_array(), &
+                          accessom2%get_seconds_since_cur_exp_year(), &
+                          accessom2%get_total_runtime_in_seconds(), &
+                          accessom2%get_ice_timestep(), &
+                          accessom2%get_calendar_type())
+      else
+          call input_data()
+      endif
       if (trim(runid) == 'bering') call check_finished_file
       call init_zbgc            ! vertical biogeochemistry namelist
 
