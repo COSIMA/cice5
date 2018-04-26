@@ -110,15 +110,15 @@
       call read_namelist_parameters()
 
       ! initial setup for message passing
-      call init_communicate()     
-      call accessom2%init('cicexx', config_dir=accessom2_config_dir)
+      call init_communicate()
 
-      call prism_init(accessom2_config_dir) 
+      call prism_init(trim(accessom2_config_dir))
       MPI_COMM_ICE = il_commlocal
 
       call init_fileunits       ! unit numbers
 
       if (my_task == master_task) then
+          call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))
           ! Synchronise accessom2 configuration between all models.
           call accessom2%sync_config(il_commatm, -1, -1)
           ! namelist variables, pass in model runtime and dt.

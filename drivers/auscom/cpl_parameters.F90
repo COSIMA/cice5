@@ -53,7 +53,7 @@ logical :: &                         !pop_icediag is as that for ocn model, if t
 
     real(kind=dbl_kind) :: precip_factor = 1.0   !test the precip (temporary use)
 
-    character(len=1024) :: accessom2_config_dir = '../global/'
+    character(len=1024) :: accessom2_config_dir = '../'
 
 namelist/coupling_nml/       &
          dt_cpl_ai,      &
