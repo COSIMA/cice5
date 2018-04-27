@@ -16,17 +16,14 @@
       use ice_kinds_mod
 
 #ifdef AusCOM
+      use accessom2_mod, only : accessom2_type => accessom2
       use cpl_parameters
+      use cpl_parameters, only : read_namelist_parameters, accessom2_config_dir
       use cpl_forcing_handler, only : get_time0_sstsss, get_u_star
-!ars599: 01042014: since il_commlocal is not included that is the issue come from
-!	try to understand MPI_INIT so put only statement back and compile succeses
-      use cpl_interface , only : prism_init, init_cpl, il_commlocal
-                        !B: why compiler can't find names prism_init and init_cpl
-                        !   in module cpl_interface when 'only' is used here ?!  
+      use cpl_interface , only : prism_init, init_cpl, il_commlocal, il_commatm
       use cpl_arrays_setup, only : gwork, u_star0
       use ice_gather_scatter
 
-!ars599: 27032014: defind my_task
       use ice_communicate, only: my_task
 #endif
 
@@ -54,13 +51,14 @@
 !        replaced by a different driver that calls subroutine cice_init,
 !        where most of the work is done.
 
-      subroutine CICE_Initialize
+      subroutine CICE_Initialize(accessom2)
+        type(accessom2_type), intent(out) :: accessom2
 
    !--------------------------------------------------------------------
    ! model initialization
    !--------------------------------------------------------------------
 
-      call cice_init
+      call cice_init(accessom2)
 
       end subroutine CICE_Initialize
 
@@ -68,7 +66,7 @@
 !
 !  Initialize CICE model.
 
-      subroutine cice_init
+      subroutine cice_init(accessom2)
 
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
@@ -77,6 +75,7 @@
 !ars599: 27032014
       use ice_communicate, only: MPI_COMM_ICE
       use ice_communicate, only: init_communicate
+      use ice_communicate, only: my_task, master_task
       use ice_diagnostics, only: init_diags
       use ice_domain, only: init_domain_blocks
       use ice_dyn_eap, only: init_eap
@@ -104,18 +103,33 @@
 #ifdef popcice
       use drv_forcing, only: sst_sss
 #endif
+      type(accessom2_type), intent(inout) :: accessom2
 
-#ifdef AusCOM
       integer(kind=int_kind) :: idate_save
-#endif
 
-      call init_communicate     ! initial setup for message passing
-      call prism_init  ! called in init_communicate
+      call read_namelist_parameters()
+
+      ! initial setup for message passing
+      call init_communicate()
+
+      call prism_init(trim(accessom2_config_dir))
       MPI_COMM_ICE = il_commlocal
 
       call init_fileunits       ! unit numbers
 
-      call input_data           ! namelist variables
+      if (my_task == master_task) then
+          call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))
+          ! Synchronise accessom2 configuration between all models.
+          call accessom2%sync_config(il_commatm, -1, -1)
+          ! namelist variables, pass in model runtime and dt.
+          call input_data(accessom2%get_cur_exp_date_array(), &
+                          accessom2%get_seconds_since_cur_exp_year(), &
+                          accessom2%get_total_runtime_in_seconds(), &
+                          accessom2%get_ice_timestep(), &
+                          accessom2%get_calendar_type())
+      else
+          call input_data()
+      endif
       if (trim(runid) == 'bering') call check_finished_file
       call init_zbgc            ! vertical biogeochemistry namelist
 

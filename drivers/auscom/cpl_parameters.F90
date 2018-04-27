@@ -53,6 +53,8 @@ logical :: &                         !pop_icediag is as that for ocn model, if t
 
     real(kind=dbl_kind) :: precip_factor = 1.0   !test the precip (temporary use)
 
+    character(len=1024) :: accessom2_config_dir = '../'
+
 namelist/coupling_nml/       &
          dt_cpl_ai,      &
          dt_cpl_io,      &
@@ -76,6 +78,7 @@ namelist/coupling_nml/       &
          chk_i2a_fields, &
          chk_i2o_fields, &
          chk_o2i_fields, &
+         accessom2_config_dir, &
          debug_output
 
         integer(kind=int_kind) :: iniday, inimon, iniyear   !from inidate
@@ -92,15 +95,12 @@ namelist/coupling_nml/       &
 
 contains
 
-subroutine get_cpl_timecontrol
+subroutine read_namelist_parameters()
 
 use ice_exit
 use ice_fileunits
-use ice_calendar, only : dt, npt
 
-implicit none
-
-    integer (int_kind) :: nml_error       ! namelist read error flag
+    integer (int_kind) :: nml_error
 
 ! all processors read the namelist--
 
@@ -123,6 +123,12 @@ if (nml_error == 0) close(nu_nml)
 if (nml_error /= 0) then
     call abort_ice('ice: error reading coupling_nml')
 endif
+
+endsubroutine read_namelist_parameters
+
+subroutine get_cpl_timecontrol
+
+use ice_calendar, only : dt, npt
 
 ! * make sure runtime is mutliple of dt_cpl_ai, dt_cpl_ai is mutliple of dt_cpl_io, 
 ! * and dt_cpl_io is mutliple of dt_cice!

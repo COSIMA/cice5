@@ -13,9 +13,8 @@
 
       use ice_kinds_mod
 
-#ifdef AusCOM
+      use accessom2_mod, only : accessom2_type => accessom2
       use cpl_interface, only : coupler_termination
-#endif
 
       implicit none
       private
@@ -30,13 +29,15 @@
 !
 !  This routine shuts down CICE by exiting all relevent environments.
 
-      subroutine CICE_Finalize
+      subroutine CICE_Finalize(accessom2)
 
       use ice_exit, only: end_run
       use ice_fileunits, only: nu_diag, release_all_fileunits
       use ice_restart_shared, only: runid
       use ice_timers, only: ice_timer_stop, ice_timer_print_all, timer_total
+      use ice_communicate, only: my_task, master_task
 
+      type(accessom2_type), intent(inout) :: accessom2
    !-------------------------------------------------------------------
    ! stop timers and print timer info
    !-------------------------------------------------------------------
@@ -60,6 +61,9 @@
    !-------------------------------------------------------------------
    ! quit MPI
    !-------------------------------------------------------------------
+   if (my_task == master_task) then
+      call accessom2%deinit()
+   endif
 
 #ifdef AusCOM
       call coupler_termination  !quit MPI and release memory 

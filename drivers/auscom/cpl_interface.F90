@@ -47,7 +47,7 @@
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
-            from_atm, into_ocn, from_ocn, il_commlocal
+            from_atm, into_ocn, from_ocn, il_commlocal, il_commatm
   public :: update_halos_from_ocn, update_halos_from_atm
   public :: write_boundary_checksums
 
@@ -75,10 +75,9 @@
   contains
 
 !======================================================================
-  subroutine prism_init
-!-----------------------!
+  subroutine prism_init(accessom2_config_dir)
 
-  include 'mpif.h'
+    character(len=*), intent(in) :: accessom2_config_dir
 
   logical :: mpiflag
 
@@ -102,11 +101,10 @@
     call MPI_INIT(ierror)
   endif
 
-  call MPI_Initialized (mpiflag, ierror)
+  call prism_init_comp_proto(il_comp_id, cp_modnam, &
+                             ierror, config_dir=accessom2_config_dir)
 
-  call prism_init_comp_proto (il_comp_id, cp_modnam, ierror)
-
-  if (ierror /= PRISM_Ok) then 
+  if (ierror /= PRISM_Ok) then
     call prism_abort_proto(il_comp_id, 'cice prism_init', 'STOP 1')
   endif
 
