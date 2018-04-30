@@ -56,9 +56,12 @@
 !   module variables to facilitate sharing info between init_domain1
 !   and init_domain2.
 !
+!   NOTE: distribution_type changed to public to facilitate OASIS
+!         partitioning.
+!
 !-----------------------------------------------------------------------
 
-    character (char_len) :: &
+    character (char_len), public :: &
        distribution_type,   &! method to use for distributing blocks
                              ! 'cartesian'
                              ! 'rake' 
