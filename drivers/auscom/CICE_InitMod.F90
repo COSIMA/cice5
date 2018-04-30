@@ -70,7 +70,7 @@
 
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
-      use ice_calendar, only: dt, dt_dyn, time, istep, istep1, write_ic, &
+      use ice_calendar, only: dt, npt, dt_dyn, time, istep, istep1, write_ic, &
           init_calendar, calendar, idate, month
 !ars599: 27032014
       use ice_communicate, only: MPI_COMM_ICE
@@ -141,7 +141,8 @@
       call init_grid2           ! grid variables
 
 #ifdef AusCOM
-      call init_cpl     ! initialize message passing
+      call init_cpl(int(npt*dt))    ! initialize message passing, pass in total
+                                    ! runtime in seconds for oasis
 #endif
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
