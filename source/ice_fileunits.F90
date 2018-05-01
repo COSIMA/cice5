@@ -85,7 +85,7 @@
          ice_IOUnitsMinUnit = NUMIN, & ! do not use unit numbers below 
          ice_IOUnitsMaxUnit = NUMAX    ! or above
 
-      logical (kind=log_kind), dimension(ice_IOUnitsMaxUnit) :: &
+      logical (kind=log_kind), dimension(0:ice_IOUnitsMaxUnit) :: &
          ice_IOUnitsInUse   ! flag=.true. if unit currently open
 
       ! instance control

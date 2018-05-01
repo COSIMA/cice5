@@ -125,7 +125,7 @@
           call input_data(accessom2%get_cur_exp_date_array(), &
                           accessom2%get_seconds_since_cur_exp_year(), &
                           accessom2%get_total_runtime_in_seconds(), &
-                          accessom2%get_ice_timestep(), &
+                          accessom2%get_ice_ocean_timestep(), &
                           accessom2%get_calendar_type())
       else
           call input_data()

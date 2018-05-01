@@ -53,6 +53,7 @@
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
       use ice_calendar, only: istep, istep1, time, dt, npt, stop_now, calendar
+      use ice_communicate, only : my_task, master_task
 #ifdef AusCOM
 !ars599: 27032014 add in
       use ice_calendar, only: month, mday
@@ -188,7 +189,9 @@
           time = time + dt       ! determine the time and date
 
           time_sec = time_sec + dt
-          call accessom2%progress_date(int(dt))
+          if (my_task == master_task) then
+            call accessom2%progress_date(int(dt))
+          endif
  
           call calendar(time)
 
