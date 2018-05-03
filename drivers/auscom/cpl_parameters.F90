@@ -12,9 +12,9 @@ implicit none
         integer(kind=int_kind), parameter :: jpfldin  = 17   ! total number of fields rcvd 
 
         integer(kind=int_kind), parameter :: n_a2i = 10      ! number of a2i fields
-        integer(kind=int_kind), parameter :: n_o2i = 9       ! number of o2i fields
+        integer(kind=int_kind), parameter :: n_o2i = 7       ! number of o2i fields
         integer(kind=int_kind), parameter :: n_i2a = 1       ! number of i2a fields
-        integer(kind=int_kind), parameter :: n_i2o = 17      ! number of i2o fields
+        integer(kind=int_kind), parameter :: n_i2o = 15      ! number of i2o fields
 
 !
 character(len=8), dimension(jpfldout) :: cl_writ ! Symb names fields sent

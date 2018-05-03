@@ -61,9 +61,8 @@
    !-------------------------------------------------------------------
    ! quit MPI
    !-------------------------------------------------------------------
-   if (my_task == master_task) then
-      call accessom2%deinit()
-   endif
+
+   call accessom2%deinit()
 
 #ifdef AusCOM
       call coupler_termination  !quit MPI and release memory 

@@ -150,12 +150,13 @@
   end subroutine prism_init
 
 !=======================================================================
-  subroutine init_cpl(runtime_seconds)
+  subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
   !use mpi
   include 'mpif.h'
 
   integer, intent(in) :: runtime_seconds
+  integer, dimension(:), intent(in) :: coupling_field_timesteps
 !--------------------!
 
   integer(kind=int_kind) :: jf
@@ -296,7 +297,8 @@
     !
     ! 7- PSMILe end of declaration phase 
     !
-    call prism_enddef_proto (ierror, runtime=runtime_seconds)
+    call prism_enddef_proto (ierror, runtime=runtime_seconds, &
+                             coupling_field_timesteps=coupling_field_timesteps)
 
   !
   ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:! 

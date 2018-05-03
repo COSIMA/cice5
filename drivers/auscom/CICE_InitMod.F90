@@ -117,19 +117,24 @@
 
       call init_fileunits       ! unit numbers
 
-      if (my_task == master_task) then
-          call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))
-          ! Synchronise accessom2 configuration between all models.
-          call accessom2%sync_config(il_commatm, -1, -1)
-          ! namelist variables, pass in model runtime and dt.
-          call input_data(accessom2%get_cur_exp_date_array(), &
-                          accessom2%get_seconds_since_cur_exp_year(), &
-                          accessom2%get_total_runtime_in_seconds(), &
-                          accessom2%get_ice_ocean_timestep(), &
-                          accessom2%get_calendar_type())
-      else
-          call input_data()
-      endif
+      ! Initialise libaccessom2
+      call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))
+
+      ! Tell libaccessom2 about any global configs/state
+      call accessom2%set_cpl_field_counts(num_atm_to_ice_fields=n_a2i, &
+                                          num_ice_to_ocean_fields=n_i2o, &
+                                          num_ocean_to_ice_fields=n_o2i)
+
+      ! Synchronise accessom2 configuration between all models and PEs
+      call accessom2%sync_config(il_commatm, -1, -1)
+
+      ! Use accessom2 configuration
+      call input_data(accessom2%get_cur_exp_date_array(), &
+                      accessom2%get_seconds_since_cur_exp_year(), &
+                      accessom2%get_total_runtime_in_seconds(), &
+                      accessom2%get_ice_ocean_timestep(), &
+                      accessom2%get_calendar_type())
+
       if (trim(runid) == 'bering') call check_finished_file
       call init_zbgc            ! vertical biogeochemistry namelist
 
@@ -141,8 +146,9 @@
       call init_grid2           ! grid variables
 
 #ifdef AusCOM
-      call init_cpl(int(npt*dt))    ! initialize message passing, pass in total
-                                    ! runtime in seconds for oasis
+     ! initialize message passing, pass in total runtime in seconds and field
+     ! coupling timesteps for oasis.
+      call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps())
 #endif
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
