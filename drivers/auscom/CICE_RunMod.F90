@@ -29,6 +29,7 @@
       use cpl_forcing_handler
       use cpl_interface, only : write_boundary_checksums
       use accessom2_mod, only : accessom2_type => accessom2
+      use simple_timer_mod, only : simple_timer_type => simple_timer
       use logger_mod, only : logger_type => logger
 #endif
 
@@ -81,11 +82,21 @@
       integer (kind=int_kind) :: imon
       logical :: first_ice_step, first_ocean_wait
 
+      ! Keep some stats about ice_step performance and ocean wait times.
+      type(simple_timer_type) :: ice_step_timer, ocean_wait_timer
+      type(simple_timer_type) :: coupling_step_timer
+#endif
+
    !--------------------------------------------------------------------
    !  initialize error code and step timer
    !--------------------------------------------------------------------
 
       call ice_timer_start(timer_step)   ! start timing entire run
+
+      ! Initialise simple timers
+      call ice_step_timer%init('ice_step', logger)
+      call ocean_wait_timer%init('ocean_wait', logger)
+      call coupling_step_timer%init('coupling_step', logger)
 
    !--------------------------------------------------------------------
    ! timestep loop
@@ -142,6 +153,7 @@
       endif
 
       Do icpl_io = 1, num_cpl_io   !begin I <==> O coupling iterations
+        call coupling_step_timer%start()
 
         stimestamp_io = time_sec
 
@@ -181,7 +193,9 @@
           !convert the 'raw' atm forcing into that required by cice
           call get_forcing_atmo_ready
 
+          call ice_step_timer%start()
           call ice_step()
+          call ice_step_timer%stop()
 
           istep  = istep  + 1    ! update time step counters
           istep1 = istep1 + 1
@@ -219,9 +233,12 @@
 
         rtimestamp_io = time_sec
         if (rtimestamp_io < (dt*npt)) then
+          call ocean_wait_timer%start()
           call from_ocn(rtimestamp_io)
+          call ocean_wait_timer%stop()
         endif
 
+        call coupling_step_timer%stop()
       End Do      !icpl_io
 
       END DO        !icpl_ai
@@ -242,6 +259,9 @@
    !--------------------------------------------------------------------
 
       call ice_timer_stop(timer_step)   ! end timestepping loop timer     
+      call ice_step_timer%write_stats()
+      call ocean_wait_timer%write_stats()
+      call coupling_step_timer%write_stats()
 
       end subroutine CICE_Run
 

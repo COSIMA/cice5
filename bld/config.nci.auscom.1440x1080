@@ -6,7 +6,7 @@
 # If BLCKX (BLCKY) does not divide NXGLOB (NYGLOB) evenly, padding
 # will be used on the right (top) of the grid.
 
-setenv NTASK 480
+setenv NTASK 720
 setenv RES 1440x1080
 
 set NXGLOB = `echo $RES | sed s/x.\*//`
