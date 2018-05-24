@@ -28,6 +28,7 @@
   use ice_constants
   use ice_boundary, only : ice_HaloUpdate
   use ice_domain, only: distribution_type, distrb_info
+  use ice_domain, only: nblocks, blocks_ice
   use ice_domain, only: ew_boundary_type, ns_boundary_type, halo_info
 
   !cpl stuff
@@ -150,6 +151,9 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
     integer(kind=int_kind) :: grid_task   ! Equivalent task ID on nonmasked grid
+
+    integer :: err
+    type(block) :: this_block
 
     ! Send ice grid details to atmosphere. This is used to regrid runoff.
     call send_grid_to_atm()
@@ -624,7 +628,7 @@ subroutine into_ocn(isteps, scale)
     call oasis_put(il_var_id_out(16), isteps, work, ierror)
 
     if (chk_i2o_fields) then
-        call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
+    call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
     endif
 
 end subroutine into_ocn
