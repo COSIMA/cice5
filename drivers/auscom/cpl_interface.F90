@@ -130,64 +130,52 @@
 
   end subroutine prism_init
 
-!=======================================================================
-  subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
+subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
-  !use mpi
-  include 'mpif.h'
+    integer, intent(in) :: runtime_seconds
+    integer, dimension(:), intent(in) :: coupling_field_timesteps
 
-  integer, intent(in) :: runtime_seconds
-  integer, dimension(:), intent(in) :: coupling_field_timesteps
-!--------------------!
+    integer(kind=int_kind) :: jf
 
-  integer(kind=int_kind) :: jf
+    integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
+    integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
+    integer(kind=int_kind) :: il_part_id     ! Local partition ID
+    integer(kind=int_kind) :: il_length      ! Size of partial field for each process
 
-!  logical :: ll_comparal                   ! paralell or mono-cpl coupling
-!  integer(kind=int_kind) :: il_nbtotproc   ! Total number of processes
-!  integer(kind=int_kind) :: il_nbcplproc   ! Number of processes involved in the coupling
-  integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
-  integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
-  integer(kind=int_kind) :: il_part_id     ! Local partition ID
-  integer(kind=int_kind) :: il_length      ! Size of partial field for each process
+    integer, dimension(2) :: starts,sizes,subsizes
+    integer(kind=mpi_address_kind) :: start, extent
+    real(kind=dbl_kind) :: realvalue
+    integer (int_kind) :: nprocs
 
-!  integer,parameter :: nprocsX=3, nprocsY=2
+    integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
+    integer(kind=int_kind) :: grid_task   ! Equivalent task ID on nonmasked grid
 
-  integer, dimension(2) :: starts,sizes,subsizes
-  integer(kind=mpi_address_kind) :: start, extent
-  real(kind=dbl_kind) :: realvalue
-  integer (int_kind) :: nprocs
+    ! Send ice grid details to atmosphere. This is used to regrid runoff.
+    call send_grid_to_atm()
 
-!-------------------------------------------------------------------------
+    ! cartesian presets these, but roundrobin does not
+    ! TODO: Remove these from ice_distribute's create_distrb_cart
+    nprocsx = nx_global / block_size_x
+    nprocsy = ny_global / block_size_y
 
-  integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
-  integer(kind=int_kind) :: grid_task   ! Equivalent task ID on nonmasked grid
+    if (distribution_type == 'cartesian') then
+        grid_task = my_task
+    else if (distribution_type == 'roundrobin') then
+        grid_task = distrb_info%blockIndex(my_task + 1, 1) - 1
+    else
+        call abort_ice('ice: distribution_type not yet supported.')
+    end if
 
-  ! Send ice grid details to atmosphere. This is used to regrid runoff.
-  call send_grid_to_atm()
+    !calculate partition using nprocsX and nprocsX
+    l_ilo = mod(grid_task, nprocsX) * block_size_x + 1
+    l_ihi = l_ilo + block_size_x - 1
+    l_jlo = int(grid_task / nprocsX) * block_size_y + 1
+    l_jhi = l_jlo + block_size_y - 1
 
-  ! cartesian presets these, but roundrobin does not
-  ! TODO: Remove these from ice_distribute's create_distrb_cart
-  nprocsx = nx_global / block_size_x
-  nprocsy = ny_global / block_size_y
-
-  if (distribution_type == 'cartesian') then
-      grid_task = my_task
-  else if (distribution_type == 'roundrobin') then
-      grid_task = distrb_info%blockIndex(my_task + 1, 1) - 1
-  else
-      call abort_ice('ice: distribution_type not yet supported.')
-  end if
-
-  !calculate partition using nprocsX and nprocsX
-  l_ilo = mod(grid_task, nprocsX) * block_size_x + 1
-  l_ihi = l_ilo + block_size_x - 1
-  l_jlo = int(grid_task / nprocsX) * block_size_y + 1
-  l_jhi = l_jlo + block_size_y - 1
-
-#if defined(DEBUG) 
-  write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
-  write(il_out,*) '  2local partion, ilo, ihi, jlo, jhi=', l_ilo, l_ihi, l_jlo, l_jhi
-  write(il_out,*) '  2partition x,y sizes:', l_ihi-l_ilo+1, l_jhi-l_jlo+1
+#if defined(DEBUG)
+    write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
+    write(il_out,*) '  2local partion, ilo, ihi, jlo, jhi=', l_ilo, l_ihi, l_jlo, l_jhi
+    write(il_out,*) '  2partition x,y sizes:', l_ihi-l_ilo+1, l_jhi-l_jlo+1
 #endif
 
     !
@@ -197,11 +185,11 @@
     !    master process is involved in the coupling;
     ! -> by all processes, if cice is parallel and all processes 
     ! are involved in the coupling.
-    
+
     call decomp_def (il_part_id, il_length, nt_cells, &
          my_task, il_nbcplproc, .true., il_out)
 
-#if defined(DEBUG) 
+#if defined(DEBUG)
     write(il_out,*)'(init_cpl) called decomp_def, my_task, ierror = ',my_task, ierror
 #endif
 
@@ -242,9 +230,9 @@
     !cl_writ(n_i2a+17)='wnd_i1'
 
     do jf=1, jpfldout
-      call prism_def_var_proto (il_var_id_out(jf),cl_writ(jf), il_part_id, &
-         il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
-    enddo 
+        call prism_def_var_proto (il_var_id_out(jf),cl_writ(jf), il_part_id, &
+                                   il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
+    enddo
     !
     ! Define name (as in namcouple) and declare each field received by ice
     !
@@ -268,98 +256,91 @@
     cl_read(n_a2i+5)='sslx_i'
     cl_read(n_a2i+6)='ssly_i'
     cl_read(n_a2i+7)='pfmice_i'
-    !cl_read(n_a2i+8)='co2_oi'
-    !cl_read(n_a2i+9)='co2fx_oi'
-    !
+
     do jf=1, jpfldin
       call prism_def_var_proto (il_var_id_in(jf), cl_read(jf), il_part_id, &
          il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
-    enddo 
+    enddo
     !
-    ! 7- PSMILe end of declaration phase 
+    ! 7- PSMILe end of declaration phase
     !
     call prism_enddef_proto (ierror, runtime=runtime_seconds, &
                              coupling_field_timesteps=coupling_field_timesteps)
 
-  !
-  ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:! 
-  !
+    !
+    ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:! 
+    !
 
-  ! fields in: (local domain)
-  allocate ( tair0(nx_block,ny_block,max_blocks));  tair0(:,:,:) = 0
-  allocate (swflx0(nx_block,ny_block,max_blocks)); swflx0(:,:,:) = 0
-  allocate (lwflx0(nx_block,ny_block,max_blocks)); lwflx0(:,:,:) = 0
-  allocate ( uwnd0(nx_block,ny_block,max_blocks));  uwnd0(:,:,:) = 0
-  allocate ( vwnd0(nx_block,ny_block,max_blocks));  vwnd0(:,:,:) = 0
-  allocate ( qair0(nx_block,ny_block,max_blocks));  qair0(:,:,:) = 0
-  allocate ( rain0(nx_block,ny_block,max_blocks));  rain0(:,:,:) = 0
-  allocate ( snow0(nx_block,ny_block,max_blocks));  snow0(:,:,:) = 0
-  allocate ( runof0(nx_block,ny_block,max_blocks)); runof0(:,:,:) = 0
-  allocate ( press0(nx_block,ny_block,max_blocks)); press0(:,:,:) = 0
+    ! fields in: (local domain)
+    allocate ( tair0(nx_block,ny_block,max_blocks));  tair0(:,:,:) = 0
+    allocate (swflx0(nx_block,ny_block,max_blocks)); swflx0(:,:,:) = 0
+    allocate (lwflx0(nx_block,ny_block,max_blocks)); lwflx0(:,:,:) = 0
+    allocate ( uwnd0(nx_block,ny_block,max_blocks));  uwnd0(:,:,:) = 0
+    allocate ( vwnd0(nx_block,ny_block,max_blocks));  vwnd0(:,:,:) = 0
+    allocate ( qair0(nx_block,ny_block,max_blocks));  qair0(:,:,:) = 0
+    allocate ( rain0(nx_block,ny_block,max_blocks));  rain0(:,:,:) = 0
+    allocate ( snow0(nx_block,ny_block,max_blocks));  snow0(:,:,:) = 0
+    allocate ( runof0(nx_block,ny_block,max_blocks)); runof0(:,:,:) = 0
+    allocate ( press0(nx_block,ny_block,max_blocks)); press0(:,:,:) = 0
 
-  allocate ( runof(nx_block,ny_block,max_blocks)); runof(:,:,:) = 0
-  allocate ( press(nx_block,ny_block,max_blocks)); press(:,:,:) = 0
+    allocate ( runof(nx_block,ny_block,max_blocks)); runof(:,:,:) = 0
+    allocate ( press(nx_block,ny_block,max_blocks)); press(:,:,:) = 0
 
-  !
-  allocate ( core_runoff(nx_block,ny_block,max_blocks));  core_runoff(:,:,:) = 0.
-  !
+    allocate ( core_runoff(nx_block,ny_block,max_blocks));  core_runoff(:,:,:) = 0.
 
-  allocate (ssto(nx_block,ny_block,max_blocks));  ssto(:,:,:) = 0
-  allocate (ssso(nx_block,ny_block,max_blocks));  ssso(:,:,:) = 0
-  allocate (ssuo(nx_block,ny_block,max_blocks));  ssuo(:,:,:) = 0
-  allocate (ssvo(nx_block,ny_block,max_blocks));  ssvo(:,:,:) = 0
-  allocate (sslx(nx_block,ny_block,max_blocks));  sslx(:,:,:) = 0
-  allocate (ssly(nx_block,ny_block,max_blocks));  ssly(:,:,:) = 0
-  allocate (pfmice(nx_block,ny_block,max_blocks));  pfmice(:,:,:) = 0
+    allocate (ssto(nx_block,ny_block,max_blocks));  ssto(:,:,:) = 0
+    allocate (ssso(nx_block,ny_block,max_blocks));  ssso(:,:,:) = 0
+    allocate (ssuo(nx_block,ny_block,max_blocks));  ssuo(:,:,:) = 0
+    allocate (ssvo(nx_block,ny_block,max_blocks));  ssvo(:,:,:) = 0
+    allocate (sslx(nx_block,ny_block,max_blocks));  sslx(:,:,:) = 0
+    allocate (ssly(nx_block,ny_block,max_blocks));  ssly(:,:,:) = 0
+    allocate (pfmice(nx_block,ny_block,max_blocks));  pfmice(:,:,:) = 0
 
-  !
-  allocate (iostrsu(nx_block,ny_block,max_blocks)); iostrsu(:,:,:) = 0
-  allocate (iostrsv(nx_block,ny_block,max_blocks)); iostrsv(:,:,:) = 0
-  allocate (iorain(nx_block,ny_block,max_blocks));  iorain(:,:,:) = 0
-  allocate (iosnow(nx_block,ny_block,max_blocks));  iosnow(:,:,:) = 0
-  allocate (iostflx(nx_block,ny_block,max_blocks)); iostflx(:,:,:) = 0
-  allocate (iohtflx(nx_block,ny_block,max_blocks)); iohtflx(:,:,:) = 0
-  allocate (ioswflx(nx_block,ny_block,max_blocks)); ioswflx(:,:,:) = 0
-  allocate (ioqflux(nx_block,ny_block,max_blocks)); ioqflux(:,:,:) = 0
-  allocate (iolwflx(nx_block,ny_block,max_blocks)); iolwflx(:,:,:) = 0
-  allocate (ioshflx(nx_block,ny_block,max_blocks)); ioshflx(:,:,:) = 0
-  allocate (iorunof(nx_block,ny_block,max_blocks)); iorunof(:,:,:) = 0
-  allocate (iopress(nx_block,ny_block,max_blocks)); iopress(:,:,:) = 0
-  allocate (ioaice (nx_block,ny_block,max_blocks)); ioaice(:,:,:) = 0
-  !!!
-  allocate (iomelt (nx_block,ny_block,max_blocks)); iomelt(:,:,:) = 0
-  allocate (ioform (nx_block,ny_block,max_blocks)); ioform(:,:,:) = 0
+    allocate (iostrsu(nx_block,ny_block,max_blocks)); iostrsu(:,:,:) = 0
+    allocate (iostrsv(nx_block,ny_block,max_blocks)); iostrsv(:,:,:) = 0
+    allocate (iorain(nx_block,ny_block,max_blocks));  iorain(:,:,:) = 0
+    allocate (iosnow(nx_block,ny_block,max_blocks));  iosnow(:,:,:) = 0
+    allocate (iostflx(nx_block,ny_block,max_blocks)); iostflx(:,:,:) = 0
+    allocate (iohtflx(nx_block,ny_block,max_blocks)); iohtflx(:,:,:) = 0
+    allocate (ioswflx(nx_block,ny_block,max_blocks)); ioswflx(:,:,:) = 0
+    allocate (ioqflux(nx_block,ny_block,max_blocks)); ioqflux(:,:,:) = 0
+    allocate (iolwflx(nx_block,ny_block,max_blocks)); iolwflx(:,:,:) = 0
+    allocate (ioshflx(nx_block,ny_block,max_blocks)); ioshflx(:,:,:) = 0
+    allocate (iorunof(nx_block,ny_block,max_blocks)); iorunof(:,:,:) = 0
+    allocate (iopress(nx_block,ny_block,max_blocks)); iopress(:,:,:) = 0
+    allocate (ioaice (nx_block,ny_block,max_blocks)); ioaice(:,:,:) = 0
 
-  allocate (tiostrsu(nx_block,ny_block,max_blocks)); tiostrsu(:,:,:) = 0
-  allocate (tiostrsv(nx_block,ny_block,max_blocks)); tiostrsv(:,:,:) = 0
-  allocate (tiorain(nx_block,ny_block,max_blocks));  tiorain(:,:,:) = 0
-  allocate (tiosnow(nx_block,ny_block,max_blocks));  tiosnow(:,:,:) = 0
-  allocate (tiostflx(nx_block,ny_block,max_blocks)); tiostflx(:,:,:) = 0
-  allocate (tiohtflx(nx_block,ny_block,max_blocks)); tiohtflx(:,:,:) = 0
-  allocate (tioswflx(nx_block,ny_block,max_blocks)); tioswflx(:,:,:) = 0
-  allocate (tioqflux(nx_block,ny_block,max_blocks)); tioqflux(:,:,:) = 0
-  allocate (tiolwflx(nx_block,ny_block,max_blocks)); tiolwflx(:,:,:) = 0
-  allocate (tioshflx(nx_block,ny_block,max_blocks)); tioshflx(:,:,:) = 0
-  allocate (tiorunof(nx_block,ny_block,max_blocks)); tiorunof(:,:,:) = 0
-  allocate (tiopress(nx_block,ny_block,max_blocks)); tiopress(:,:,:) = 0
-  allocate (tioaice(nx_block,ny_block,max_blocks));  tioaice(:,:,:) = 0
-  !!!
-  allocate (tiomelt(nx_block,ny_block,max_blocks));  tiomelt(:,:,:) = 0
-  allocate (tioform(nx_block,ny_block,max_blocks));  tioform(:,:,:) = 0
+    allocate (iomelt (nx_block,ny_block,max_blocks)); iomelt(:,:,:) = 0
+    allocate (ioform (nx_block,ny_block,max_blocks)); ioform(:,:,:) = 0
 
-  allocate (vwork(nx_block,ny_block,max_blocks)); vwork(:,:,:) = 0
-  allocate (gwork(nx_global,ny_global)); gwork(:,:) = 0
+    allocate (tiostrsu(nx_block,ny_block,max_blocks)); tiostrsu(:,:,:) = 0
+    allocate (tiostrsv(nx_block,ny_block,max_blocks)); tiostrsv(:,:,:) = 0
+    allocate (tiorain(nx_block,ny_block,max_blocks));  tiorain(:,:,:) = 0
+    allocate (tiosnow(nx_block,ny_block,max_blocks));  tiosnow(:,:,:) = 0
+    allocate (tiostflx(nx_block,ny_block,max_blocks)); tiostflx(:,:,:) = 0
+    allocate (tiohtflx(nx_block,ny_block,max_blocks)); tiohtflx(:,:,:) = 0
+    allocate (tioswflx(nx_block,ny_block,max_blocks)); tioswflx(:,:,:) = 0
+    allocate (tioqflux(nx_block,ny_block,max_blocks)); tioqflux(:,:,:) = 0
+    allocate (tiolwflx(nx_block,ny_block,max_blocks)); tiolwflx(:,:,:) = 0
+    allocate (tioshflx(nx_block,ny_block,max_blocks)); tioshflx(:,:,:) = 0
+    allocate (tiorunof(nx_block,ny_block,max_blocks)); tiorunof(:,:,:) = 0
+    allocate (tiopress(nx_block,ny_block,max_blocks)); tiopress(:,:,:) = 0
+    allocate (tioaice(nx_block,ny_block,max_blocks));  tioaice(:,:,:) = 0
 
-  !
-  allocate (sicemass(nx_block,ny_block,max_blocks)); sicemass(:,:,:) = 0.
-  allocate (u_star0(nx_block,ny_block,max_blocks)); u_star0(:,:,:) = 0.
-  allocate (rough_mom0(nx_block,ny_block,max_blocks)); rough_mom0(:,:,:) = 0.
-  allocate (rough_heat0(nx_block,ny_block,max_blocks)); rough_heat0(:,:,:) = 0.
-  allocate (rough_moist0(nx_block,ny_block,max_blocks)); rough_moist0(:,:,:) = 0.
-  !
-  allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
+    allocate (tiomelt(nx_block,ny_block,max_blocks));  tiomelt(:,:,:) = 0
+    allocate (tioform(nx_block,ny_block,max_blocks));  tioform(:,:,:) = 0
 
-end subroutine init_cpl
+    allocate (vwork(nx_block,ny_block,max_blocks)); vwork(:,:,:) = 0
+    allocate (gwork(nx_global,ny_global)); gwork(:,:) = 0
+    allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
+
+    allocate (sicemass(nx_block,ny_block,max_blocks)); sicemass(:,:,:) = 0.
+    allocate (u_star0(nx_block,ny_block,max_blocks)); u_star0(:,:,:) = 0.
+    allocate (rough_mom0(nx_block,ny_block,max_blocks)); rough_mom0(:,:,:) = 0.
+    allocate (rough_heat0(nx_block,ny_block,max_blocks)); rough_heat0(:,:,:) = 0.
+    allocate (rough_moist0(nx_block,ny_block,max_blocks)); rough_moist0(:,:,:) = 0.
+
+endsubroutine init_cpl
 
 subroutine send_grid_to_atm()
 
