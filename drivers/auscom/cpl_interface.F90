@@ -142,8 +142,6 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
     integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
-    integer(kind=int_kind) :: il_part_id     ! Local partition ID
-    integer(kind=int_kind) :: il_length      ! Size of partial field for each process
 
     integer, dimension(2) :: starts,sizes,subsizes
     integer(kind=mpi_address_kind) :: start, extent
@@ -163,9 +161,9 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     ! Define oasis partition and variables using orange partition. This is
     ! fairly general so other partition types should not be needed.
-    allocate(part_def(2 + ny_block*nblocks))
+    allocate(part_def(2 + block_size_y*nblocks))
     part_def(1) = 3
-    part_def(2) = ny_block*nblocks
+    part_def(2) = block_size_y*nblocks
     do iblk=1, nblocks
         this_block = get_block(blocks_ice(iblk), iblk)
         ilo = this_block%ilo
@@ -173,8 +171,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
         jhi = this_block%jhi
 
         do j = jlo, jhi
-            part_def(iblk+2) = this_block%i_glob(ilo) + (this_block%j_glob(j) - 1) * nx_block
-            part_def(iblk+3) = nx_block
+            part_def(iblk+2) = (this_block%j_glob(j) - 1) * nx_global + this_block%i_glob(ilo)
+            part_def(iblk+3) = block_size_x
         enddo
     enddo
     call oasis_def_partition(part_id, part_def, err)
@@ -220,12 +218,10 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 #endif
 
     ! Define couplint fields
-    il_var_nodims(1) = 2 ! rank of coupling field
+    il_var_nodims(1) = 1 ! rank of coupling field
     il_var_nodims(2) = 1 ! number of bundles in coupling field (always 1)
-    il_var_shape(1)= 1 !l_ilo ! min index for the coupling field local dimension
-    il_var_shape(2)= l_ihi-l_ilo+1 ! max index for the coupling field local dim
-    il_var_shape(3)= 1 !l_jlo ! min index for the coupling field local dim
-    il_var_shape(4)= l_jhi-l_jlo+1 ! max index for the coupling field local dim
+    il_var_shape(1) = 1 ! min index for the coupling field local dimension
+    il_var_shape(2) = nx_block*ny_block*nblocks
 
     !
     ! Define name (as in namcouple) and declare each field sent by ice 
@@ -251,8 +247,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     cl_writ(n_i2a+15)='form_io'
 
     do jf=1, jpfldout
-        call prism_def_var_proto (il_var_id_out(jf),cl_writ(jf), il_part_id, &
-                                   il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
+        call oasis_def_var(il_var_id_out(jf),cl_writ(jf), part_id, &
+                           il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
     enddo
     !
     ! Define name (as in namcouple) and declare each field received by ice
@@ -279,87 +275,87 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     cl_read(n_a2i+7)='pfmice_i'
 
     do jf=1, jpfldin
-      call prism_def_var_proto (il_var_id_in(jf), cl_read(jf), il_part_id, &
-         il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
+      call oasis_def_var(il_var_id_in(jf), cl_read(jf), part_id, &
+                         il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
     enddo
     !
     ! 7- PSMILe end of declaration phase
     !
-    call prism_enddef_proto (ierror, runtime=runtime_seconds, &
-                             coupling_field_timesteps=coupling_field_timesteps)
+    call oasis_enddef(ierror, runtime=runtime_seconds, &
+                      coupling_field_timesteps=coupling_field_timesteps)
 
     !
     ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:!
     !
 
     ! fields in: (local domain)
-    allocate ( tair0(nx_block,ny_block,max_blocks));  tair0(:,:,:) = 0
-    allocate (swflx0(nx_block,ny_block,max_blocks)); swflx0(:,:,:) = 0
-    allocate (lwflx0(nx_block,ny_block,max_blocks)); lwflx0(:,:,:) = 0
-    allocate ( uwnd0(nx_block,ny_block,max_blocks));  uwnd0(:,:,:) = 0
-    allocate ( vwnd0(nx_block,ny_block,max_blocks));  vwnd0(:,:,:) = 0
-    allocate ( qair0(nx_block,ny_block,max_blocks));  qair0(:,:,:) = 0
-    allocate ( rain0(nx_block,ny_block,max_blocks));  rain0(:,:,:) = 0
-    allocate ( snow0(nx_block,ny_block,max_blocks));  snow0(:,:,:) = 0
-    allocate ( runof0(nx_block,ny_block,max_blocks)); runof0(:,:,:) = 0
-    allocate ( press0(nx_block,ny_block,max_blocks)); press0(:,:,:) = 0
+    allocate (tair0(nx_block, ny_block, nblocks));  tair0(:,:,:) = 0
+    allocate (swflx0(nx_block, ny_block, nblocks)); swflx0(:,:,:) = 0
+    allocate (lwflx0(nx_block, ny_block, nblocks)); lwflx0(:,:,:) = 0
+    allocate (uwnd0(nx_block, ny_block, nblocks));  uwnd0(:,:,:) = 0
+    allocate (vwnd0(nx_block, ny_block, nblocks));  vwnd0(:,:,:) = 0
+    allocate (qair0(nx_block, ny_block, nblocks));  qair0(:,:,:) = 0
+    allocate (rain0(nx_block, ny_block, nblocks));  rain0(:,:,:) = 0
+    allocate (snow0(nx_block, ny_block, nblocks));  snow0(:,:,:) = 0
+    allocate (runof0(nx_block, ny_block, nblocks)); runof0(:,:,:) = 0
+    allocate (press0(nx_block, ny_block, nblocks)); press0(:,:,:) = 0
 
-    allocate ( runof(nx_block,ny_block,max_blocks)); runof(:,:,:) = 0
-    allocate ( press(nx_block,ny_block,max_blocks)); press(:,:,:) = 0
+    allocate (runof(nx_block, ny_block, nblocks)); runof(:,:,:) = 0
+    allocate (press(nx_block, ny_block, nblocks)); press(:,:,:) = 0
 
-    allocate ( core_runoff(nx_block,ny_block,max_blocks));  core_runoff(:,:,:) = 0.
+    allocate (core_runoff(nx_block, ny_block, nblocks));  core_runoff(:,:,:) = 0.
 
-    allocate (ssto(nx_block,ny_block,max_blocks));  ssto(:,:,:) = 0
-    allocate (ssso(nx_block,ny_block,max_blocks));  ssso(:,:,:) = 0
-    allocate (ssuo(nx_block,ny_block,max_blocks));  ssuo(:,:,:) = 0
-    allocate (ssvo(nx_block,ny_block,max_blocks));  ssvo(:,:,:) = 0
-    allocate (sslx(nx_block,ny_block,max_blocks));  sslx(:,:,:) = 0
-    allocate (ssly(nx_block,ny_block,max_blocks));  ssly(:,:,:) = 0
-    allocate (pfmice(nx_block,ny_block,max_blocks));  pfmice(:,:,:) = 0
+    allocate (ssto(nx_block, ny_block, nblocks));  ssto(:,:,:) = 0
+    allocate (ssso(nx_block, ny_block, nblocks));  ssso(:,:,:) = 0
+    allocate (ssuo(nx_block, ny_block, nblocks));  ssuo(:,:,:) = 0
+    allocate (ssvo(nx_block, ny_block, nblocks));  ssvo(:,:,:) = 0
+    allocate (sslx(nx_block, ny_block, nblocks));  sslx(:,:,:) = 0
+    allocate (ssly(nx_block, ny_block, nblocks));  ssly(:,:,:) = 0
+    allocate (pfmice(nx_block, ny_block, nblocks));  pfmice(:,:,:) = 0
 
-    allocate (iostrsu(nx_block,ny_block,max_blocks)); iostrsu(:,:,:) = 0
-    allocate (iostrsv(nx_block,ny_block,max_blocks)); iostrsv(:,:,:) = 0
-    allocate (iorain(nx_block,ny_block,max_blocks));  iorain(:,:,:) = 0
-    allocate (iosnow(nx_block,ny_block,max_blocks));  iosnow(:,:,:) = 0
-    allocate (iostflx(nx_block,ny_block,max_blocks)); iostflx(:,:,:) = 0
-    allocate (iohtflx(nx_block,ny_block,max_blocks)); iohtflx(:,:,:) = 0
-    allocate (ioswflx(nx_block,ny_block,max_blocks)); ioswflx(:,:,:) = 0
-    allocate (ioqflux(nx_block,ny_block,max_blocks)); ioqflux(:,:,:) = 0
-    allocate (iolwflx(nx_block,ny_block,max_blocks)); iolwflx(:,:,:) = 0
-    allocate (ioshflx(nx_block,ny_block,max_blocks)); ioshflx(:,:,:) = 0
-    allocate (iorunof(nx_block,ny_block,max_blocks)); iorunof(:,:,:) = 0
-    allocate (iopress(nx_block,ny_block,max_blocks)); iopress(:,:,:) = 0
-    allocate (ioaice (nx_block,ny_block,max_blocks)); ioaice(:,:,:) = 0
+    allocate (iostrsu(nx_block, ny_block, nblocks)); iostrsu(:,:,:) = 0
+    allocate (iostrsv(nx_block, ny_block, nblocks)); iostrsv(:,:,:) = 0
+    allocate (iorain(nx_block, ny_block, nblocks));  iorain(:,:,:) = 0
+    allocate (iosnow(nx_block, ny_block, nblocks));  iosnow(:,:,:) = 0
+    allocate (iostflx(nx_block, ny_block, nblocks)); iostflx(:,:,:) = 0
+    allocate (iohtflx(nx_block, ny_block, nblocks)); iohtflx(:,:,:) = 0
+    allocate (ioswflx(nx_block, ny_block, nblocks)); ioswflx(:,:,:) = 0
+    allocate (ioqflux(nx_block, ny_block, nblocks)); ioqflux(:,:,:) = 0
+    allocate (iolwflx(nx_block, ny_block, nblocks)); iolwflx(:,:,:) = 0
+    allocate (ioshflx(nx_block, ny_block, nblocks)); ioshflx(:,:,:) = 0
+    allocate (iorunof(nx_block, ny_block, nblocks)); iorunof(:,:,:) = 0
+    allocate (iopress(nx_block, ny_block, nblocks)); iopress(:,:,:) = 0
+    allocate (ioaice (nx_block, ny_block, nblocks)); ioaice(:,:,:) = 0
 
-    allocate (iomelt (nx_block,ny_block,max_blocks)); iomelt(:,:,:) = 0
-    allocate (ioform (nx_block,ny_block,max_blocks)); ioform(:,:,:) = 0
+    allocate (iomelt (nx_block, ny_block, nblocks)); iomelt(:,:,:) = 0
+    allocate (ioform (nx_block, ny_block, nblocks)); ioform(:,:,:) = 0
 
-    allocate (tiostrsu(nx_block,ny_block,max_blocks)); tiostrsu(:,:,:) = 0
-    allocate (tiostrsv(nx_block,ny_block,max_blocks)); tiostrsv(:,:,:) = 0
-    allocate (tiorain(nx_block,ny_block,max_blocks));  tiorain(:,:,:) = 0
-    allocate (tiosnow(nx_block,ny_block,max_blocks));  tiosnow(:,:,:) = 0
-    allocate (tiostflx(nx_block,ny_block,max_blocks)); tiostflx(:,:,:) = 0
-    allocate (tiohtflx(nx_block,ny_block,max_blocks)); tiohtflx(:,:,:) = 0
-    allocate (tioswflx(nx_block,ny_block,max_blocks)); tioswflx(:,:,:) = 0
-    allocate (tioqflux(nx_block,ny_block,max_blocks)); tioqflux(:,:,:) = 0
-    allocate (tiolwflx(nx_block,ny_block,max_blocks)); tiolwflx(:,:,:) = 0
-    allocate (tioshflx(nx_block,ny_block,max_blocks)); tioshflx(:,:,:) = 0
-    allocate (tiorunof(nx_block,ny_block,max_blocks)); tiorunof(:,:,:) = 0
-    allocate (tiopress(nx_block,ny_block,max_blocks)); tiopress(:,:,:) = 0
-    allocate (tioaice(nx_block,ny_block,max_blocks));  tioaice(:,:,:) = 0
+    allocate (tiostrsu(nx_block, ny_block, nblocks)); tiostrsu(:,:,:) = 0
+    allocate (tiostrsv(nx_block, ny_block, nblocks)); tiostrsv(:,:,:) = 0
+    allocate (tiorain(nx_block, ny_block, nblocks));  tiorain(:,:,:) = 0
+    allocate (tiosnow(nx_block, ny_block, nblocks));  tiosnow(:,:,:) = 0
+    allocate (tiostflx(nx_block, ny_block, nblocks)); tiostflx(:,:,:) = 0
+    allocate (tiohtflx(nx_block, ny_block, nblocks)); tiohtflx(:,:,:) = 0
+    allocate (tioswflx(nx_block, ny_block, nblocks)); tioswflx(:,:,:) = 0
+    allocate (tioqflux(nx_block, ny_block, nblocks)); tioqflux(:,:,:) = 0
+    allocate (tiolwflx(nx_block, ny_block, nblocks)); tiolwflx(:,:,:) = 0
+    allocate (tioshflx(nx_block, ny_block, nblocks)); tioshflx(:,:,:) = 0
+    allocate (tiorunof(nx_block, ny_block, nblocks)); tiorunof(:,:,:) = 0
+    allocate (tiopress(nx_block, ny_block, nblocks)); tiopress(:,:,:) = 0
+    allocate (tioaice(nx_block, ny_block, nblocks));  tioaice(:,:,:) = 0
 
-    allocate (tiomelt(nx_block,ny_block,max_blocks));  tiomelt(:,:,:) = 0
-    allocate (tioform(nx_block,ny_block,max_blocks));  tioform(:,:,:) = 0
+    allocate (tiomelt(nx_block, ny_block, nblocks));  tiomelt(:,:,:) = 0
+    allocate (tioform(nx_block, ny_block, nblocks));  tioform(:,:,:) = 0
 
-    allocate (vwork(nx_block,ny_block,max_blocks)); vwork(:,:,:) = 0
-    allocate (gwork(nx_global,ny_global)); gwork(:,:) = 0
+    allocate (vwork(nx_block, ny_block, nblocks)); vwork(:,:,:) = 0
+    allocate (gwork(nx_global, ny_global)); gwork(:,:) = 0
     allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
 
-    allocate (sicemass(nx_block,ny_block,max_blocks)); sicemass(:,:,:) = 0.
-    allocate (u_star0(nx_block,ny_block,max_blocks)); u_star0(:,:,:) = 0.
-    allocate (rough_mom0(nx_block,ny_block,max_blocks)); rough_mom0(:,:,:) = 0.
-    allocate (rough_heat0(nx_block,ny_block,max_blocks)); rough_heat0(:,:,:) = 0.
-    allocate (rough_moist0(nx_block,ny_block,max_blocks)); rough_moist0(:,:,:) = 0.
+    allocate (sicemass(nx_block, ny_block, nblocks)); sicemass(:,:,:) = 0.
+    allocate (u_star0(nx_block, ny_block, nblocks)); u_star0(:,:,:) = 0.
+    allocate (rough_mom0(nx_block, ny_block, nblocks)); rough_mom0(:,:,:) = 0.
+    allocate (rough_heat0(nx_block, ny_block, nblocks)); rough_heat0(:,:,:) = 0.
+    allocate (rough_moist0(nx_block, ny_block, nblocks)); rough_moist0(:,:,:) = 0.
 
 endsubroutine init_cpl
 
@@ -416,42 +412,94 @@ subroutine send_grid_to_atm()
 
 end subroutine send_grid_to_atm
 
+!> Coupling arrays are 1d and need to be unpacked into the 3d format used by CICE.
+subroutine unpack_coupling_array(input, output)
+    real, dimension(:), intent(in) :: input
+    real, dimension(:, :, :), intent(inout) :: output
+
+    integer :: isc, iec, jsc, jec
+    integer :: block_size
+
+    isc = 1+nghost
+    iec = nx_block-nghost
+    jsc = isc
+    jec = ny_block-nghost
+    block_size = block_size_x*block_size_y
+
+    do iblk=1, nblocks
+        offset = (iblk - 1)*block_size + 1
+        output(isc:iec, jsc:jec, iblk) = reshape((/ block_size_x, block_size_y, 1 /), &
+                                                 input(offset:(offset + block_size)))
+    enddo
+
+endsubroutine unpack_coupling_array
+
+!> Coupling 3d arrays into 1d coupling array
+subroutine pack_coupling_array(input, output)
+    real, dimension(:, :, :), intent(in) :: input
+    real, dimension(:), intent(inout) :: output
+
+    integer :: isc, iec, jsc, jec
+    integer :: block_size
+
+    isc = 1+nghost
+    iec = nx_block-nghost
+    jsc = isc
+    jec = ny_block-nghost
+    block_size = block_size_x*block_size_y
+
+    do iblk=1, nblocks
+        offset = (iblk - 1)*block_size + 1
+        input(offset:(offset + block_size)) = reshape((/ block_size_x * block_size_y /), &
+                                                      output(isc:iec, jsc:jec, iblk))
+    enddo
+
+endsubroutine pack_coupling_array
+
 subroutine from_atm(isteps)
-
-  implicit none
-
   integer(kind=int_kind), intent(in) :: isteps
 
-  integer(kind=int_kind) :: tag, request, info, i, j, n
+  integer(kind=int_kind) :: tag, request, info
   integer(kind=int_kind) :: buf(1)
-  integer :: isc, iec, jsc, jec
-  real(kind=dbl_kind) :: total_runoff
+  real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
 #if defined(DEBUG)
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
 #endif
 
-  isc = 1+nghost
-  iec = nx_block-nghost
-  jsc = isc
-  jec = ny_block-nghost
-
   call ice_timer_start(timer_from_atm)
 
-  ! The return value 'info' is not checked, oasis does not return errors, it
-  ! will abort if there is any problem.
   call ice_timer_start(timer_waiting_atm)
-  call prism_get_proto(il_var_id_in(1), isteps, swflx0(isc:iec, jsc:jec, 1), info)
+  call oasis_get(il_var_id_in(1), isteps, work, info)
+  call unpack_coupling_array(work, swflx0)
   call ice_timer_stop(timer_waiting_atm)
-  call prism_get_proto(il_var_id_in(2), isteps, lwflx0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(3), isteps, rain0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(4), isteps, snow0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(5), isteps, press0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(6), isteps, runof0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(7), isteps, tair0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(8), isteps, qair0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(9), isteps, uwnd0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(10), isteps, vwnd0(isc:iec, jsc:jec, 1), info)
+
+  call oasis_get(il_var_id_in(2), isteps, work, info)
+  call unpack_coupling_array(work, lwflx0)
+
+  call oasis_get(il_var_id_in(3), isteps, work, info)
+  call unpack_coupling_array(work, rain0)
+
+  call oasis_get(il_var_id_in(4), isteps, work, info)
+  call unpack_coupling_array(work, snow0)
+
+  call oasis_get(il_var_id_in(5), isteps, work, info)
+  call unpack_coupling_array(work, press0)
+
+  call oasis_get(il_var_id_in(6), isteps, work, info)
+  call unpack_coupling_array(work, runof0)
+
+  call oasis_get(il_var_id_in(7), isteps, work, info)
+  call unpack_coupling_array(work, tair0)
+
+  call oasis_get(il_var_id_in(8), isteps, work, info)
+  call unpack_coupling_array(work, qair0)
+
+  call oasis_get(il_var_id_in(9), isteps, work, info)
+  call unpack_coupling_array(work, uwnd0)
+
+  call oasis_get(il_var_id_in(10), isteps, work, info)
+  call unpack_coupling_array(work, vwnd0)
 
   ! need do t-grid to u-grid shift for vectors since all coupling occur on
   ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
@@ -477,150 +525,110 @@ subroutine from_atm(isteps)
 
 end subroutine from_atm
 
-!=======================================================================
-  subroutine from_ocn(isteps)
-!-------------------------------------------!  
-
-  integer(kind=int_kind), intent(in) :: isteps
+subroutine from_ocn(isteps)
+    integer(kind=int_kind), intent(in) :: isteps
  
-  integer(kind=int_kind) :: jf, field_type
-
-  call ice_timer_start(timer_from_ocn)
+    real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
 #if defined(DEBUG)
     write(il_out,*) '(from_ocn) receiving coupling fields at rtime: ', isteps
 #endif
 
-  do jf = n_a2i+1, jpfldin          !no 11-17 from ocn
+    call ice_timer_start(timer_from_ocn)
+    call ice_timer_start(timer_waiting_ocn)
 
-      if (jf == n_a2i+1) then
-        call ice_timer_start(timer_waiting_ocn)
-      elseif (jf == n_a2i+2) then
-        call ice_timer_stop(timer_waiting_ocn)
-      endif
+    call oasis_get(il_var_id_in(11), isteps, work, ierror)
+    call unpack_coupling_array(work, ssto)
+    call ice_timer_start(timer_waiting_ocn)
 
-      !jf-th field in
-#if defined(DEBUG)
-      write(il_out,*) '*** receiving coupling fields No. ', jf, cl_read(jf)
-#endif
+    call oasis_get(il_var_id_in(12), isteps, work, ierror)
+    call unpack_coupling_array(work, ssso)
 
-        call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-      if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
-#if defined(DEBUG)
-        write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
-#endif
-        call prism_abort_proto(il_comp_id, 'cice from_atm','stop 1')
-      else
-#if defined(DEBUG)
-        write(il_out,*)'(from_ocn) rcvd at time with err: ',cl_read(jf),isteps,ierror
-#endif
-      endif
+    call oasis_get(il_var_id_in(13), isteps, work, ierror)
+    call unpack_coupling_array(work, ssuo)
 
-    ! Copy over non-ghost part of coupled field.
-    select case (jf)
-        case (n_a2i+1)
-            ssto(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+2)
-            ssso(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+3)
-            ssuo(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+4)
-            ssvo(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+5)
-            sslx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+6)
-            ssly(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+7)
-            pfmice(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case default
-            stop "Error: invalid case in subroutine from_ocn()"
-    end select
+    call oasis_get(il_var_id_in(14), isteps, work, ierror)
+    call unpack_coupling_array(work, ssvo)
 
-  enddo
+    call oasis_get(il_var_id_in(15), isteps, work, ierror)
+    call unpack_coupling_array(work, sslx)
 
-  if (chk_o2i_fields) then
-    call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
-  endif
+    call oasis_get(il_var_id_in(16), isteps, work, ierror)
+    call unpack_coupling_array(work, ssly)
 
-  call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
+    call oasis_get(il_var_id_in(17), isteps, work, ierror)
+    call unpack_coupling_array(work, pfmice)
 
-  end subroutine from_ocn
+    if (chk_o2i_fields) then
+      call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
+    endif
 
-!=======================================================================
-  subroutine into_ocn(isteps, scale)
+    call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
+
+end subroutine from_ocn
+
 !
 ! Note dummy 'scale', if /= 1 (then must be 1/coef_ic), is used here for the very 
 ! first-time-step-of-exp i2o fluxes scaling-up, because routine 'tavg_i2o_fluxes' 
 ! has scaled-down the current step i2o fluxes (calculated in get_i2o_fluxes) by 
 ! * coef_ic.  
-! 
-  integer(kind=int_kind), intent(in) :: isteps
-  real, intent(in) :: scale             !only 1 or 1/coef_ic allowed! 
-  integer(kind=int_kind) :: jf
+!
+subroutine into_ocn(isteps, scale)
+ 
+    integer(kind=int_kind), intent(in) :: isteps
+    real, intent(in) :: scale             !only 1 or 1/coef_ic allowed! 
 
-    do jf = n_i2a+1, jpfldout       !no 2-14 are for the ocn
+    call pack_coupling_array(iostrsu*scale, work)
+    call oasis_put(il_var_id_out(2), isteps, work, ierror)
 
-    if (jf == n_i2a+1 ) then
-        vwork2d(:,:) = scale * iostrsu(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+2 ) then
-        vwork2d(:,:) = scale * iostrsv(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+3 ) then
-        vwork2d(:,:) = scale * iorain(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+4 ) then
-        vwork2d(:,:) = scale * iosnow(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+5 ) then
-        vwork2d(:,:) = scale * iostflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+6 ) then
-         vwork2d(:,:) = scale * iohtflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+7 ) then
-         vwork2d(:,:) = scale * ioswflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+8 ) then
-        vwork2d(:,:) = scale * ioqflux(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+9 ) then
-        vwork2d(:,:) = scale * ioshflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+10 ) then
-        vwork2d(:,:) = scale * iolwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+11) then 
-       if ( use_core_nyf_runoff .or. use_core_iaf_runoff ) then 
-         vwork2d(:,:) = core_runoff(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-       else 
-         vwork2d(:,:) = scale * iorunof(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-       endif 
-    elseif (jf == n_i2a+12) then
-        vwork2d(:,:) = scale * iopress(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+13) then
-        vwork2d(:,:) = scale * ioaice(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+14) then
-        vwork2d(:,:) = scale * iomelt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+15) then
-        vwork2d(:,:) = scale * ioform(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    call pack_coupling_array(iostrsv*scale, work)
+    call oasis_put(il_var_id_out(3), isteps, work, ierror)
+
+    call pack_coupling_array(iorain*scale, work)
+    call oasis_put(il_var_id_out(4), isteps, work, ierror)
+
+    call pack_coupling_array(iosnow*scale, work)
+    call oasis_put(il_var_id_out(5), isteps, work, ierror)
+
+    call pack_coupling_array(iostflx*scale, work)
+    call oasis_put(il_var_id_out(6), isteps, work, ierror)
+
+    call pack_coupling_array(iohtflx*scale, work)
+    call oasis_put(il_var_id_out(7), isteps, work, ierror)
+
+    call pack_coupling_array(ioswflx*scale, work)
+    call oasis_put(il_var_id_out(8), isteps, work, ierror)
+
+    call pack_coupling_array(ioqwflx*scale, work)
+    call oasis_put(il_var_id_out(9), isteps, work, ierror)
+
+    call pack_coupling_array(ioshflx*scale, work)
+    call oasis_put(il_var_id_out(10), isteps, work, ierror)
+
+    call pack_coupling_array(iolwflx*scale, work)
+    call oasis_put(il_var_id_out(11), isteps, work, ierror)
+
+    call pack_coupling_array(iorunof*scale, work)
+    call oasis_put(il_var_id_out(12), isteps, work, ierror)
+
+    call pack_coupling_array(iopress*scale, work)
+    call oasis_put(il_var_id_out(13), isteps, work, ierror)
+
+    call pack_coupling_array(ioaice*scale, work)
+    call oasis_put(il_var_id_out(14), isteps, work, ierror)
+
+    call pack_coupling_array(iomelt*scale, work)
+    call oasis_put(il_var_id_out(15), isteps, work, ierror)
+
+    call pack_coupling_array(ioform*scale, work)
+    call oasis_put(il_var_id_out(16), isteps, work, ierror)
+
+    if (chk_i2o_fields) then
+        call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
     endif
 
-    !vwork2d(l_ilo:l_ihi, l_jlo:l_jhi) = vwork(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+end subroutine into_ocn
 
-#if defined(DEBUG)
-      write(il_out,*) '*** sending coupling field No. ', jf, cl_writ(jf)
-      write(il_out,*) 'chk: vwork2d', isteps, minval(vwork2d), maxval(vwork2d), sum(vwork2d)
-#endif
-      call prism_put_proto(il_var_id_out(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-      if ( ierror /= PRISM_Ok .and. ierror < PRISM_Sent) then
-#if defined(DEBUG)
-        write(il_out,*) '(into_ocn) Err in _put_ ', cl_writ(jf), isteps, ierror
-#endif
-        call prism_abort_proto(il_comp_id, 'cice into_ocn','STOP 1') 
-      else
-#if defined(DEBUG)
-        write(il_out,*)'(into_ocn) sent: ', cl_writ(jf), isteps, ierror
-#endif
-      endif
-
-  enddo     !jf = 6, jpfldout
-
-  if (chk_i2o_fields) then
-    call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
-  endif
-
-  end subroutine into_ocn
 
 subroutine update_halos_from_ocn(time)
 
