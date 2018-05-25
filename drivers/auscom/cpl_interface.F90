@@ -137,6 +137,9 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     integer(kind=int_kind) :: jf
 
+    integer(kind=int_kind), dimension(:), allocatable :: part_def
+    integer(kind=int_kind) :: part_id
+
     integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
     integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
     integer(kind=int_kind) :: il_part_id     ! Local partition ID
@@ -153,29 +156,52 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     ! Send ice grid details to atmosphere. This is used to regrid runoff.
     call send_grid_to_atm()
 
+    ! Define oasis partition and variables using Points partition.
+    ! allocate(part_def(2 + nx_block*ny_block*nblocks))
+    ! part_def(1) = 4
+    ! part_def(2) = nx_block*ny_block*nblocks
+
+    ! Define oasis partition and variables using orange partition. This is
+    ! fairly general so other partition types should not be needed.
+    allocate(part_def(2 + ny_block*nblocks))
+    part_def(1) = 3
+    part_def(2) = ny_block*nblocks
+    do iblk=1, nblocks
+        this_block = get_block(blocks_ice(iblk), iblk)
+        ilo = this_block%ilo
+        jlo = this_block%jlo
+        jhi = this_block%jhi
+
+        do j = jlo, jhi
+            part_def(iblk+2) = this_block%i_glob(ilo) + (this_block%j_glob(j) - 1) * nx_block
+            part_def(iblk+3) = nx_block
+        enddo
+    enddo
+    call oasis_def_partition(part_id, part_def, err)
+
     ! cartesian presets these, but roundrobin does not
     ! TODO: Remove these from ice_distribute's create_distrb_cart
-    nprocsx = nx_global / block_size_x
-    nprocsy = ny_global / block_size_y
+    !nprocsx = nx_global / block_size_x
+    !nprocsy = ny_global / block_size_y
 
-    if (distribution_type == 'cartesian') then
-        grid_task = my_task
-    else if (distribution_type == 'roundrobin') then
-        grid_task = distrb_info%blockIndex(my_task + 1, 1) - 1
-    else
-        call abort_ice('ice: distribution_type not yet supported.')
-    end if
+    !if (distribution_type == 'cartesian') then
+    !    grid_task = my_task
+    !else if (distribution_type == 'roundrobin') then
+    !    grid_task = distrb_info%blockIndex(my_task + 1, 1) - 1
+    !else
+    !    call abort_ice('ice: distribution_type not yet supported.')
+    !end if
 
     !calculate partition using nprocsX and nprocsX
-    l_ilo = mod(grid_task, nprocsX) * block_size_x + 1
-    l_ihi = l_ilo + block_size_x - 1
-    l_jlo = int(grid_task / nprocsX) * block_size_y + 1
-    l_jhi = l_jlo + block_size_y - 1
+    !l_ilo = mod(grid_task, nprocsX) * block_size_x + 1
+    !l_ihi = l_ilo + block_size_x - 1
+    !l_jlo = int(grid_task / nprocsX) * block_size_y + 1
+    !l_jhi = l_jlo + block_size_y - 1
 
 #if defined(DEBUG)
-    write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
-    write(il_out,*) '  2local partion, ilo, ihi, jlo, jhi=', l_ilo, l_ihi, l_jlo, l_jhi
-    write(il_out,*) '  2partition x,y sizes:', l_ihi-l_ilo+1, l_jhi-l_jlo+1
+    !write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
+    !write(il_out,*) '  2local partion, ilo, ihi, jlo, jhi=', l_ilo, l_ihi, l_jlo, l_jhi
+    !write(il_out,*) '  2partition x,y sizes:', l_ihi-l_ilo+1, l_jhi-l_jlo+1
 #endif
 
     !
@@ -186,17 +212,14 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     ! -> by all processes, if cice is parallel and all processes 
     ! are involved in the coupling.
 
-    call decomp_def (il_part_id, il_length, nt_cells, &
-         my_task, il_nbcplproc, .true., il_out)
+    !call decomp_def (il_part_id, il_length, nt_cells, &
+    !     my_task, il_nbcplproc, .true., il_out)
 
 #if defined(DEBUG)
-    write(il_out,*)'(init_cpl) called decomp_def, my_task, ierror = ',my_task, ierror
+    !write(il_out,*)'(init_cpl) called decomp_def, my_task, ierror = ',my_task, ierror
 #endif
 
-    !
-    ! PSMILe coupling fields declaration
-    !
-
+    ! Define couplint fields
     il_var_nodims(1) = 2 ! rank of coupling field
     il_var_nodims(2) = 1 ! number of bundles in coupling field (always 1)
     il_var_shape(1)= 1 !l_ilo ! min index for the coupling field local dimension
@@ -226,8 +249,6 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     cl_writ(n_i2a+13)='aice_io'
     cl_writ(n_i2a+14)='melt_io'
     cl_writ(n_i2a+15)='form_io'
-    !cl_writ(n_i2a+16)='co2_i1'
-    !cl_writ(n_i2a+17)='wnd_i1'
 
     do jf=1, jpfldout
         call prism_def_var_proto (il_var_id_out(jf),cl_writ(jf), il_part_id, &
@@ -268,7 +289,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
                              coupling_field_timesteps=coupling_field_timesteps)
 
     !
-    ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:! 
+    ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:!
     !
 
     ! fields in: (local domain)
