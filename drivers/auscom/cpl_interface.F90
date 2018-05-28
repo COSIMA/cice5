@@ -13,6 +13,8 @@
   !prism stuff
   use mpi
   use mod_prism
+  use mod_oasis, only : oasis_def_partition, oasis_def_var
+  use mod_oasis, only : oasis_put, oasis_get, oasis_enddef
 
   !cice stuff
   use ice_kinds_mod
@@ -139,7 +141,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     integer(kind=int_kind) :: jf
 
     integer(kind=int_kind), dimension(:), allocatable :: part_def
-    integer(kind=int_kind) :: part_id
+    integer :: part_id, part_idx
 
     integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
     integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
@@ -165,9 +167,10 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     ! Define oasis partition and variables using orange partition. This is
     ! fairly general so other partition types should not be needed.
-    allocate(part_def(2 + block_size_y*nblocks))
+    allocate(part_def(2 + 2*block_size_y*nblocks))
     part_def(1) = 3
     part_def(2) = block_size_y*nblocks
+    part_idx = 3
     do iblk=1, nblocks
         this_block = get_block(blocks_ice(iblk), iblk)
         ilo = this_block%ilo
@@ -175,8 +178,11 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
         jhi = this_block%jhi
 
         do j = jlo, jhi
-            part_def(iblk+2) = (this_block%j_glob(j) - 1) * nx_global + this_block%i_glob(ilo)
-            part_def(iblk+3) = block_size_x
+            ! Oasis uses zero-indexing for this, hence the final - 1
+            part_def(part_idx) = (this_block%j_glob(j) - 1) * nx_global + this_block%i_glob(ilo) - 1
+            part_idx = part_idx + 1
+            part_def(part_idx) = block_size_x
+            part_idx = part_idx + 1
         enddo
     enddo
     call oasis_def_partition(part_id, part_def, err)
@@ -225,7 +231,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     il_var_nodims(1) = 1 ! rank of coupling field
     il_var_nodims(2) = 1 ! number of bundles in coupling field (always 1)
     il_var_shape(1) = 1 ! min index for the coupling field local dimension
-    il_var_shape(2) = nx_block*ny_block*nblocks
+    il_var_shape(2) = block_size_x*block_size_y*nblocks
 
     !
     ! Define name (as in namcouple) and declare each field sent by ice 
@@ -422,7 +428,7 @@ subroutine unpack_coupling_array(input, output)
     real, dimension(:, :, :), intent(inout) :: output
 
     integer :: isc, iec, jsc, jec
-    integer :: block_size
+    integer :: block_size, iblk, offset
 
     isc = 1+nghost
     iec = nx_block-nghost
@@ -431,9 +437,9 @@ subroutine unpack_coupling_array(input, output)
     block_size = block_size_x*block_size_y
 
     do iblk=1, nblocks
-        offset = (iblk - 1)*block_size + 1
-        output(isc:iec, jsc:jec, iblk) = reshape((/ block_size_x, block_size_y, 1 /), &
-                                                 input(offset:(offset + block_size)))
+        offset = (iblk - 1)*block_size
+        output(isc:iec, jsc:jec, iblk) = reshape(input((offset + 1):(offset + block_size)), &
+                                                 (/ block_size_x, block_size_y /))
     enddo
 
 endsubroutine unpack_coupling_array
@@ -444,7 +450,7 @@ subroutine pack_coupling_array(input, output)
     real, dimension(:), intent(inout) :: output
 
     integer :: isc, iec, jsc, jec
-    integer :: block_size
+    integer :: block_size, iblk, offset
 
     isc = 1+nghost
     iec = nx_block-nghost
@@ -453,9 +459,9 @@ subroutine pack_coupling_array(input, output)
     block_size = block_size_x*block_size_y
 
     do iblk=1, nblocks
-        offset = (iblk - 1)*block_size + 1
-        input(offset:(offset + block_size)) = reshape((/ block_size_x * block_size_y /), &
-                                                      output(isc:iec, jsc:jec, iblk))
+        offset = (iblk - 1)*block_size
+        output((offset + 1):(offset + block_size)) = reshape(input(isc:iec, jsc:jec, iblk), &
+                                                             (/ block_size_x * block_size_y /))
     enddo
 
 endsubroutine pack_coupling_array
@@ -531,7 +537,8 @@ end subroutine from_atm
 
 subroutine from_ocn(isteps)
     integer(kind=int_kind), intent(in) :: isteps
- 
+
+    integer :: info
     real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
 #if defined(DEBUG)
@@ -541,26 +548,26 @@ subroutine from_ocn(isteps)
     call ice_timer_start(timer_from_ocn)
     call ice_timer_start(timer_waiting_ocn)
 
-    call oasis_get(il_var_id_in(11), isteps, work, ierror)
+    call oasis_get(il_var_id_in(11), isteps, work, info)
     call unpack_coupling_array(work, ssto)
     call ice_timer_start(timer_waiting_ocn)
 
-    call oasis_get(il_var_id_in(12), isteps, work, ierror)
+    call oasis_get(il_var_id_in(12), isteps, work, info)
     call unpack_coupling_array(work, ssso)
 
-    call oasis_get(il_var_id_in(13), isteps, work, ierror)
+    call oasis_get(il_var_id_in(13), isteps, work, info)
     call unpack_coupling_array(work, ssuo)
 
-    call oasis_get(il_var_id_in(14), isteps, work, ierror)
+    call oasis_get(il_var_id_in(14), isteps, work, info)
     call unpack_coupling_array(work, ssvo)
 
-    call oasis_get(il_var_id_in(15), isteps, work, ierror)
+    call oasis_get(il_var_id_in(15), isteps, work, info)
     call unpack_coupling_array(work, sslx)
 
-    call oasis_get(il_var_id_in(16), isteps, work, ierror)
+    call oasis_get(il_var_id_in(16), isteps, work, info)
     call unpack_coupling_array(work, ssly)
 
-    call oasis_get(il_var_id_in(17), isteps, work, ierror)
+    call oasis_get(il_var_id_in(17), isteps, work, info)
     call unpack_coupling_array(work, pfmice)
 
     if (chk_o2i_fields) then
@@ -581,6 +588,8 @@ subroutine into_ocn(isteps, scale)
  
     integer(kind=int_kind), intent(in) :: isteps
     real, intent(in) :: scale             !only 1 or 1/coef_ic allowed! 
+
+    real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
     call pack_coupling_array(iostrsu*scale, work)
     call oasis_put(il_var_id_out(2), isteps, work, ierror)
@@ -603,7 +612,7 @@ subroutine into_ocn(isteps, scale)
     call pack_coupling_array(ioswflx*scale, work)
     call oasis_put(il_var_id_out(8), isteps, work, ierror)
 
-    call pack_coupling_array(ioqwflx*scale, work)
+    call pack_coupling_array(ioqflux*scale, work)
     call oasis_put(il_var_id_out(9), isteps, work, ierror)
 
     call pack_coupling_array(ioshflx*scale, work)
