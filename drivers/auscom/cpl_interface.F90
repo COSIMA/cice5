@@ -180,6 +180,10 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
             part_idx = part_idx + 1
         enddo
     enddo
+    if (my_task == master_task) then
+        print*, 'part_def: ', part_def
+        flush(6)
+    endif
     call oasis_def_partition(part_id, part_def, err)
 
     ! Define couplint fields
