@@ -117,7 +117,7 @@
   il_nbcplproc = il_nbtotproc   !multi-process coupling
 
   ! Open the process log file
-#if defined(DEBUG) 
+#if defined(DEBUG)
   il_out = 85 + my_task
   write(chout,'(I6.6)')il_out
   chiceout='iceout'//trim(chout)
@@ -180,11 +180,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
             part_idx = part_idx + 1
         enddo
     enddo
-    if (my_task == master_task) then
-        print*, 'part_def: ', part_def
-        flush(6)
-    endif
-    call oasis_def_partition(part_id, part_def, err)
+    call oasis_def_partition(part_id, part_def, err, nx_global * ny_global)
 
     ! Define couplint fields
     il_var_nodims(1) = 1 ! rank of coupling field
