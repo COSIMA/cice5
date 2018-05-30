@@ -36,7 +36,7 @@
 !
 ! author Elizabeth C. Hunke, LANL
 
-      subroutine input_data(start_date, seconds_since_start_year, &
+      subroutine input_data(forcing_start_date, seconds_since_start_year, &
                             total_runtime_in_seconds, timestep, calendar_type)
 
       use ice_age, only: restart_age
@@ -106,7 +106,7 @@
 #ifdef CCSMCOUPLED
       use shr_file_mod, only: shr_file_setIO
 #endif
-      integer, dimension(6), optional, intent(in) :: start_date
+      integer, dimension(6), optional, intent(in) :: forcing_start_date
       integer, optional, intent(in) :: seconds_since_start_year
       integer, optional, intent(in) :: total_runtime_in_seconds, timestep
       character(len=9), optional, intent(in) :: calendar_type
@@ -431,8 +431,8 @@
          if (nml_error == 0) close(nu_nml)
 
          ! Overwrite some run details passed in as arguments
-         if (present(start_date)) then
-            year_init = start_date(1)
+         if (present(forcing_start_date)) then
+            year_init = forcing_start_date(1)
          endif
          if (present(timestep)) then 
             dt = timestep

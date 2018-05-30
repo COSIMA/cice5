@@ -36,8 +36,12 @@
       use ice_restart_shared, only: runid
       use ice_timers, only: ice_timer_stop, ice_timer_print_all, timer_total
       use ice_communicate, only: my_task, master_task
+      use ice_calendar, only : year_init, nyr, month, mday, hour, sec
+      use ice_calendar, only : calendar, time, dt
 
       type(accessom2_type), intent(inout) :: accessom2
+
+      integer, dimension(6) :: date_array
    !-------------------------------------------------------------------
    ! stop timers and print timer info
    !-------------------------------------------------------------------
@@ -62,7 +66,16 @@
    ! quit MPI
    !-------------------------------------------------------------------
 
-   call accessom2%deinit()
+   ! Allow libaccessom2 to check that datetime of all models is synchronised at
+   ! the end of the run.
+   call calendar(time-dt)
+   date_array(1) = nyr + year_init - 1
+   date_array(2) = month
+   date_array(3) = mday
+   date_array(4) = int(sec / 3600)
+   date_array(5) = int(mod(sec, 3600) / 60)
+   date_array(6) = mod(sec, 60)
+   call accessom2%deinit(cur_date_array=date_array)
 
 #ifdef AusCOM
       call coupler_termination  !quit MPI and release memory 
