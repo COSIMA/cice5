@@ -16,17 +16,14 @@
       use ice_kinds_mod
 
 #ifdef AusCOM
+      use accessom2_mod, only : accessom2_type => accessom2
       use cpl_parameters
+      use cpl_parameters, only : read_namelist_parameters, accessom2_config_dir
       use cpl_forcing_handler, only : get_time0_sstsss, get_u_star
-!ars599: 01042014: since il_commlocal is not included that is the issue come from
-!	try to understand MPI_INIT so put only statement back and compile succeses
-      use cpl_interface , only : prism_init, init_cpl, il_commlocal
-                        !B: why compiler can't find names prism_init and init_cpl
-                        !   in module cpl_interface when 'only' is used here ?!  
+      use cpl_interface , only : prism_init, init_cpl, il_commlocal, il_commatm
       use cpl_arrays_setup, only : gwork, u_star0
       use ice_gather_scatter
 
-!ars599: 27032014: defind my_task
       use ice_communicate, only: my_task
 #endif
 
@@ -54,13 +51,14 @@
 !        replaced by a different driver that calls subroutine cice_init,
 !        where most of the work is done.
 
-      subroutine CICE_Initialize
+      subroutine CICE_Initialize(accessom2)
+        type(accessom2_type), intent(out) :: accessom2
 
    !--------------------------------------------------------------------
    ! model initialization
    !--------------------------------------------------------------------
 
-      call cice_init
+      call cice_init(accessom2)
 
       end subroutine CICE_Initialize
 
@@ -68,15 +66,16 @@
 !
 !  Initialize CICE model.
 
-      subroutine cice_init
+      subroutine cice_init(accessom2)
 
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
-      use ice_calendar, only: dt, dt_dyn, time, istep, istep1, write_ic, &
+      use ice_calendar, only: dt, npt, dt_dyn, time, istep, istep1, write_ic, &
           init_calendar, calendar, idate, month
 !ars599: 27032014
       use ice_communicate, only: MPI_COMM_ICE
       use ice_communicate, only: init_communicate
+      use ice_communicate, only: my_task, master_task
       use ice_diagnostics, only: init_diags
       use ice_domain, only: init_domain_blocks
       use ice_dyn_eap, only: init_eap
@@ -100,22 +99,42 @@
       use ice_transport_driver, only: init_transport
       use ice_zbgc, only: init_zbgc
       use ice_zbgc_shared, only: skl_bgc
-      use ice_restart_shared, only: restart_dir
+      use ice_restart_shared, only: restart_dir, input_dir
 #ifdef popcice
       use drv_forcing, only: sst_sss
 #endif
+      type(accessom2_type), intent(inout) :: accessom2
 
-#ifdef AusCOM
       integer(kind=int_kind) :: idate_save
-#endif
 
-      call init_communicate     ! initial setup for message passing
-      call prism_init  ! called in init_communicate
+      call read_namelist_parameters()
+
+      ! initial setup for message passing
+      call init_communicate()
+
+      call prism_init(trim(accessom2_config_dir))
       MPI_COMM_ICE = il_commlocal
 
       call init_fileunits       ! unit numbers
 
-      call input_data           ! namelist variables
+      ! Initialise libaccessom2
+      call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))
+
+      ! Tell libaccessom2 about any global configs/state
+      call accessom2%set_cpl_field_counts(num_atm_to_ice_fields=n_a2i, &
+                                          num_ice_to_ocean_fields=n_i2o, &
+                                          num_ocean_to_ice_fields=n_o2i)
+
+      ! Synchronise accessom2 configuration between all models and PEs
+      call accessom2%sync_config(il_commatm, -1, -1)
+
+      ! Use accessom2 configuration
+      call input_data(accessom2%get_forcing_start_date_array(), &
+                      accessom2%get_seconds_since_cur_exp_year(), &
+                      accessom2%get_total_runtime_in_seconds(), &
+                      accessom2%get_ice_ocean_timestep(), &
+                      accessom2%get_calendar_type())
+
       if (trim(runid) == 'bering') call check_finished_file
       call init_zbgc            ! vertical biogeochemistry namelist
 
@@ -127,7 +146,9 @@
       call init_grid2           ! grid variables
 
 #ifdef AusCOM
-      call init_cpl     ! initialize message passing
+     ! initialize message passing, pass in total runtime in seconds and field
+     ! coupling timesteps for oasis.
+      call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps())
 #endif
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
@@ -156,7 +177,7 @@
       if (runtype == 'initial') then
         nrec = month - 1            !month is from calendar
         if (nrec == 0) nrec = 12 
-        call get_time0_sstsss(trim(restart_dir)//'monthly_sstsss.nc', nrec)
+        call get_time0_sstsss(trim(input_dir)//'monthly_sstsss.nc', nrec)
 #if defined(DEBUG)
         write(il_out,*) 'CICE called  get_time0_sstsss. my_task = ',my_task
 #endif
@@ -167,7 +188,7 @@
       !20100111: get the surface friction velocity for gfdl surface flux calculation
       !          (roughness calculation requires last time step u_star...)
       if (gfdl_surface_flux) then
-         call get_u_star(trim(restart_dir)//'u_star.nc')
+         call get_u_star(trim(input_dir)//'u_star.nc')
       endif  
 
 #else

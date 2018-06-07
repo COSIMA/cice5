@@ -27,7 +27,8 @@
   use ice_gather_scatter
   use ice_constants
   use ice_boundary, only : ice_HaloUpdate
-  use ice_domain, only : distrb_info,ew_boundary_type,ns_boundary_type, halo_info
+  use ice_domain, only: distribution_type, distrb_info
+  use ice_domain, only: ew_boundary_type, ns_boundary_type, halo_info
 
   !cpl stuff
   use cpl_parameters
@@ -47,7 +48,7 @@
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
-            from_atm, into_ocn, from_ocn, il_commlocal
+            from_atm, into_ocn, from_ocn, il_commlocal, il_commatm
   public :: update_halos_from_ocn, update_halos_from_atm
   public :: write_boundary_checksums
 
@@ -75,10 +76,9 @@
   contains
 
 !======================================================================
-  subroutine prism_init
-!-----------------------!
+  subroutine prism_init(accessom2_config_dir)
 
-  include 'mpif.h'
+    character(len=*), intent(in) :: accessom2_config_dir
 
   logical :: mpiflag
 
@@ -102,11 +102,10 @@
     call MPI_INIT(ierror)
   endif
 
-  call MPI_Initialized (mpiflag, ierror)
+  call prism_init_comp_proto(il_comp_id, cp_modnam, &
+                             ierror, config_dir=accessom2_config_dir)
 
-  call prism_init_comp_proto (il_comp_id, cp_modnam, ierror)
-
-  if (ierror /= PRISM_Ok) then 
+  if (ierror /= PRISM_Ok) then
     call prism_abort_proto(il_comp_id, 'cice prism_init', 'STOP 1')
   endif
 
@@ -151,10 +150,13 @@
   end subroutine prism_init
 
 !=======================================================================
-  subroutine init_cpl
+  subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
   !use mpi
   include 'mpif.h'
+
+  integer, intent(in) :: runtime_seconds
+  integer, dimension(:), intent(in) :: coupling_field_timesteps
 !--------------------!
 
   integer(kind=int_kind) :: jf
@@ -171,78 +173,41 @@
 
   integer, dimension(2) :: starts,sizes,subsizes
   integer(kind=mpi_address_kind) :: start, extent
-  integer (int_kind),dimension(:), allocatable :: vilo, vjlo
   real(kind=dbl_kind) :: realvalue
   integer (int_kind) :: nprocs
 
 !-------------------------------------------------------------------------
 
   integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
-
- type (block) ::  this_block           ! block information for current block
+  integer(kind=int_kind) :: grid_task   ! Equivalent task ID on nonmasked grid
 
   ! Send ice grid details to atmosphere. This is used to regrid runoff.
   call send_grid_to_atm()
 
-!calculate partition using nprocsX and nprocsX
-  l_ilo=mod(my_task,nprocsX)*nx_global/nprocsX+1
-  l_ihi=l_ilo + nx_global/nprocsX -1
-  l_jlo=int(my_task/nprocsX) * ny_global/nprocsY+1
-  l_jhi=l_jlo+ny_global/nprocsY - 1
+  ! cartesian presets these, but roundrobin does not
+  ! TODO: Remove these from ice_distribute's create_distrb_cart
+  nprocsx = nx_global / block_size_x
+  nprocsy = ny_global / block_size_y
+
+  if (distribution_type == 'cartesian') then
+      grid_task = my_task
+  else if (distribution_type == 'roundrobin') then
+      grid_task = distrb_info%blockIndex(my_task + 1, 1) - 1
+  else
+      call abort_ice('ice: distribution_type not yet supported.')
+  end if
+
+  !calculate partition using nprocsX and nprocsX
+  l_ilo = mod(grid_task, nprocsX) * block_size_x + 1
+  l_ihi = l_ilo + block_size_x - 1
+  l_jlo = int(grid_task / nprocsX) * block_size_y + 1
+  l_jhi = l_jlo + block_size_y - 1
 
 #if defined(DEBUG) 
   write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
   write(il_out,*) '  2local partion, ilo, ihi, jlo, jhi=', l_ilo, l_ihi, l_jlo, l_jhi
   write(il_out,*) '  2partition x,y sizes:', l_ihi-l_ilo+1, l_jhi-l_jlo+1
 #endif
-
-!#ifdef _SLOW___
-  nprocs = il_nbtotproc
-  allocate(vilo(nprocs))
-  allocate(vjlo(nprocs))
-
-!  call mpi_type_vector(l_ihi-l_ilo+1, l_jhi-l_jlo+1, nx_global, mpi_real8, subgw_type, ierror)
-!  call mpi_type_commit(subgw_type, ierror)
-  call mpi_gather(l_ilo, 1, mpi_integer, vilo, 1, mpi_integer, 0, MPI_COMM_ICE, ierror)
-  call broadcast_array(vilo, 0)
-  call mpi_gather(l_jlo, 1, mpi_integer, vjlo, 1, mpi_integer, 0, MPI_COMM_ICE, ierror)
-  call broadcast_array(vjlo, 0)
-
-!create subarray of this rank
-    sizes(1)=l_ihi-l_ilo+1; sizes(2)=l_jhi-l_jlo+1
-    subsizes(1)=l_ihi-l_ilo+1; subsizes(2)=l_jhi-l_jlo+1
-    starts(1)=0; starts(2)=0
-
-    call mpi_type_create_subarray(2, sizes, subsizes, starts, mpi_order_fortran, &
-                                mpi_real8, sendsubarray, ierror)
-    call mpi_type_commit(sendsubarray,ierror)
-    if (my_task == 0) then ! create recv buffer in main cpu
-     sizes(1)=nx_global; sizes(2)=ny_global
-     subsizes(1)=l_ihi-l_ilo+1; subsizes(2)=l_jhi-l_jlo+1
-     starts(1)=0; starts(2)=0
-     call mpi_type_create_subarray(2, sizes, subsizes, starts, mpi_order_fortran, &
-                                   mpi_real8, recvsubarray, ierror)
-     call mpi_type_commit(recvsubarray, ierror)
-     extent = sizeof(realvalue)
-     start = 0
-     call mpi_type_create_resized(recvsubarray, start, extent, resizedrecvsubarray, ierror)
-     call mpi_type_commit(resizedrecvsubarray,ierror)
-    end if
-
-    allocate(counts(nprocs),disps(nprocs))
-    forall (jf=1:nprocs) counts(jf) = 1
-    do jf=1, nprocs
-      disps(jf) = ((vjlo(jf)-1)*nx_global + (vilo(jf)-1))
-      !disps(n) = ((vilo(n)-1)*ny_global + (vjlo(n)-1))
-    end do
-
-#if defined(DEBUG) 
-    write(il_out,*) ' vilo ', vilo
-    write(il_out,*) ' vjlo ', vjlo
-    write(il_out,*) ' counts ', counts
-    write(il_out,*) ' disps ', disps
-#endif
-!#endif
 
     !
     ! The following steps need to be done:
@@ -332,7 +297,8 @@
     !
     ! 7- PSMILe end of declaration phase 
     !
-    call prism_enddef_proto (ierror)
+    call prism_enddef_proto (ierror, runtime=runtime_seconds, &
+                             coupling_field_timesteps=coupling_field_timesteps)
 
   !
   ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:! 
@@ -846,7 +812,8 @@ end subroutine update_halos_from_atm
           write(ld_mparout,*)'il_paral: ',il_paral
 #endif
 
-          call prism_def_partition_proto (id_part_id, il_paral, ierror)
+          call prism_def_partition_proto (id_part_id, il_paral, ierror, &
+                                          nx_global * ny_global)
           deallocate(il_paral)
           !
       else if (cdec == 'ORANGE') then

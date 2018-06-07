@@ -53,10 +53,11 @@ setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
 
 if ( $AusCOM == 'yes' ) then
-    setenv CPLLIBDIR $OASIS_ROOT/Linux/lib
-    setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.MPI1 -lmct -lmpeu -lscrip'
-    setenv CPLINCDIR $OASIS_ROOT/Linux/build/lib
-    setenv CPL_INCS '-I$(CPLINCDIR)/psmile.MPI1 -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
+    setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
+    setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
+    setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
+    setenv OASISDIR $CPLINCDIR/oasis3-mct-prefix/src/oasis3-mct/Linux/build/lib/
+    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct'
 endif
 
 ### Location and name of the generated exectuable

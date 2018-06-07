@@ -28,6 +28,7 @@
       use cpl_interface
       use cpl_forcing_handler
       use cpl_interface, only : write_boundary_checksums
+      use accessom2_mod, only : accessom2_type => accessom2
 #endif
 
       implicit none
@@ -47,11 +48,12 @@
 !         Philip W. Jones, LANL
 !         William H. Lipscomb, LANL
 
-      subroutine CICE_Run
+      subroutine CICE_Run(accessom2)
 
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
       use ice_calendar, only: istep, istep1, time, dt, npt, stop_now, calendar
+      use ice_communicate, only : my_task, master_task
 #ifdef AusCOM
 !ars599: 27032014 add in
       use ice_calendar, only: month, mday
@@ -63,12 +65,14 @@
       use ice_timers, only: ice_timer_start, ice_timer_stop, &
           timer_couple, timer_step
       use ice_zbgc_shared, only: skl_bgc
-      use ice_restart_shared, only: restart_dir
+      use ice_restart_shared, only: restart_dir, input_dir
 
 #ifdef AusCOM 
 !ars599: 27032014 add in
       use ice_timers, only: timer_into_ocn
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
+
+      type(accessom2_type), intent(inout) :: accessom2
 
 
       integer (kind=int_kind) :: time_sec, itap, icpl_ai, icpl_io
@@ -103,10 +107,10 @@
       !    last run from ocn and ice model;
       ! initial run needs the pre-processed o2i and i2o fields.
 
-      call get_time0_o2i_fields(trim(restart_dir)//'o2i.nc')
+      call get_time0_o2i_fields(trim(input_dir)//'o2i.nc')
 
-      call get_time0_i2o_fields(trim(restart_dir)//'i2o.nc')
-      call get_sicemass(trim(restart_dir)//'sicemass.nc')
+      call get_time0_i2o_fields(trim(input_dir)//'i2o.nc')
+      call get_sicemass(trim(input_dir)//'sicemass.nc')
 
       if (use_core_nyf_runoff) then
          stop "Don't do this"
@@ -148,7 +152,7 @@
            !call gather_global(gwork, u_star0, master_task, distrb_info)
            !if (my_task == master_task) write(54,'(10e12.4)')gwork
            !
-           call check_roughness(trim(restart_dir)//'fields_roughness.nc',stimestamp_io)
+           call check_roughness(trim(input_dir)//'fields_roughness.nc',stimestamp_io)
         endif
         ! ----------------------------------- 
 
@@ -185,6 +189,9 @@
           time = time + dt       ! determine the time and date
 
           time_sec = time_sec + dt
+          if (my_task == master_task) then
+            call accessom2%progress_date(int(dt))
+          endif
  
           call calendar(time)
 

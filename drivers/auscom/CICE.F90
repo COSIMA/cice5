@@ -41,26 +41,29 @@
       use CICE_InitMod
       use CICE_RunMod
       use CICE_FinalMod
+      use accessom2_mod, only : accessom2_type => accessom2
 
       implicit none
+      
+      type(accessom2_type) :: accessom2
 
       !-----------------------------------------------------------------
       ! Initialize CICE
       !-----------------------------------------------------------------
 
-      call CICE_Initialize
+      call CICE_Initialize(accessom2)
 
       !-----------------------------------------------------------------
       ! Run CICE
       !-----------------------------------------------------------------
 
-      call CICE_Run
+      call CICE_Run(accessom2)
 
       !-----------------------------------------------------------------
       ! Finalize CICE 
       !-----------------------------------------------------------------
 
-      call CICE_Finalize
+      call CICE_Finalize(accessom2)
 
       end program icemodel
 

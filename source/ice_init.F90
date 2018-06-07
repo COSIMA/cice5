@@ -36,7 +36,8 @@
 !
 ! author Elizabeth C. Hunke, LANL
 
-      subroutine input_data
+      subroutine input_data(forcing_start_date, seconds_since_start_year, &
+                            total_runtime_in_seconds, timestep, calendar_type)
 
       use ice_age, only: restart_age
       use ice_broadcast, only: broadcast_scalar, broadcast_array
@@ -53,8 +54,8 @@
                               npt, dt, ndtd, days_per_year, use_leap_years, &
                               write_ic, dump_last
       use ice_restart_shared, only: &
-          restart, restart_ext, restart_dir, restart_file, pointer_file, &
-          runid, runtype, use_restart_time, restart_format, lcdf64
+           restart, restart_ext, input_dir, input_dir, restart_dir, restart_file, &
+           pointer_file, runid, runtype, use_restart_time, restart_format, lcdf64
       use ice_history_shared, only: hist_avg, history_dir, history_file, &
                              incond_dir, incond_file
       use ice_exit, only: abort_ice
@@ -105,6 +106,10 @@
 #ifdef CCSMCOUPLED
       use shr_file_mod, only: shr_file_setIO
 #endif
+      integer, dimension(6), optional, intent(in) :: forcing_start_date
+      integer, optional, intent(in) :: seconds_since_start_year
+      integer, optional, intent(in) :: total_runtime_in_seconds, timestep
+      character(len=9), optional, intent(in) :: calendar_type
 
       ! local variables
 
@@ -126,7 +131,7 @@
       namelist /setup_nml/ &
         days_per_year,  use_leap_years, year_init,       istep0,        &
         dt,             npt,            ndtd,                           &
-        runtype,        runid,          bfbflag,                        &
+        runtype,        runid,          bfbflag,         input_dir,     &
         ice_ic,         restart,        restart_dir,     restart_file,  &
         restart_ext,    use_restart_time, restart_format, lcdf64,       &
         pointer_file,   dumpfreq,       dumpfreq_n,      dump_last,     &
@@ -230,7 +235,9 @@
       dumpfreq_n = 1         ! restart frequency
       dump_last = .false.    ! write restart on last time step
       restart = .false.      ! if true, read restart files for initialization
-      restart_dir  = './'     ! write to executable dir for default
+      restart_dir  = './'    ! write to executable dir for default
+      input_dir  = char(0)   ! set to null char, test later and set to same as
+                             ! restart_dir for backwards compatibility
       restart_file = 'iced'  ! restart file name prefix
       restart_ext  = .false. ! if true, read/write ghost cells
       use_restart_time = .true.     ! if true, use time info written in file
@@ -392,7 +399,13 @@
          do while (nml_error > 0)
             print*,'Reading setup_nml'
                read(nu_nml, nml=setup_nml,iostat=nml_error)
-               if (nml_error /= 0) exit
+               if (nml_error /= 0) then
+                  exit
+               else
+                  ! Make input_dir same as restart_dir for backwards
+                  ! compatibility
+                  if (input_dir == char(0)) input_dir = restart_dir
+               end if
             print*,'Reading grid_nml'
                read(nu_nml, nml=grid_nml,iostat=nml_error)
                if (nml_error /= 0) exit
@@ -416,6 +429,27 @@
                if (nml_error /= 0) exit
          end do
          if (nml_error == 0) close(nu_nml)
+
+         ! Overwrite some run details passed in as arguments
+         if (present(forcing_start_date)) then
+            year_init = forcing_start_date(1)
+         endif
+         if (present(timestep)) then 
+            dt = timestep
+         endif
+         if (present(seconds_since_start_year)) then
+            istep0 = seconds_since_start_year / dt
+         endif
+         if (present(total_runtime_in_seconds)) then 
+            npt = total_runtime_in_seconds / dt
+         endif
+         if (present(calendar_type)) then
+           if (index(calendar_type, 'noleap') /= 0) then
+              use_leap_years = .false.
+           else
+              use_leap_years = .true.
+           endif
+         endif
       endif
       call broadcast_scalar(nml_error, master_task)
       if (nml_error /= 0) then
@@ -718,6 +752,7 @@
       call broadcast_scalar(dump_last,          master_task)
       call broadcast_scalar(restart_file,       master_task)
       call broadcast_scalar(restart,            master_task)
+      call broadcast_scalar(input_dir,          master_task)
       call broadcast_scalar(restart_dir,        master_task)
       call broadcast_scalar(restart_ext,        master_task)
       call broadcast_scalar(use_restart_time,   master_task)
@@ -886,6 +921,8 @@
          write(nu_diag,1020) ' dumpfreq_n                = ', dumpfreq_n
          write(nu_diag,1010) ' dump_last                 = ', dump_last
          write(nu_diag,1010) ' restart                   = ', restart
+         write(nu_diag,*)    ' input_dir                 = ', &
+                               trim(input_dir)
          write(nu_diag,*)    ' restart_dir               = ', &
                                trim(restart_dir)
          write(nu_diag,*)    ' restart_ext               = ', restart_ext
