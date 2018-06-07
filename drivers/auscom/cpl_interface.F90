@@ -297,6 +297,7 @@
     !
     ! 7- PSMILe end of declaration phase 
     !
+    print*, 'ice: coupling_field_timesteps: ', coupling_field_timesteps
     call prism_enddef_proto (ierror, runtime=runtime_seconds, &
                              coupling_field_timesteps=coupling_field_timesteps)
 

@@ -153,7 +153,8 @@
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
 
-      call get_cpl_timecontrol
+      call get_cpl_timecontrol(accessom2%get_atm_ice_timestep(), &
+                               accessom2%get_ice_ocean_timestep())
 
       if (kdyn == 2) then
          call init_eap (dt_dyn) ! define eap dynamics parameters, variables

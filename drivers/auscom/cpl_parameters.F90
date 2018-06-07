@@ -23,8 +23,8 @@ character(len=8), dimension(jpfldin)  :: cl_read ! Symb names fields rcvd
 !
  
         integer(kind=int_kind) :: num_cpl_ai    ! num of (a2i) cpl periods for this run
-        integer(kind=int_kind) :: num_cpl_io    ! num of (i2o) cpl periods each dt_cpl_ai
-        integer(kind=int_kind) :: num_ice_io    ! ice time loop iteration number per dt_cpl_io
+        integer(kind=int_kind) :: num_cpl_io    ! num of (i2o) cpl periods each atm_ice_timestep
+        integer(kind=int_kind) :: num_ice_io    ! ice time loop iteration number per ice_ocean_timestep
 
     real(kind=dbl_kind) :: meltlimit = 50.  !12/03/2008: set max melt
     real(kind=dbl_kind) :: ocn_albedo = 0.06
@@ -48,16 +48,11 @@ logical :: &                         !pop_icediag is as that for ocn model, if t
    chk_gfdl_roughness = .false., &      !.t. output u_star & roughness once a cpl interval (jan2010)
    debug_output = .false.
 
-        integer(kind=int_kind) :: dt_cpl_ai = 21600    !atm<==>ice coupling interval (seconds) 
-        integer(kind=int_kind) :: dt_cpl_io = 3600    !ice<==>ocn coupling interval (seconds)
-
     real(kind=dbl_kind) :: precip_factor = 1.0   !test the precip (temporary use)
 
     character(len=1024) :: accessom2_config_dir = '../'
 
 namelist/coupling_nml/       &
-         dt_cpl_ai,      &
-         dt_cpl_io,      &
          pop_icediag,    &
          use_ocnslope,   &
          use_umask,      &
@@ -126,17 +121,20 @@ endif
 
 endsubroutine read_namelist_parameters
 
-subroutine get_cpl_timecontrol
+subroutine get_cpl_timecontrol(atm_ice_timestep, ice_ocean_timestep)
 
-use ice_calendar, only : dt, npt
+    use ice_calendar, only : dt, npt
 
-! * make sure runtime is mutliple of dt_cpl_ai, dt_cpl_ai is mutliple of dt_cpl_io, 
-! * and dt_cpl_io is mutliple of dt_cice!
-num_cpl_ai = (npt*dt)/dt_cpl_ai
-num_cpl_io = dt_cpl_ai/dt_cpl_io
-num_ice_io = dt_cpl_io/dt
+    integer, intent(in) :: atm_ice_timestep, ice_ocean_timestep
 
-coef_ic = real(dt)/real(dt_cpl_io)
+    ! make sure runtime is mutliple of atm_ice_timestep, atm_ice_timestep
+    ! is mutliple of ice_ocean_timestep, and ice_ocean_timestep
+    ! is mutliple of dt_cice!
+    num_cpl_ai = (npt*dt)/atm_ice_timestep
+    num_cpl_io = atm_ice_timestep/ice_ocean_timestep
+    num_ice_io = ice_ocean_timestep/dt
+
+    coef_ic = real(dt)/real(ice_ocean_timestep)
 
 end subroutine get_cpl_timecontrol
 
