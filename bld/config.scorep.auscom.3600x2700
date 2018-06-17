@@ -1,0 +1,29 @@
+
+# Recommendations:
+#   use processor_shape = slenderX1 or slenderX2 in ice_in
+#   one per processor with distribution_type='cartesian' or
+#   squarish blocks with distribution_type='rake'
+# If BLCKX (BLCKY) does not divide NXGLOB (NYGLOB) evenly, padding
+# will be used on the right (top) of the grid.
+
+setenv NTASK 1200
+setenv RES 3600x2700
+
+set NXGLOB = `echo $RES | sed s/x.\*//`
+set NYGLOB = `echo $RES | sed s/.\*x//`
+
+setenv BLCKX `expr $NXGLOB / 40`       # x-dimension of blocks ( not including )
+setenv BLCKY `expr $NYGLOB / 30`         # y-dimension of blocks (  ghost cells  )
+
+source /etc/profile.d/nf_csh_modules
+module purge
+module load intel-fc/17.0.1.132
+module load intel-cc/17.0.1.132
+module load netcdf/4.2.1.1
+module load openmpi/1.10.2
+module load scorep/3.1
+
+# correct papi module
+module unload papi
+module use /short/z35/dsr900/tools/Modules
+module load papi/5.1.1-patched

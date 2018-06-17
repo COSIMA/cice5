@@ -20,7 +20,8 @@
       use cpl_parameters
       use cpl_parameters, only : read_namelist_parameters, accessom2_config_dir
       use cpl_forcing_handler, only : get_time0_sstsss, get_u_star
-      use cpl_interface , only : prism_init, init_cpl, il_commlocal, il_commatm
+      use cpl_interface , only : prism_init, init_cpl, il_commlocal
+      use cpl_interface, only: coupler
       use cpl_arrays_setup, only : gwork, u_star0
       use ice_gather_scatter
 
@@ -126,7 +127,7 @@
                                           num_ocean_to_ice_fields=n_o2i)
 
       ! Synchronise accessom2 configuration between all models and PEs
-      call accessom2%sync_config(il_commatm, -1, -1)
+      call accessom2%sync_config(coupler)
 
       ! Use accessom2 configuration
       call input_data(accessom2%get_cur_exp_date_array(), &
