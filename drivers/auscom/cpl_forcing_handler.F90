@@ -387,7 +387,9 @@ do jf = n_i2a + 1, jpfldout   !2:13
  
 enddo
 
-if (my_task == 0) call ncheck( nf_close(ncid) )
+if (my_task == 0) then
+    call ncheck(nf_close(ncid), 'save_time0_i2o_fields: nf_close')
+endif
 
 return
 end subroutine save_time0_i2o_fields
@@ -415,7 +417,7 @@ call gather_global(gwork, vwork, master_task, distrb_info)
 
 if (my_task == 0) then
   call write_nc2D(ncid, 'u_star', gwork, 2, nx_global, ny_global, 1, ilout=il_out)
-  call ncheck( nf_close(ncid) )
+  call ncheck(nf_close(ncid), 'save_u_star: nf_close')
 endif
 
 return
@@ -443,7 +445,7 @@ call gather_global(gwork, vwork, master_task, distrb_info)
 
 if (my_task == 0) then
   call write_nc2D(ncid, 'sicemass', gwork, 2, nx_global, ny_global, 1, ilout=il_out)
-  call ncheck( nf_close(ncid) )
+  call ncheck(nf_close(ncid), 'save_sicemass: nf_close')
 endif
 
 return
@@ -1028,7 +1030,7 @@ if (my_task == 0) then
 #if defined(DEBUG)
   write(il_out,*) 'opening file ',trim(ncfile), ' at nstep = ', nstep
 #endif
-  call ncheck( nf_open(trim(ncfile),nf_write,ncid) )
+  call ncheck(nf_open(trim(ncfile),nf_write,ncid), 'check_roughness: nf_open')
   call write_nc_1Dtime(real(nstep),currstep,'time',ncid)
 end if
 
@@ -1045,7 +1047,7 @@ call gather_global(gwork, rough_moist0,   master_task, distrb_info)
 !if (my_task == 0) write(64,'(10e12.4)') gwork
 if (my_task == 0) call write_nc2D(ncid, 'rough_moist', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
-if (my_task == 0) call ncheck(nf_close(ncid))
+if (my_task == 0) call ncheck(nf_close(ncid), 'check_roughness: nf_close')
 
 return
 end subroutine check_roughness
@@ -1071,7 +1073,7 @@ if (my_task == 0) then
 #if defined(DEBUG)
   write(il_out,*) 'opening file ',trim(ncfile),' at nstep = ', nstep
 #endif
-  call ncheck( nf_open(trim(ncfile),nf_write,ncid) )
+  call ncheck(nf_open(trim(ncfile),nf_write,ncid), 'check_a2i_fields: nf_open' )
   call write_nc_1Dtime(real(nstep),currstep,'time',ncid)
 end if
 
@@ -1096,7 +1098,7 @@ if (my_task == 0) call write_nc2D(ncid, 'runof0', gwork, 2, nx_global,ny_global,
 call gather_global(gwork, press0, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'press0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
-if (my_task == 0) call ncheck(nf_close(ncid))
+if (my_task == 0) call ncheck(nf_close(ncid), 'check_a2i_fields: nf_close')
 
 return
 end subroutine check_a2i_fields
@@ -1123,7 +1125,8 @@ if (my_task == 0) then
 #if defined(DEBUG)
   write(il_out,*) 'opening file ', trim(ncfile), ' at nstep = ', nstep
 #endif
-  call ncheck( nf_open('fields_i2o_in_ice.nc',nf_write,ncid) )
+  call ncheck(nf_open('fields_i2o_in_ice.nc',nf_write,ncid), &
+              'check_i2o_fields: nf_open')
   call write_nc_1Dtime(real(nstep),currstep,'time',ncid)
 end if
 
@@ -1159,7 +1162,7 @@ if (my_task == 0) call write_nc2D(ncid, 'iomelt',  gwork, 2, nx_global,ny_global
 call gather_global(gwork, scale*ioform,  master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'ioform',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
-if (my_task == 0) call ncheck(nf_close(ncid))
+if (my_task == 0) call ncheck(nf_close(ncid), 'check_i2o_fields: nf_close')
 
 return
 end subroutine check_i2o_fields
@@ -1185,7 +1188,7 @@ if (my_task == 0) then
 #if defined(DEBUG)
   write(il_out,*) 'opening file ',trim(ncfile),' at nstep = ', nstep
 #endif
-  call ncheck( nf_open(trim(ncfile),nf_write,ncid) )
+  call ncheck(nf_open(trim(ncfile),nf_write,ncid), 'check_o2i_fields: nf_open')
   call write_nc_1Dtime(real(nstep),currstep,'time',ncid)
 end if
 
@@ -1204,7 +1207,7 @@ if (my_task == 0) call write_nc2D(ncid, 'ssly', gwork, 2, nx_global,ny_global,cu
 call gather_global(gwork, pfmice, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'pfmice', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
-if (my_task == 0) call ncheck(nf_close(ncid))
+if (my_task == 0) call ncheck(nf_close(ncid), 'check_o2i_fields: nf_close')
 
 return
 end subroutine check_o2i_fields
@@ -1232,7 +1235,7 @@ if (my_task == 0) then
 #if defined(DEBUG)
   write(il_out,*) 'opening ncfile at nstep ', ncfilenm,  currstep
 #endif
-  call ncheck( nf_open(ncfilenm, nf_write,ncid) )
+  call ncheck(nf_open(ncfilenm, nf_write,ncid), 'check_frzmlt_sst: nf_open')
   call write_nc_1Dtime(real(currstep),currstep,'time',ncid)
 end if
 
@@ -1241,7 +1244,7 @@ if (my_task == 0) call write_nc2D(ncid, 'sst', gwork, 2, nx_global,ny_global,cur
 call gather_global(gwork, frzmlt, master_task, distrb_info) 
 if (my_task == 0) call write_nc2D(ncid, 'frzmlt', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
-if (my_task == 0) call ncheck(nf_close(ncid))
+if (my_task == 0) call ncheck(nf_close(ncid), 'check_frzmlt_sst: nf_close')
 
 return
 end subroutine check_frzmlt_sst
