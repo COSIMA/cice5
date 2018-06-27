@@ -157,6 +157,8 @@
      ! coupling timesteps for oasis.
       call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps(), &
                     logger)
+      call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps())
+#endif
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
 

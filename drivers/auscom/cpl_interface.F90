@@ -40,8 +40,6 @@
   use coupler_mod, only: coupler_type => coupler
   use logger_mod, only : logger_type => logger, LOG_ERROR
 
-  use logger_mod, only : logger_type => logger, LOG_ERROR
-
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
