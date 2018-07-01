@@ -1,0 +1,81 @@
+#==============================================================================
+# Makefile macros for xe.nci.org.au, an SGI ALTIX system running Linux
+# Note:  Use the -mp flag if precision is critical.   It slows down the 
+#        code by 25% (or more).
+#==============================================================================
+
+INCLDIR    := -I.
+SLIBS      :=
+ULIBS      :=
+CPP        := cpp
+FC         := scorep mpif90
+
+CPPFLAGS   := -P -traditional
+CPPDEFS    := -DLINUX -DPAROPT
+CFLAGS     := -c -O2
+FIXEDFLAGS := -132
+FREEFLAGS  :=
+
+ifeq ($(DEBUG), 1)
+    FFLAGS     := -r8 -i4 -O0 -traceback -g -debug all -check all -no-vec -align all -w -fpe0 -ftz -convert big_endian -assume byterecl -assume nobuffered_io -check noarg_temp_created
+    CPPDEFS    := $(CPPDEFS) -DDEBUG=$(DEBUG)
+else
+    FFLAGS     := -r8 -i4 -O2 -traceback -g -align all -xHost -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
+endif
+
+MOD_SUFFIX := mod
+LD         := $(FC)
+LDFLAGS    := $(FFLAGS) -v
+
+CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) \
+            -DNUMIN=$(NUMIN) -DNUMAX=$(NUMAX) \
+            -DTRAGE=$(TRAGE) -DTRFY=$(TRFY) -DTRLVL=$(TRLVL) \
+            -DTRPND=$(TRPND) -DNTRAERO=$(NTRAERO) -DTRBRI=$(TRBRI) \
+            -DNBGCLYR=$(NBGCLYR) -DTRBGCS=$(TRBGCS) \
+            -DNICECAT=$(NICECAT) -DNICELYR=$(NICELYR) \
+            -DNSNWLYR=$(NSNWLYR) \
+            -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS)
+
+ifeq ($(COMMDIR), mpi)
+   SLIBS   :=  $(SLIBS) -lmpi
+endif
+
+ifeq ($(DITTO), yes)
+   CPPDEFS :=  $(CPPDEFS) -DREPRODUCIBLE
+endif
+
+ifeq ($(IO_TYPE), netcdf)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf
+   INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
+   SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
+endif
+
+ifeq ($(USE_ESMF), yes)
+   CPPDEFS :=  $(CPPDEFS) -Duse_esmf
+   INCLDIR :=  $(INCLDIR) -I ???
+   SLIBS   :=  $(SLIBS) -L ??? -lesmf -lcprts -lrt -ldl
+endif
+
+ifeq ($(AusCOM), yes)
+   CPPDEFS := $(CPPDEFS) -DAusCOM -Dcoupled
+   INCLDIR := $(INCLDIR) $(CPL_INCS) $(LIBAUSCOM_INCS)
+   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -laccessom2
+endif
+
+ifeq ($(UNIT_TESTING), yes)
+   CPPDEFS := $(CPPDEFS) -DUNIT_TESTING
+endif
+ifeq ($(ACCESS), yes)
+   CPPDEFS := $(CPPDEFS) -DACCESS
+endif
+# standalone CICE with AusCOM mods
+ifeq ($(ACCICE), yes)
+   CPPDEFS := $(CPPDEFS) -DACCICE
+endif
+# no MOM just CICE+UM
+ifeq ($(NOMOM), yes)
+   CPPDEFS := $(CPPDEFS) -DNOMOM
+endif
+ifeq ($(OASIS3_MCT), yes)
+   CPPDEFS := $(CPPDEFS) -DOASIS3_MCT
+endif

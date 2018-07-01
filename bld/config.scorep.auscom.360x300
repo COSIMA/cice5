@@ -1,0 +1,21 @@
+
+setenv NTASK 24
+setenv RES 360x300
+set NXGLOB = `echo $RES | sed s/x.\*//`
+set NYGLOB = `echo $RES | sed s/.\*x//`
+
+setenv BLCKX `expr $NXGLOB / 24`       # x-dimension of blocks ( not including )
+setenv BLCKY `expr $NYGLOB / 1`        # y-dimension of blocks (  ghost cells  )
+
+source /etc/profile.d/nf_csh_modules
+module purge
+module load intel-fc/17.0.1.132
+module load intel-cc/17.0.1.132
+module load netcdf/4.2.1.1
+module load openmpi/1.10.2
+module load scorep/3.1
+
+# correct papi module
+module unload papi
+module use /short/z35/dsr900/tools/Modules
+module load papi/5.1.1-patched

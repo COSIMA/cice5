@@ -45,12 +45,15 @@
   !mpi stuff
   use ice_broadcast, only :  broadcast_array
 
+  use coupler_mod, only: coupler_type => coupler
+
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
-            from_atm, into_ocn, from_ocn, il_commlocal, il_commatm
+            from_atm, into_ocn, from_ocn, il_commlocal
   public :: update_halos_from_ocn, update_halos_from_atm
   public :: write_boundary_checksums
+  public :: coupler
 
   private
 
@@ -66,12 +69,12 @@
   integer(kind=int_kind) :: il_nbcplproc   ! Number of processes involved in the coupling
   integer(kind=int_kind) :: l_ilo, l_ihi, l_jlo, l_jhi !local partition
 
-  integer(kind=int_kind) :: il_commatm, my_commatm_task
-
   integer :: sendsubarray, recvsubarray , resizedrecvsubarray
   integer, dimension(:), allocatable :: counts, disps
 
   real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d
+
+  type(coupler_type) :: coupler
 
   contains
 
@@ -85,6 +88,9 @@
   character(len=12) :: chiceout
   character(len=6) :: chout
 
+  ! NOTE: This function can probably be replaced by coupler%init_begin, but
+  !       let's move slowly for now.
+
   !-----------------------------------
   ! 'define' the model global domain: 
   !-----------------------------------
@@ -94,38 +100,16 @@
   ! Initialize PSMILe.
   !-------------------
 
-  ! Initialise MPI
-  mpiflag = .FALSE.
-  call MPI_Initialized (mpiflag, ierror)
+  call coupler%init_begin('cicexx', config_dir=accessom2_config_dir)
 
-  if ( .not. mpiflag ) then
-    call MPI_INIT(ierror)
-  endif
+  il_commlocal = coupler%localcomm
 
-  call prism_init_comp_proto(il_comp_id, cp_modnam, &
-                             ierror, config_dir=accessom2_config_dir)
-
-  if (ierror /= PRISM_Ok) then
-    call prism_abort_proto(il_comp_id, 'cice prism_init', 'STOP 1')
-  endif
-
-  !
-  ! PSMILe attribution of local communicator.
-  ! 
-  !   Either MPI_COMM_WORLD if MPI2 is used,
-  !   or a local communicator created by Oasis if MPI1 is used.
-  !
-  call prism_get_localcomm_proto(il_commlocal, ierror)
-  !
-  if (ierror /= PRISM_Ok) then
-    call prism_abort_proto(il_comp_id, 'cice prism_init', 'STOP 2')
-  endif
   !
   ! Inquire if model is parallel or not and open the process log file
   !
 
   call MPI_Comm_Size(il_commlocal, il_nbtotproc, ierror)
-  call MPI_Comm_Rank(il_commlocal, my_task, ierror)
+  my_task = coupler%my_local_pe
 
   il_nbcplproc = il_nbtotproc   !multi-process coupling
 
@@ -143,9 +127,6 @@
   write(il_out,*) 'Grid decomposition: nx_block,ny_block,max_blocks= ',&
                    nx_block,ny_block,max_blocks
 #endif
-
-  call prism_get_intercomm(il_commatm, 'matmxx', ierror)
-  call mpi_comm_rank(il_commatm, my_commatm_task, ierror)
 
   end subroutine prism_init
 
@@ -408,20 +389,21 @@ subroutine send_grid_to_atm()
     tag = 0
     buf_int(1) = nx_global
     buf_int(2) = ny_global
-    call MPI_send(buf_int, 2, MPI_INTEGER, 0, tag, il_commatm, ierror)
+    call MPI_send(buf_int, 2, MPI_INTEGER, coupler%atm_root, tag, &
+                  coupler%atm_intercomm, ierror)
 
     allocate(buf_real(nx_global*ny_global))
     buf_real(:) = reshape(tlat_global(:, :), (/ size(tlat_global) /))
-    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  il_commatm, ierror)
+    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
+                  coupler%atm_root, tag, coupler%atm_intercomm, ierror)
 
     buf_real(:) = reshape(tlon_global(:, :), (/ size(tlon_global) /))
-    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  il_commatm, ierror)
+    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
+                  coupler%atm_root, tag, coupler%atm_intercomm, ierror)
 
     buf_real(:) = reshape(mask_global(:, :), (/ size(mask_global) /))
-    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, 0, tag, &
-                  il_commatm, ierror)
+    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
+                  coupler%atm_root, tag, coupler%atm_intercomm, ierror)
 
     deallocate(buf_real)
     deallocate(tlat_global)
@@ -482,10 +464,11 @@ subroutine from_atm(isteps)
   endif
 
   ! Allow atm to progress. It is waiting on a receive.
-  if (my_commatm_task == 0) then
+  if (my_task == 0) then
     request = MPI_REQUEST_NULL
     tag = 0
-    call MPI_Isend(buf, 1, MPI_INTEGER, 0, tag, il_commatm, request, ierror)
+    call MPI_Isend(buf, 1, MPI_INTEGER, coupler%atm_root, tag, &
+                   coupler%atm_intercomm, request, ierror)
   endif
 
   call ice_timer_stop(timer_from_atm)
