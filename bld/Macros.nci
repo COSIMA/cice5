@@ -8,7 +8,7 @@ INCLDIR    := -I.
 SLIBS      :=
 ULIBS      :=
 CPP        := cpp
-FC         := mpif90
+FC         := mpifort
 
 CPPFLAGS   := -P -traditional
 CPPDEFS    := -DLINUX -DPAROPT
