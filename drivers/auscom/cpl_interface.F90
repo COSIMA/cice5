@@ -100,7 +100,7 @@
   ! Initialize PSMILe.
   !-------------------
 
-  call coupler%init_begin('cicexx', config_dir=accessom2_config_dir)
+  call coupler%init_begin('cicexx', config_dir=trim(accessom2_config_dir))
 
   il_commlocal = coupler%localcomm
 
@@ -386,7 +386,7 @@ subroutine send_grid_to_atm()
     call ice_close_nc(fid)
 
     ! Send my details to the atm.
-    tag = 0
+    tag = 4982
     buf_int(1) = nx_global
     buf_int(2) = ny_global
     call MPI_send(buf_int, 2, MPI_INTEGER, coupler%atm_root, tag, &
@@ -464,9 +464,9 @@ subroutine from_atm(isteps)
   endif
 
   ! Allow atm to progress. It is waiting on a receive.
-  if (my_task == 0) then
+  if (my_task == master_task) then
     request = MPI_REQUEST_NULL
-    tag = 0
+    tag = 5793
     call MPI_Isend(buf, 1, MPI_INTEGER, coupler%atm_root, tag, &
                    coupler%atm_intercomm, request, ierror)
   endif

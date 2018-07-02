@@ -1,7 +1,7 @@
 platform ?= nci
 
 1deg:
-	bld/build.sh $(platform) auscom 360x300
+	bld/build.sh $(platform) auscom 360x300 debug
 025deg:
 	bld/build.sh $(platform) auscom 1440x1080
 01deg:
