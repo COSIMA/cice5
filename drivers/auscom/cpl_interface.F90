@@ -704,7 +704,6 @@ end subroutine update_halos_from_atm
 #if defined(DEBUG)
   close(il_out)
 #endif
-  call MPI_Finalize (ierror)
 
   end subroutine coupler_termination
 

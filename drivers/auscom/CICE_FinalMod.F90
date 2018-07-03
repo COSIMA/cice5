@@ -79,7 +79,7 @@
    date_array(4) = int(sec / 3600)
    date_array(5) = int(mod(sec, 3600) / 60)
    date_array(6) = mod(sec, 60)
-   call accessom2%deinit(cur_date_array=date_array)
+   call accessom2%deinit(cur_date_array=date_array, finalize=.true.)
 
 #ifndef coupled
       call end_run       ! quit MPI
