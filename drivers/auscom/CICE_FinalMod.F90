@@ -66,24 +66,21 @@
    ! quit MPI
    !-------------------------------------------------------------------
 
-#ifdef AusCOM
-      call coupler_termination  !quit MPI and release memory 
-#else
+    call coupler_termination  !quit MPI and release memory
 
-   ! Allow libaccessom2 to check that datetime of all models is synchronised at
-   ! the end of the run.
-   call calendar(time-dt)
-   date_array(1) = nyr + year_init - 1
-   date_array(2) = month
-   date_array(3) = mday
-   date_array(4) = int(sec / 3600)
-   date_array(5) = int(mod(sec, 3600) / 60)
-   date_array(6) = mod(sec, 60)
-   call accessom2%deinit(cur_date_array=date_array, finalize=.true.)
+    ! Allow libaccessom2 to check that datetime of all models is synchronised at
+    ! the end of the run.
+    call calendar(time-dt)
+    date_array(1) = nyr + year_init - 1
+    date_array(2) = month
+    date_array(3) = mday
+    date_array(4) = int(sec / 3600)
+    date_array(5) = int(mod(sec, 3600) / 60)
+    date_array(6) = mod(sec, 60)
+    call accessom2%deinit(cur_date_array=date_array, finalize=.true.)
 
 #ifndef coupled
       call end_run       ! quit MPI
-#endif
 #endif
 
       end subroutine CICE_Finalize
