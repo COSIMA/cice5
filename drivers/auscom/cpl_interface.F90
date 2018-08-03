@@ -1,8 +1,3 @@
-
-#if (MXBLCKS != 1)
-#error The code assumes that max_blocks == 1
-#endif
-
 !============================================================================
   module cpl_interface
 !============================================================================
@@ -134,10 +129,11 @@
 
   end subroutine prism_init
 
-subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
+subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
 
     integer, intent(in) :: runtime_seconds
     integer, dimension(:), intent(in) :: coupling_field_timesteps
+    type(logger_type), intent(in) :: logger
 
     integer(kind=int_kind) :: jf
 
@@ -164,9 +160,11 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     ! Define oasis partition and variables using orange partition. This is
     ! fairly general so other partition types should not be needed.
     allocate(part_def(2 + 2*block_size_y*nblocks))
+    part_def(:) = 0
     part_def(1) = 3
     part_def(2) = block_size_y*nblocks
     part_idx = 3
+
     do iblk=1, nblocks
         this_block = get_block(blocks_ice(iblk), iblk)
         ilo = this_block%ilo
@@ -175,7 +173,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
         do j = jlo, jhi
             ! Oasis uses zero-indexing for this, hence the final - 1
-            part_def(part_idx) = (this_block%j_glob(j) - 1) * nx_global + this_block%i_glob(ilo) - 1
+            part_def(part_idx) = ((this_block%j_glob(j) - 1) * nx_global) + this_block%i_glob(ilo) - 1
             part_idx = part_idx + 1
             part_def(part_idx) = block_size_x
             part_idx = part_idx + 1
@@ -183,14 +181,14 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     enddo
     call oasis_def_partition(part_id, part_def, err, nx_global * ny_global)
 
-    ! Define couplint fields
+    ! Define coupling fields
     il_var_nodims(1) = 1 ! rank of coupling field
     il_var_nodims(2) = 1 ! number of bundles in coupling field (always 1)
     il_var_shape(1) = 1 ! min index for the coupling field local dimension
     il_var_shape(2) = block_size_x*block_size_y*nblocks
 
     !
-    ! Define name (as in namcouple) and declare each field sent by ice 
+    ! Define name (as in namcouple) and declare each field sent by ice
     !
 
     !ice ==> atm
@@ -255,73 +253,73 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     !
 
     ! fields in: (local domain)
-    allocate (tair0(nx_block, ny_block, nblocks));  tair0(:,:,:) = 0
-    allocate (swflx0(nx_block, ny_block, nblocks)); swflx0(:,:,:) = 0
-    allocate (lwflx0(nx_block, ny_block, nblocks)); lwflx0(:,:,:) = 0
-    allocate (uwnd0(nx_block, ny_block, nblocks));  uwnd0(:,:,:) = 0
-    allocate (vwnd0(nx_block, ny_block, nblocks));  vwnd0(:,:,:) = 0
-    allocate (qair0(nx_block, ny_block, nblocks));  qair0(:,:,:) = 0
-    allocate (rain0(nx_block, ny_block, nblocks));  rain0(:,:,:) = 0
-    allocate (snow0(nx_block, ny_block, nblocks));  snow0(:,:,:) = 0
-    allocate (runof0(nx_block, ny_block, nblocks)); runof0(:,:,:) = 0
-    allocate (press0(nx_block, ny_block, nblocks)); press0(:,:,:) = 0
+    allocate (tair0(nx_block, ny_block, max_blocks));  tair0(:,:,:) = 0
+    allocate (swflx0(nx_block, ny_block, max_blocks)); swflx0(:,:,:) = 0
+    allocate (lwflx0(nx_block, ny_block, max_blocks)); lwflx0(:,:,:) = 0
+    allocate (uwnd0(nx_block, ny_block, max_blocks));  uwnd0(:,:,:) = 0
+    allocate (vwnd0(nx_block, ny_block, max_blocks));  vwnd0(:,:,:) = 0
+    allocate (qair0(nx_block, ny_block, max_blocks));  qair0(:,:,:) = 0
+    allocate (rain0(nx_block, ny_block, max_blocks));  rain0(:,:,:) = 0
+    allocate (snow0(nx_block, ny_block, max_blocks));  snow0(:,:,:) = 0
+    allocate (runof0(nx_block, ny_block, max_blocks)); runof0(:,:,:) = 0
+    allocate (press0(nx_block, ny_block, max_blocks)); press0(:,:,:) = 0
 
-    allocate (runof(nx_block, ny_block, nblocks)); runof(:,:,:) = 0
-    allocate (press(nx_block, ny_block, nblocks)); press(:,:,:) = 0
+    allocate (runof(nx_block, ny_block, max_blocks)); runof(:,:,:) = 0
+    allocate (press(nx_block, ny_block, max_blocks)); press(:,:,:) = 0
 
-    allocate (core_runoff(nx_block, ny_block, nblocks));  core_runoff(:,:,:) = 0.
+    allocate (core_runoff(nx_block, ny_block, max_blocks));  core_runoff(:,:,:) = 0.
 
-    allocate (ssto(nx_block, ny_block, nblocks));  ssto(:,:,:) = 0
-    allocate (ssso(nx_block, ny_block, nblocks));  ssso(:,:,:) = 0
-    allocate (ssuo(nx_block, ny_block, nblocks));  ssuo(:,:,:) = 0
-    allocate (ssvo(nx_block, ny_block, nblocks));  ssvo(:,:,:) = 0
-    allocate (sslx(nx_block, ny_block, nblocks));  sslx(:,:,:) = 0
-    allocate (ssly(nx_block, ny_block, nblocks));  ssly(:,:,:) = 0
-    allocate (pfmice(nx_block, ny_block, nblocks));  pfmice(:,:,:) = 0
+    allocate (ssto(nx_block, ny_block, max_blocks));  ssto(:,:,:) = 0
+    allocate (ssso(nx_block, ny_block, max_blocks));  ssso(:,:,:) = 0
+    allocate (ssuo(nx_block, ny_block, max_blocks));  ssuo(:,:,:) = 0
+    allocate (ssvo(nx_block, ny_block, max_blocks));  ssvo(:,:,:) = 0
+    allocate (sslx(nx_block, ny_block, max_blocks));  sslx(:,:,:) = 0
+    allocate (ssly(nx_block, ny_block, max_blocks));  ssly(:,:,:) = 0
+    allocate (pfmice(nx_block, ny_block, max_blocks));  pfmice(:,:,:) = 0
 
-    allocate (iostrsu(nx_block, ny_block, nblocks)); iostrsu(:,:,:) = 0
-    allocate (iostrsv(nx_block, ny_block, nblocks)); iostrsv(:,:,:) = 0
-    allocate (iorain(nx_block, ny_block, nblocks));  iorain(:,:,:) = 0
-    allocate (iosnow(nx_block, ny_block, nblocks));  iosnow(:,:,:) = 0
-    allocate (iostflx(nx_block, ny_block, nblocks)); iostflx(:,:,:) = 0
-    allocate (iohtflx(nx_block, ny_block, nblocks)); iohtflx(:,:,:) = 0
-    allocate (ioswflx(nx_block, ny_block, nblocks)); ioswflx(:,:,:) = 0
-    allocate (ioqflux(nx_block, ny_block, nblocks)); ioqflux(:,:,:) = 0
-    allocate (iolwflx(nx_block, ny_block, nblocks)); iolwflx(:,:,:) = 0
-    allocate (ioshflx(nx_block, ny_block, nblocks)); ioshflx(:,:,:) = 0
-    allocate (iorunof(nx_block, ny_block, nblocks)); iorunof(:,:,:) = 0
-    allocate (iopress(nx_block, ny_block, nblocks)); iopress(:,:,:) = 0
-    allocate (ioaice (nx_block, ny_block, nblocks)); ioaice(:,:,:) = 0
+    allocate (iostrsu(nx_block, ny_block, max_blocks)); iostrsu(:,:,:) = 0
+    allocate (iostrsv(nx_block, ny_block, max_blocks)); iostrsv(:,:,:) = 0
+    allocate (iorain(nx_block, ny_block, max_blocks));  iorain(:,:,:) = 0
+    allocate (iosnow(nx_block, ny_block, max_blocks));  iosnow(:,:,:) = 0
+    allocate (iostflx(nx_block, ny_block, max_blocks)); iostflx(:,:,:) = 0
+    allocate (iohtflx(nx_block, ny_block, max_blocks)); iohtflx(:,:,:) = 0
+    allocate (ioswflx(nx_block, ny_block, max_blocks)); ioswflx(:,:,:) = 0
+    allocate (ioqflux(nx_block, ny_block, max_blocks)); ioqflux(:,:,:) = 0
+    allocate (iolwflx(nx_block, ny_block, max_blocks)); iolwflx(:,:,:) = 0
+    allocate (ioshflx(nx_block, ny_block, max_blocks)); ioshflx(:,:,:) = 0
+    allocate (iorunof(nx_block, ny_block, max_blocks)); iorunof(:,:,:) = 0
+    allocate (iopress(nx_block, ny_block, max_blocks)); iopress(:,:,:) = 0
+    allocate (ioaice (nx_block, ny_block, max_blocks)); ioaice(:,:,:) = 0
 
-    allocate (iomelt (nx_block, ny_block, nblocks)); iomelt(:,:,:) = 0
-    allocate (ioform (nx_block, ny_block, nblocks)); ioform(:,:,:) = 0
+    allocate (iomelt (nx_block, ny_block, max_blocks)); iomelt(:,:,:) = 0
+    allocate (ioform (nx_block, ny_block, max_blocks)); ioform(:,:,:) = 0
 
-    allocate (tiostrsu(nx_block, ny_block, nblocks)); tiostrsu(:,:,:) = 0
-    allocate (tiostrsv(nx_block, ny_block, nblocks)); tiostrsv(:,:,:) = 0
-    allocate (tiorain(nx_block, ny_block, nblocks));  tiorain(:,:,:) = 0
-    allocate (tiosnow(nx_block, ny_block, nblocks));  tiosnow(:,:,:) = 0
-    allocate (tiostflx(nx_block, ny_block, nblocks)); tiostflx(:,:,:) = 0
-    allocate (tiohtflx(nx_block, ny_block, nblocks)); tiohtflx(:,:,:) = 0
-    allocate (tioswflx(nx_block, ny_block, nblocks)); tioswflx(:,:,:) = 0
-    allocate (tioqflux(nx_block, ny_block, nblocks)); tioqflux(:,:,:) = 0
-    allocate (tiolwflx(nx_block, ny_block, nblocks)); tiolwflx(:,:,:) = 0
-    allocate (tioshflx(nx_block, ny_block, nblocks)); tioshflx(:,:,:) = 0
-    allocate (tiorunof(nx_block, ny_block, nblocks)); tiorunof(:,:,:) = 0
-    allocate (tiopress(nx_block, ny_block, nblocks)); tiopress(:,:,:) = 0
-    allocate (tioaice(nx_block, ny_block, nblocks));  tioaice(:,:,:) = 0
+    allocate (tiostrsu(nx_block, ny_block, max_blocks)); tiostrsu(:,:,:) = 0
+    allocate (tiostrsv(nx_block, ny_block, max_blocks)); tiostrsv(:,:,:) = 0
+    allocate (tiorain(nx_block, ny_block, max_blocks));  tiorain(:,:,:) = 0
+    allocate (tiosnow(nx_block, ny_block, max_blocks));  tiosnow(:,:,:) = 0
+    allocate (tiostflx(nx_block, ny_block, max_blocks)); tiostflx(:,:,:) = 0
+    allocate (tiohtflx(nx_block, ny_block, max_blocks)); tiohtflx(:,:,:) = 0
+    allocate (tioswflx(nx_block, ny_block, max_blocks)); tioswflx(:,:,:) = 0
+    allocate (tioqflux(nx_block, ny_block, max_blocks)); tioqflux(:,:,:) = 0
+    allocate (tiolwflx(nx_block, ny_block, max_blocks)); tiolwflx(:,:,:) = 0
+    allocate (tioshflx(nx_block, ny_block, max_blocks)); tioshflx(:,:,:) = 0
+    allocate (tiorunof(nx_block, ny_block, max_blocks)); tiorunof(:,:,:) = 0
+    allocate (tiopress(nx_block, ny_block, max_blocks)); tiopress(:,:,:) = 0
+    allocate (tioaice(nx_block, ny_block, max_blocks));  tioaice(:,:,:) = 0
 
-    allocate (tiomelt(nx_block, ny_block, nblocks));  tiomelt(:,:,:) = 0
-    allocate (tioform(nx_block, ny_block, nblocks));  tioform(:,:,:) = 0
+    allocate (tiomelt(nx_block, ny_block, max_blocks));  tiomelt(:,:,:) = 0
+    allocate (tioform(nx_block, ny_block, max_blocks));  tioform(:,:,:) = 0
 
-    allocate (vwork(nx_block, ny_block, nblocks)); vwork(:,:,:) = 0
+    allocate (vwork(nx_block, ny_block, max_blocks)); vwork(:,:,:) = 0
     allocate (gwork(nx_global, ny_global)); gwork(:,:) = 0
     allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
 
-    allocate (sicemass(nx_block, ny_block, nblocks)); sicemass(:,:,:) = 0.
-    allocate (u_star0(nx_block, ny_block, nblocks)); u_star0(:,:,:) = 0.
-    allocate (rough_mom0(nx_block, ny_block, nblocks)); rough_mom0(:,:,:) = 0.
-    allocate (rough_heat0(nx_block, ny_block, nblocks)); rough_heat0(:,:,:) = 0.
-    allocate (rough_moist0(nx_block, ny_block, nblocks)); rough_moist0(:,:,:) = 0.
+    allocate (sicemass(nx_block, ny_block, max_blocks)); sicemass(:,:,:) = 0.
+    allocate (u_star0(nx_block, ny_block, max_blocks)); u_star0(:,:,:) = 0.
+    allocate (rough_mom0(nx_block, ny_block, max_blocks)); rough_mom0(:,:,:) = 0.
+    allocate (rough_heat0(nx_block, ny_block, max_blocks)); rough_heat0(:,:,:) = 0.
+    allocate (rough_moist0(nx_block, ny_block, max_blocks)); rough_moist0(:,:,:) = 0.
 
 endsubroutine init_cpl
 
