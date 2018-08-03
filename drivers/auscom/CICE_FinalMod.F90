@@ -77,15 +77,9 @@
    date_array(6) = mod(sec, 60)
    call accessom2%deinit(cur_date_array=date_array)
 
-#ifdef AusCOM
-      call coupler_termination  !quit MPI and release memory 
-#else
-#ifndef coupled
-      call end_run       ! quit MPI
-#endif
-#endif
+   call coupler_termination  !quit MPI and release memory 
 
-      end subroutine CICE_Finalize
+end subroutine CICE_Finalize
 
 !=======================================================================
 !
