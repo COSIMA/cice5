@@ -688,6 +688,8 @@ end subroutine update_halos_from_atm
   close(il_out)
 #endif
 
+    call MPI_Finalize (ierror)
+
   end subroutine coupler_termination
 
 !=======================================================================
