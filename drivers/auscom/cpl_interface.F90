@@ -390,20 +390,20 @@ subroutine send_grid_to_atm()
     buf_int(1) = nx_global
     buf_int(2) = ny_global
     call MPI_send(buf_int, 2, MPI_INTEGER, coupler%atm_root, tag, &
-                  coupler%atm_intercomm, ierror)
+                  MPI_COMM_WORLD, ierror)
 
     allocate(buf_real(nx_global*ny_global))
     buf_real(:) = reshape(tlat_global(:, :), (/ size(tlat_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
-                  coupler%atm_root, tag, coupler%atm_intercomm, ierror)
+                  coupler%atm_root, tag, MPI_COMM_WORLD, ierror)
 
     buf_real(:) = reshape(tlon_global(:, :), (/ size(tlon_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
-                  coupler%atm_root, tag, coupler%atm_intercomm, ierror)
+                  coupler%atm_root, tag, MPI_COMM_WORLD, ierror)
 
     buf_real(:) = reshape(mask_global(:, :), (/ size(mask_global) /))
     call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
-                  coupler%atm_root, tag, coupler%atm_intercomm, ierror)
+                  coupler%atm_root, tag, MPI_COMM_WORLD, ierror)
 
     deallocate(buf_real)
     deallocate(tlat_global)
@@ -468,7 +468,7 @@ subroutine from_atm(isteps)
     request = MPI_REQUEST_NULL
     tag = 5793
     call MPI_Isend(buf, 1, MPI_INTEGER, coupler%atm_root, tag, &
-                   coupler%atm_intercomm, request, ierror)
+                   MPI_COMM_WORLD, request, ierror)
   endif
 
   call ice_timer_stop(timer_from_atm)
