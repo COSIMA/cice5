@@ -6,14 +6,14 @@
 # If BLCKX (BLCKY) does not divide NXGLOB (NYGLOB) evenly, padding
 # will be used on the right (top) of the grid.
 
-setenv NTASK 480
+setenv NTASK 720
 setenv RES 1440x1080
 
 set NXGLOB = `echo $RES | sed s/x.\*//`
 set NYGLOB = `echo $RES | sed s/.\*x//`
 
-setenv BLCKX `expr $NXGLOB / 24`       # x-dimension of blocks ( not including )
-setenv BLCKY `expr $NYGLOB / 20`         # y-dimension of blocks (  ghost cells  )
+setenv BLCKX `expr $NXGLOB / 30`       # x-dimension of blocks ( not including )
+setenv BLCKY `expr $NYGLOB / 24`         # y-dimension of blocks (  ghost cells  )
 
 source /etc/profile.d/nf_csh_modules
 module purge

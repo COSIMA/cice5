@@ -17,6 +17,7 @@
 
 #ifdef AusCOM
       use accessom2_mod, only : accessom2_type => accessom2
+      use logger_mod, only : logger_type => logger
       use cpl_parameters
       use cpl_parameters, only : read_namelist_parameters, accessom2_config_dir
       use cpl_forcing_handler, only : get_time0_sstsss, get_u_star
@@ -52,14 +53,15 @@
 !        replaced by a different driver that calls subroutine cice_init,
 !        where most of the work is done.
 
-      subroutine CICE_Initialize(accessom2)
+      subroutine CICE_Initialize(accessom2, logger)
         type(accessom2_type), intent(out) :: accessom2
+        type(logger_type), intent(out) :: logger
 
    !--------------------------------------------------------------------
    ! model initialization
    !--------------------------------------------------------------------
 
-      call cice_init(accessom2)
+      call cice_init(accessom2, logger)
 
       end subroutine CICE_Initialize
 
@@ -67,7 +69,7 @@
 !
 !  Initialize CICE model.
 
-      subroutine cice_init(accessom2)
+      subroutine cice_init(accessom2, logger)
 
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
@@ -105,6 +107,7 @@
       use drv_forcing, only: sst_sss
 #endif
       type(accessom2_type), intent(inout) :: accessom2
+      type(logger_type), intent(inout) :: logger
 
       integer(kind=int_kind) :: idate_save
 
@@ -136,6 +139,9 @@
                       accessom2%get_ice_ocean_timestep(), &
                       accessom2%get_calendar_type())
 
+      ! Set up a logger
+      call logger%init('cice', logfiledir='./', loglevel=accessom2%log_level)
+
       if (trim(runid) == 'bering') call check_finished_file
       call init_zbgc            ! vertical biogeochemistry namelist
 
@@ -149,7 +155,8 @@
 #ifdef AusCOM
      ! initialize message passing, pass in total runtime in seconds and field
      ! coupling timesteps for oasis.
-      call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps())
+      call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps(), &
+                    logger) 
 #endif
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file

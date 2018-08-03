@@ -49,6 +49,7 @@
   use ice_broadcast, only :  broadcast_array
 
   use coupler_mod, only: coupler_type => coupler
+  use logger_mod, only : logger_type => logger, LOG_ERROR
 
   implicit none
 
