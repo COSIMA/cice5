@@ -140,7 +140,7 @@
                       accessom2%get_calendar_type())
 
       ! Set up a logger
-      call logger%init('cice', logfiledir='./', loglevel=accessom2%log_level)
+      call logger%init('cice', logfiledir='log', loglevel=accessom2%log_level)
 
       if (trim(runid) == 'bering') call check_finished_file
       call init_zbgc            ! vertical biogeochemistry namelist
@@ -155,8 +155,7 @@
 #ifdef AusCOM
      ! initialize message passing, pass in total runtime in seconds and field
      ! coupling timesteps for oasis.
-      call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps(), &
-                    logger) 
+      call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps())
 #endif
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
