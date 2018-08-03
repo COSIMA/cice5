@@ -66,8 +66,6 @@
    ! quit MPI
    !-------------------------------------------------------------------
 
-    call coupler_termination  !quit MPI and release memory
-
     ! Allow libaccessom2 to check that datetime of all models is synchronised at
     ! the end of the run.
     call calendar(time-dt)
