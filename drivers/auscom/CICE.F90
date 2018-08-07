@@ -66,7 +66,6 @@
       !-----------------------------------------------------------------
 
       call CICE_Finalize(accessom2, logger)
-      call logger%deinit()
 
       end program icemodel
 

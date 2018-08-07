@@ -49,11 +49,7 @@
    !-------------------------------------------------------------------
 
       call ice_timer_stop(timer_total)        ! stop timing entire run
-#ifdef AusCOM
       call ice_timer_print_all(stats=.true.) ! print timing information
-#else
-      call ice_timer_print_all(stats=.false.) ! print timing information
-#endif
 
 !echmod      if (nu_diag /= 6) close (nu_diag) ! diagnostic output
       call release_all_fileunits
@@ -67,7 +63,6 @@
    !-------------------------------------------------------------------
    ! quit MPI
    !-------------------------------------------------------------------
-
     call logger%deinit()
 
     ! Allow libaccessom2 to check that datetime of all models is synchronised at

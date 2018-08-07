@@ -44,6 +44,7 @@
   use ice_broadcast, only :  broadcast_array
 
   use coupler_mod, only: coupler_type => coupler
+  use error_handler, only: assert
   use logger_mod, only : logger_type => logger, LOG_ERROR
 
   implicit none
@@ -164,6 +165,12 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
     part_def(1) = 3
     part_def(2) = block_size_y*nblocks
     part_idx = 3
+
+    if (nblocks /= MXBLCKS) then
+        print*, 'nblocks /= MXBLCKS on PE: ', my_task
+        print*, 'nblocks: ', nblocks
+        print*, 'MXBLCKS: ', MXBLCKS
+    endif
 
     do iblk=1, nblocks
         this_block = get_block(blocks_ice(iblk), iblk)
@@ -320,6 +327,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
     allocate (rough_mom0(nx_block, ny_block, max_blocks)); rough_mom0(:,:,:) = 0.
     allocate (rough_heat0(nx_block, ny_block, max_blocks)); rough_heat0(:,:,:) = 0.
     allocate (rough_moist0(nx_block, ny_block, max_blocks)); rough_moist0(:,:,:) = 0.
+
+    print*, 'Complete init_cpl PE: ', my_task
 
 endsubroutine init_cpl
 
@@ -487,6 +496,8 @@ subroutine from_atm(isteps)
 
   call ice_timer_stop(timer_from_atm)
 
+   print *, 'CICE: from_atm isteps, PE ', isteps, my_task
+
 end subroutine from_atm
 
 subroutine from_ocn(isteps)
@@ -529,6 +540,8 @@ subroutine from_ocn(isteps)
     endif
 
     call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
+
+    print *, 'CICE: from_ocn isteps, PE ', isteps, my_task
 
 end subroutine from_ocn
 
@@ -589,6 +602,8 @@ subroutine into_ocn(isteps, scale)
 
     call pack_coupling_array(ioform*scale, work)
     call oasis_put(il_var_id_out(16), isteps, work, ierror)
+
+    print *, 'CICE: into_ocn isteps, PE ', isteps, my_task
 
     if (chk_i2o_fields) then
     call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
