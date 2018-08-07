@@ -157,6 +157,11 @@
       Do icpl_io = 1, num_cpl_io   !begin I <==> O coupling iterations
         !call coupling_step_timer%start()
 
+          if (my_task == master_task) then
+            print*, 'master beginning of coupling loop', time_sec
+          endif
+ 
+
         stimestamp_io = time_sec
 
         ! ---temp check for roughness etc.---
@@ -173,12 +178,20 @@
             call write_boundary_checksums(time_sec)
         endif
 
+          if (my_task == master_task) then
+            print*, 'master here 0', time_sec
+          endif
+ 
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
         call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
         call nullify_i2o_fluxes() 
 
+          if (my_task == master_task) then
+            print*, 'master here 1', time_sec
+          endif
+ 
         ! Communication with atmosphere and ocean has completed. Update halos
         ! ready for ice timestep.
         call update_halos_from_ocn(time_sec)
@@ -186,6 +199,10 @@
         sss=ssso
         call new_freezingT
 
+          if (my_task == master_task) then
+            print*, 'master here 2', time_sec
+          endif
+ 
         do itap = 1, num_ice_io    !ice time loop within each i2o cpl interval
 
 
@@ -196,7 +213,14 @@
           call get_forcing_atmo_ready
 
           !call ice_step_timer%start()
+
+          if (my_task == master_task) then
+            print*, 'master calling ice_step at time: ', time_sec
+          endif
           call ice_step()
+          if (my_task == master_task) then
+            print*, 'master done calling ice_step'
+          endif
           !call ice_step_timer%stop()
 
           istep  = istep  + 1    ! update time step counters
@@ -205,7 +229,13 @@
 
           time_sec = time_sec + dt
           if (my_task == master_task) then
+            print*, 'master done calling ice_step at time: ', time_sec
+          endif
+
+          if (my_task == master_task) then
+            print*, 'master calling progress_date', time_sec
             call accessom2%progress_date(int(dt))
+            print*, 'master done calling progress_date', time_sec
           endif
  
           call calendar(time)
@@ -225,6 +255,10 @@
         !   call check_roughness(time_sec)
         !endif
         ! ----------------------------------- 
+          if (my_task == master_task) then
+            print*, 'master calling from_atm', time_sec
+          endif
+ 
         if (icpl_io == num_cpl_io .and. icpl_ai < num_cpl_ai) then
           call from_atm(time_sec)
           call update_halos_from_atm(time_sec)
@@ -233,6 +267,10 @@
           call t2ugrid_vector(iostrsv)
         endif
 
+          if (my_task == master_task) then
+            print*, 'master done calling from_atm', time_sec
+          endif
+ 
         rtimestamp_io = time_sec
         if (rtimestamp_io < (dt*npt)) then
           !call ocean_wait_timer%start()
@@ -240,6 +278,10 @@
           !call ocean_wait_timer%stop()
         endif
 
+          if (my_task == master_task) then
+            print*, 'master done calling from_ocn', time_sec
+          endif
+ 
         !call coupling_step_timer%stop()
 
         print *, 'CICE: in coupling loop PE, time_sec ', my_task, time_sec
@@ -247,6 +289,10 @@
 
       END DO        !icpl_ai
 
+          if (my_task == master_task) then
+            print*, 'master after coupling loop'
+          endif
+ 
         print *, 'CICE: after coupling loop PE ', my_task
 
       ! final update of the stimestamp_io, ie., put back the last dt_ice:
