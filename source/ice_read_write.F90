@@ -1626,18 +1626,22 @@
       nx = nx_global
       ny = ny_global
 
+      if (my_task == master_task) print*, 'ice_write_nc_xy 1'
+
       if (present(restart_ext)) then
          if (restart_ext) then
             nx = nx_global + 2*nghost
             ny = ny_global + 2*nghost
          endif
       endif
+      if (my_task == master_task) print*, 'ice_write_nc_xy 2'
 
       if (my_task == master_task) then
          allocate(work_g1(nx,ny))
       else
          allocate(work_g1(1,1))   ! to save memory
       endif
+      if (my_task == master_task) print*, 'ice_write_nc_xy 3'
 
       if (present(restart_ext)) then
          if (restart_ext) then
@@ -1646,6 +1650,7 @@
       else
          call gather_global(work_g1, work, master_task, distrb_info, spc_val=c0)
       endif
+      if (my_task == master_task) print*, 'ice_write_nc_xy 4'
 
       if (my_task == master_task) then
 
@@ -1660,6 +1665,7 @@
             call abort_ice('ice: Error nf90_put_var in ice_write_nc_xy')
          endif
       endif                     ! my_task = master_task
+      if (my_task == master_task) print*, 'ice_write_nc_xy 5'
 
     !-------------------------------------------------------------------
     ! optional diagnostics
@@ -1680,6 +1686,7 @@
          asum = sum   (work_g1, mask = work_g1 /= spval_dbl)
          write(nu_diag,*) ' min, max, sum =', amin, amax, asum
       endif
+      if (my_task == master_task) print*, 'ice_write_nc_xy 6'
 
       deallocate(work_g1)
       
@@ -1738,18 +1745,22 @@
       nx = nx_global
       ny = ny_global
 
+      if (my_task == master_task) print*, 'ice_write_nc_xyz 1'
+
       if (present(restart_ext)) then
          if (restart_ext) then
             nx = nx_global + 2*nghost
             ny = ny_global + 2*nghost
          endif
       endif
+      if (my_task == master_task) print*, 'ice_write_nc_xyz 2'
 
       if (my_task == master_task) then
          allocate(work_g1(nx,ny,ncat))
       else
          allocate(work_g1(1,1,ncat))   ! to save memory
       endif
+      if (my_task == master_task) print*, 'ice_write_nc_xyz 3'
 
       if (present(restart_ext)) then
          if (restart_ext) then
@@ -1764,6 +1775,7 @@
                     master_task, distrb_info, spc_val=c0)
          enddo
       endif
+      if (my_task == master_task) print*, 'ice_write_nc_xyz 4'
 
       if (my_task == master_task) then
 
@@ -1782,6 +1794,7 @@
     !-------------------------------------------------------------------
     ! optional diagnostics
     !-------------------------------------------------------------------
+      if (my_task == master_task) print*, 'ice_write_nc_xyz 5'
 
       if (my_task==master_task .and. diag) then
 !          write(nu_diag,*) & 
@@ -1802,6 +1815,8 @@
             write(nu_diag,*) ' min, max, sum =', amin, amax, asum
          enddo
       endif
+
+      if (my_task == master_task) print*, 'ice_write_nc_xyz 6'
 
       deallocate(work_g1)
       

@@ -558,27 +558,37 @@
       real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: &
            work2              ! input array (real, 8-byte)
 
+         if (my_task == master_task) print*, 'master in write_restart_field 1'
+
          status = nf90_inq_varid(ncid,trim(vname),varid)
          if (my_task == master_task) then
              call assert(status == NF90_NOERR, &
                          'in write_restart_field on '//trim(vname), status)
          endif
+         if (my_task == master_task) print*, 'master in write_restart_field 2'
          if (ndim3 == ncat) then 
+            if (my_task == master_task) print*, 'master in write_restart_field 3'
             if (restart_ext) then
                call ice_write_nc(ncid, 1, varid, work, diag, restart_ext)
             else
                call ice_write_nc(ncid, 1, varid, work, diag)
             endif
+            if (my_task == master_task) print*, 'master in write_restart_field 4'
          elseif (ndim3 == 1) then
+            if (my_task == master_task) print*, 'master in write_restart_field 5'
             work2(:,:,:) = work(:,:,1,:)
             if (restart_ext) then
                call ice_write_nc(ncid, 1, varid, work2, diag, restart_ext)
             else
                call ice_write_nc(ncid, 1, varid, work2, diag)
             endif
+            if (my_task == master_task) print*, 'master in write_restart_field 6'
          else
+            if (my_task == master_task) print*, 'master in write_restart_field 7'
             write(nu_diag,*) 'ndim3 not supported',ndim3
          endif
+
+            if (my_task == master_task) print*, 'master in write_restart_field 8'
 
       end subroutine write_restart_field
 

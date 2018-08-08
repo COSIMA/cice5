@@ -445,11 +445,23 @@
          enddo ! iblk
          !$OMP END PARALLEL DO
 
+          if (my_task == master_task) then
+            print*, 'master in ice_step before get_i2o_fluxes', istep
+          endif
+ 
          ! Calculate/merge i2o fields for each ice time step
          call get_i2o_fluxes
 
+          if (my_task == master_task) then
+            print*, 'master in ice_step before tavg_i2o_fluxes', istep
+          endif
+ 
          ! Do time-weighted sum-up for the i2o fields
          call tavg_i2o_fluxes
+
+          if (my_task == master_task) then
+            print*, 'master ice_step before ice_HaloUpdate', istep
+          endif
 
          call ice_timer_start(timer_bound)
          call ice_HaloUpdate (scale_factor,     halo_info, &
@@ -463,6 +475,10 @@
       ! write data
       !-----------------------------------------------------------------
 
+          if (my_task == master_task) then
+            print*, 'master ice_step before before runtime_diags', istep
+          endif
+
          call ice_timer_start(timer_diags)  ! diagnostics
          if (mod(istep,diagfreq) == 0) then
             call runtime_diags(dt)          ! log file
@@ -471,25 +487,99 @@
          endif
          call ice_timer_stop(timer_diags)   ! diagnostics
 
+          if (my_task == master_task) then
+            print*, 'master ice_step before before accum_hist', istep
+          endif
+
          call ice_timer_start(timer_hist)   ! history
          call accum_hist (dt)               ! history file
          call ice_timer_stop(timer_hist)    ! history
 
+          if (my_task == master_task) then
+            print*, 'master ice_step before before write_restart', istep
+          endif
+
          call ice_timer_start(timer_readwrite)  ! reading/writing
          if (write_restart == 1) then
+
+              if (my_task == master_task) then
+                print*, 'master ice_step before dumpfile', istep
+              endif
+
+
             call dumpfile     ! core variables for restarting
+
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_age', istep
+              endif
+
+
             if (tr_iage)      call write_restart_age
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_FY', istep
+              endif
+
+
             if (tr_FY)        call write_restart_FY
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_lvl', istep
+              endif
+
+
             if (tr_lvl)       call write_restart_lvl
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_pond_cesm', istep
+              endif
+
+
             if (tr_pond_cesm) call write_restart_pond_cesm
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_pond_lvl', istep
+              endif
+
+
             if (tr_pond_lvl)  call write_restart_pond_lvl
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_pond_topo', istep
+              endif
+
+
             if (tr_pond_topo) call write_restart_pond_topo
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_aero', istep
+              endif
+
+
             if (tr_aero)      call write_restart_aero
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_bgc', istep
+              endif
+
+
             if (skl_bgc)      call write_restart_bgc  
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_hbrine', istep
+              endif
+
+
             if (tr_brine)     call write_restart_hbrine
+              if (my_task == master_task) then
+                print*, 'master ice_step before write_restart_eap', istep
+              endif
+
+
             if (kdyn == 2)    call write_restart_eap
+              if (my_task == master_task) then
+                print*, 'master ice_step before final_restart', istep
+              endif
+
+
             call final_restart
          endif
+
+          if (my_task == master_task) then
+            print*, 'master ice_step done', istep
+          endif
 
          call ice_timer_stop(timer_readwrite)  ! reading/writing
 

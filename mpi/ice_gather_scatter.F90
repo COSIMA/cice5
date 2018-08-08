@@ -183,9 +183,11 @@
 
          this_block = get_block(n,n)
 
+         print*, '0 doing MPI_RECV from: ', src_dist%blockLocation(n)-1
          call MPI_RECV(msg_buffer, size(msg_buffer), &
                        mpiR8, src_dist%blockLocation(n)-1, 3*mpitag_gs+n, &
                        MPI_COMM_ICE, status, ierr)
+         print*, '0 done MPI_RECV from: ', src_dist%blockLocation(n)-1
 
          do j=this_block%jlo,this_block%jhi
          do i=this_block%ilo,this_block%ihi
@@ -350,9 +352,11 @@
 
          this_block = get_block(n,n)
 
+         print*, '1 doing MPI_RECV from: ', src_dist%blockLocation(n)-1
          call MPI_RECV(msg_buffer, size(msg_buffer), &
                        mpiR4, src_dist%blockLocation(n)-1, 3*mpitag_gs+n, &
                        MPI_COMM_ICE, status, ierr)
+         print*, '1 done MPI_RECV from: ', src_dist%blockLocation(n)-1
 
          do j=this_block%jlo,this_block%jhi
          do i=this_block%ilo,this_block%ihi
@@ -517,9 +521,11 @@
 
          this_block = get_block(n,n)
 
+         print*, '2 doing MPI_RECV from: ', src_dist%blockLocation(n)-1
          call MPI_RECV(msg_buffer, size(msg_buffer), &
                        mpi_integer, src_dist%blockLocation(n)-1, 3*mpitag_gs+n, &
                        MPI_COMM_ICE, status, ierr)
+         print*, '2 done MPI_RECV from: ', src_dist%blockLocation(n)-1
 
          do j=this_block%jlo,this_block%jhi
          do i=this_block%ilo,this_block%ihi
@@ -836,9 +842,11 @@
 
          this_block = get_block(n,n)
 
+         print*, '3 doing MPI_RECV from: ', src_dist%blockLocation(n)-1
          call MPI_RECV(msg_buffer, size(msg_buffer), &
                        mpiR8, src_dist%blockLocation(n)-1, 3*mpitag_gs+n, &
                        MPI_COMM_ICE, status, ierr)
+         print*, '3 done MPI_RECV from: ', src_dist%blockLocation(n)-1
 
          ! block interior
          do j=this_block%jlo,this_block%jhi

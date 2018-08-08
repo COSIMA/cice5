@@ -92,35 +92,45 @@
       ! Tsfc is the only tracer written to binary files.  All other
       ! tracers are written to their own dump/restart binary files.
       !-----------------------------------------------------------------
+      if (my_task == master_task) print*, ' master here 0'
 
       call write_restart_field(nu_dump,0,aicen(:,:,:,:),'ruf8','aicen',ncat,diag)
+      if (my_task == master_task) print*, ' master here 1'
       call write_restart_field(nu_dump,0,vicen(:,:,:,:),'ruf8','vicen',ncat,diag)
+      if (my_task == master_task) print*, ' master here 2'
       call write_restart_field(nu_dump,0,vsnon(:,:,:,:),'ruf8','vsnon',ncat,diag)
+      if (my_task == master_task) print*, ' master here 3'
       call write_restart_field(nu_dump,0,trcrn(:,:,nt_Tsfc,:,:),'ruf8','Tsfcn',ncat,diag)
+      if (my_task == master_task) print*, ' master here 4'
 
       do k=1,nilyr
          write(nchar,'(i3.3)') k
          call write_restart_field(nu_dump,0,trcrn(:,:,nt_sice+k-1,:,:),'ruf8', &
                                  'sice'//trim(nchar),ncat,diag)
       enddo
+      if (my_task == master_task) print*, ' master here 5'
 
       do k=1,nilyr
          write(nchar,'(i3.3)') k
          call write_restart_field(nu_dump,0,trcrn(:,:,nt_qice+k-1,:,:),'ruf8', &
                                  'qice'//trim(nchar),ncat,diag)
       enddo
+      if (my_task == master_task) print*, ' master here 6'
 
       do k=1,nslyr
          write(nchar,'(i3.3)') k
          call write_restart_field(nu_dump,0,trcrn(:,:,nt_qsno+k-1,:,:),'ruf8', &
                                  'qsno'//trim(nchar),ncat,diag)
       enddo
+      if (my_task == master_task) print*, ' master here 7'
 
       !-----------------------------------------------------------------
       ! velocity
       !-----------------------------------------------------------------
       call write_restart_field(nu_dump,0,uvel,'ruf8','uvel',1,diag)
+      if (my_task == master_task) print*, ' master here 8'
       call write_restart_field(nu_dump,0,vvel,'ruf8','vvel',1,diag)
+      if (my_task == master_task) print*, ' master here 9'
 
       !-----------------------------------------------------------------
       ! radiation fields
@@ -129,35 +139,54 @@
       call write_restart_field(nu_dump,0,coszen,'ruf8','coszen',1,diag)
 #endif
       call write_restart_field(nu_dump,0,scale_factor,'ruf8','scale_factor',1,diag)
+      if (my_task == master_task) print*, ' master here 10'
 
       call write_restart_field(nu_dump,0,swvdr,'ruf8','swvdr',1,diag)
+      if (my_task == master_task) print*, ' master here 11'
       call write_restart_field(nu_dump,0,swvdf,'ruf8','swvdf',1,diag)
+      if (my_task == master_task) print*, ' master here 12'
       call write_restart_field(nu_dump,0,swidr,'ruf8','swidr',1,diag)
+      if (my_task == master_task) print*, ' master here 13'
       call write_restart_field(nu_dump,0,swidf,'ruf8','swidf',1,diag)
+      if (my_task == master_task) print*, ' master here 14'
 
       !-----------------------------------------------------------------
       ! ocean stress (for bottom heat flux in thermo)
       !-----------------------------------------------------------------
       call write_restart_field(nu_dump,0,strocnxT,'ruf8','strocnxT',1,diag)
+      if (my_task == master_task) print*, ' master here 15'
       call write_restart_field(nu_dump,0,strocnyT,'ruf8','strocnyT',1,diag)
+      if (my_task == master_task) print*, ' master here 16'
 
       !-----------------------------------------------------------------
       ! internal stress
       !-----------------------------------------------------------------
       call write_restart_field(nu_dump,0,stressp_1,'ruf8','stressp_1',1,diag)
+      if (my_task == master_task) print*, ' master here 17'
       call write_restart_field(nu_dump,0,stressp_3,'ruf8','stressp_3',1,diag)
+      if (my_task == master_task) print*, ' master here 18'
       call write_restart_field(nu_dump,0,stressp_2,'ruf8','stressp_2',1,diag)
+      if (my_task == master_task) print*, ' master here 19'
       call write_restart_field(nu_dump,0,stressp_4,'ruf8','stressp_4',1,diag)
+      if (my_task == master_task) print*, ' master here 20'
 
       call write_restart_field(nu_dump,0,stressm_1,'ruf8','stressm_1',1,diag)
+      if (my_task == master_task) print*, ' master here 21'
       call write_restart_field(nu_dump,0,stressm_3,'ruf8','stressm_3',1,diag)
+      if (my_task == master_task) print*, ' master here 22'
       call write_restart_field(nu_dump,0,stressm_2,'ruf8','stressm_2',1,diag)
+      if (my_task == master_task) print*, ' master here 23'
       call write_restart_field(nu_dump,0,stressm_4,'ruf8','stressm_4',1,diag)
+      if (my_task == master_task) print*, ' master here 24'
 
       call write_restart_field(nu_dump,0,stress12_1,'ruf8','stress12_1',1,diag)
+      if (my_task == master_task) print*, ' master here 25'
       call write_restart_field(nu_dump,0,stress12_3,'ruf8','stress12_3',1,diag)
+      if (my_task == master_task) print*, ' master here 26'
       call write_restart_field(nu_dump,0,stress12_2,'ruf8','stress12_2',1,diag)
+      if (my_task == master_task) print*, ' master here 27'
       call write_restart_field(nu_dump,0,stress12_4,'ruf8','stress12_4',1,diag)
+      if (my_task == master_task) print*, ' master here 28'
 
       !-----------------------------------------------------------------
       ! ice mask for dynamics
@@ -173,13 +202,16 @@
          enddo
       enddo
       !$OMP END PARALLEL DO
+      if (my_task == master_task) print*, ' master here 29'
       call write_restart_field(nu_dump,0,work1,'ruf8','iceumask',1,diag)
+      if (my_task == master_task) print*, ' master here 30'
 
       ! for mixed layer model
       if (oceanmixed_ice) then
          call write_restart_field(nu_dump,0,sst,'ruf8','sst',1,diag)
          call write_restart_field(nu_dump,0,frzmlt,'ruf8','frzmlt',1,diag)
       endif
+      if (my_task == master_task) print*, ' master here 31'
 
       end subroutine dumpfile
 
