@@ -177,17 +177,18 @@
 
      allocate (msg_buffer(nx_block,ny_block))
 
+     print*, 'before MPI_RECV blocks_tot: ', nblocks_tot, my_task
      do n=1,nblocks_tot
        if (src_dist%blockLocation(n) > 0 .and. &
            src_dist%blockLocation(n) /= my_task+1) then
 
          this_block = get_block(n,n)
 
-         print*, '0 doing MPI_RECV from: ', src_dist%blockLocation(n)-1
+         print*, '0 doing MPI_RECV from, n, tag: ', src_dist%blockLocation(n)-1, 3*mpitag_gs+n
          call MPI_RECV(msg_buffer, size(msg_buffer), &
                        mpiR8, src_dist%blockLocation(n)-1, 3*mpitag_gs+n, &
                        MPI_COMM_ICE, status, ierr)
-         print*, '0 done MPI_RECV from: ', src_dist%blockLocation(n)-1
+         print*, '0 done MPI_RECV from, n, tag: ', src_dist%blockLocation(n)-1, 3*mpitag_gs+n
 
          do j=this_block%jlo,this_block%jhi
          do i=this_block%ilo,this_block%ihi
@@ -212,20 +213,24 @@
               snd_status (MPI_STATUS_SIZE, nblocks_tot))
 
      nsends = 0
+     print*, 'before MPI_ISEND blocks_tot: ', nblocks_tot, my_task
      do n=1,nblocks_tot
        if (src_dist%blockLocation(n) == my_task+1) then
 
          nsends = nsends + 1
          src_block = src_dist%blockLocalID(n)
+         print*, '0 doing MPI_ISEND from, tag: ', my_task, 3*mpitag_gs+n
          call MPI_ISEND(ARRAY(1,1,src_block), nx_block*ny_block, &
                      mpiR8, dst_task, 3*mpitag_gs+n, &
                      MPI_COMM_ICE, snd_request(nsends), ierr)
        endif
      end do
 
+     print*, 'PE sent: ', my_task, nsends
      if (nsends > 0) &
        call MPI_WAITALL(nsends, snd_request, snd_status, ierr)
      deallocate(snd_request, snd_status)
+     print*, 'PE sent completed MPI_WAITALL ', my_task, nsends
 
    endif
 
