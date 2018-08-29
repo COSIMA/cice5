@@ -157,11 +157,6 @@
       Do icpl_io = 1, num_cpl_io   !begin I <==> O coupling iterations
         !call coupling_step_timer%start()
 
-          if (my_task == master_task) then
-            print*, 'master beginning of coupling loop', time_sec
-          endif
- 
-
         stimestamp_io = time_sec
 
         ! ---temp check for roughness etc.---
@@ -178,20 +173,12 @@
             call write_boundary_checksums(time_sec)
         endif
 
-          if (my_task == master_task) then
-            print*, 'master here 0', time_sec
-          endif
- 
         call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
         call into_ocn(stimestamp_io, 1.0)
         call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
         call nullify_i2o_fluxes() 
 
-          if (my_task == master_task) then
-            print*, 'master here 1', time_sec
-          endif
- 
         ! Communication with atmosphere and ocean has completed. Update halos
         ! ready for ice timestep.
         call update_halos_from_ocn(time_sec)
@@ -199,10 +186,6 @@
         sss=ssso
         call new_freezingT
 
-          if (my_task == master_task) then
-            print*, 'master here 2', time_sec
-          endif
- 
         do itap = 1, num_ice_io    !ice time loop within each i2o cpl interval
 
 
@@ -213,14 +196,7 @@
           call get_forcing_atmo_ready
 
           !call ice_step_timer%start()
-
-          if (my_task == master_task) then
-            print*, 'master calling ice_step at time: ', time_sec
-          endif
           call ice_step()
-          if (my_task == master_task) then
-            print*, 'master done calling ice_step'
-          endif
           !call ice_step_timer%stop()
 
           istep  = istep  + 1    ! update time step counters
@@ -229,13 +205,7 @@
 
           time_sec = time_sec + dt
           if (my_task == master_task) then
-            print*, 'master done calling ice_step at time: ', time_sec
-          endif
-
-          if (my_task == master_task) then
-            print*, 'master calling progress_date', time_sec
             call accessom2%progress_date(int(dt))
-            print*, 'master done calling progress_date', time_sec
           endif
  
           call calendar(time)
@@ -255,10 +225,6 @@
         !   call check_roughness(time_sec)
         !endif
         ! ----------------------------------- 
-          if (my_task == master_task) then
-            print*, 'master calling from_atm', time_sec
-          endif
- 
         if (icpl_io == num_cpl_io .and. icpl_ai < num_cpl_ai) then
           call from_atm(time_sec)
           call update_halos_from_atm(time_sec)
@@ -267,10 +233,6 @@
           call t2ugrid_vector(iostrsv)
         endif
 
-          if (my_task == master_task) then
-            print*, 'master done calling from_atm', time_sec
-          endif
- 
         rtimestamp_io = time_sec
         if (rtimestamp_io < (dt*npt)) then
           !call ocean_wait_timer%start()
@@ -278,10 +240,6 @@
           !call ocean_wait_timer%stop()
         endif
 
-          if (my_task == master_task) then
-            print*, 'master done calling from_ocn', time_sec
-          endif
- 
         !call coupling_step_timer%stop()
 
         print *, 'CICE: in coupling loop PE, time_sec ', my_task, time_sec
@@ -289,10 +247,6 @@
 
       END DO        !icpl_ai
 
-          if (my_task == master_task) then
-            print*, 'master after coupling loop'
-          endif
- 
         print *, 'CICE: after coupling loop PE ', my_task
 
       ! final update of the stimestamp_io, ie., put back the last dt_ice:
@@ -445,23 +399,11 @@
          enddo ! iblk
          !$OMP END PARALLEL DO
 
-          if (my_task == master_task) then
-            print*, 'master in ice_step before get_i2o_fluxes', istep
-          endif
- 
          ! Calculate/merge i2o fields for each ice time step
          call get_i2o_fluxes
 
-          if (my_task == master_task) then
-            print*, 'master in ice_step before tavg_i2o_fluxes', istep
-          endif
- 
          ! Do time-weighted sum-up for the i2o fields
          call tavg_i2o_fluxes
-
-          if (my_task == master_task) then
-            print*, 'master ice_step before ice_HaloUpdate', istep
-          endif
 
          call ice_timer_start(timer_bound)
          call ice_HaloUpdate (scale_factor,     halo_info, &
@@ -475,10 +417,6 @@
       ! write data
       !-----------------------------------------------------------------
 
-          if (my_task == master_task) then
-            print*, 'master ice_step before before runtime_diags', istep
-          endif
-
          call ice_timer_start(timer_diags)  ! diagnostics
          if (mod(istep,diagfreq) == 0) then
             call runtime_diags(dt)          ! log file
@@ -487,99 +425,25 @@
          endif
          call ice_timer_stop(timer_diags)   ! diagnostics
 
-          if (my_task == master_task) then
-            print*, 'master ice_step before before accum_hist', istep
-          endif
-
          call ice_timer_start(timer_hist)   ! history
          call accum_hist (dt)               ! history file
          call ice_timer_stop(timer_hist)    ! history
 
-          if (my_task == master_task) then
-            print*, 'master ice_step before before write_restart', istep
-          endif
-
          call ice_timer_start(timer_readwrite)  ! reading/writing
          if (write_restart == 1) then
-
-              if (my_task == master_task) then
-                print*, 'master ice_step before dumpfile', istep
-              endif
-
-
             call dumpfile     ! core variables for restarting
-
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_age', istep
-              endif
-
-
             if (tr_iage)      call write_restart_age
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_FY', istep
-              endif
-
-
             if (tr_FY)        call write_restart_FY
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_lvl', istep
-              endif
-
-
             if (tr_lvl)       call write_restart_lvl
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_pond_cesm', istep
-              endif
-
-
             if (tr_pond_cesm) call write_restart_pond_cesm
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_pond_lvl', istep
-              endif
-
-
             if (tr_pond_lvl)  call write_restart_pond_lvl
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_pond_topo', istep
-              endif
-
-
             if (tr_pond_topo) call write_restart_pond_topo
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_aero', istep
-              endif
-
-
             if (tr_aero)      call write_restart_aero
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_bgc', istep
-              endif
-
-
             if (skl_bgc)      call write_restart_bgc  
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_hbrine', istep
-              endif
-
-
             if (tr_brine)     call write_restart_hbrine
-              if (my_task == master_task) then
-                print*, 'master ice_step before write_restart_eap', istep
-              endif
-
-
             if (kdyn == 2)    call write_restart_eap
-              if (my_task == master_task) then
-                print*, 'master ice_step before final_restart', istep
-              endif
-
-
             call final_restart
          endif
-
-          if (my_task == master_task) then
-            print*, 'master ice_step done', istep
-          endif
 
          call ice_timer_stop(timer_readwrite)  ! reading/writing
 
