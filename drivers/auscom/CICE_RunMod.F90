@@ -96,9 +96,9 @@
       call ice_timer_start(timer_step)   ! start timing entire run
 
       ! Initialise simple timers
-      !call ice_step_timer%init('ice_step', logger)
-      !call ocean_wait_timer%init('ocean_wait', logger)
-      !call coupling_step_timer%init('coupling_step', logger)
+      call ice_step_timer%init('ice_step', logger)
+      call ocean_wait_timer%init('ocean_wait', logger)
+      call coupling_step_timer%init('coupling_step', logger)
 
    !--------------------------------------------------------------------
    ! timestep loop
@@ -155,7 +155,7 @@
       endif
 
       Do icpl_io = 1, num_cpl_io   !begin I <==> O coupling iterations
-        !call coupling_step_timer%start()
+        call coupling_step_timer%start()
 
         stimestamp_io = time_sec
 
@@ -195,9 +195,9 @@
           !convert the 'raw' atm forcing into that required by cice
           call get_forcing_atmo_ready
 
-          !call ice_step_timer%start()
+          call ice_step_timer%start()
           call ice_step()
-          !call ice_step_timer%stop()
+          call ice_step_timer%stop()
 
           istep  = istep  + 1    ! update time step counters
           istep1 = istep1 + 1
@@ -235,19 +235,15 @@
 
         rtimestamp_io = time_sec
         if (rtimestamp_io < (dt*npt)) then
-          !call ocean_wait_timer%start()
+          call ocean_wait_timer%start()
           call from_ocn(rtimestamp_io)
-          !call ocean_wait_timer%stop()
+          call ocean_wait_timer%stop()
         endif
 
-        !call coupling_step_timer%stop()
-
-        print *, 'CICE: in coupling loop PE, time_sec ', my_task, time_sec
+        call coupling_step_timer%stop()
       End Do      !icpl_io
 
       END DO        !icpl_ai
-
-        print *, 'CICE: after coupling loop PE ', my_task
 
       ! final update of the stimestamp_io, ie., put back the last dt_ice:
       stimestamp_io = stimestamp_io + dt
@@ -260,18 +256,14 @@
 
       call save_sicemass(trim(restart_dir)//'sicemass.nc',stimestamp_io)    
 
-        print *, 'CICE: after save_sicemass PE ', my_task
-
    !--------------------------------------------------------------------
    ! end of timestep loop
    !--------------------------------------------------------------------
 
       call ice_timer_stop(timer_step)   ! end timestepping loop timer     
-      !call ice_step_timer%write_stats()
-      !call ocean_wait_timer%write_stats()
-      !call coupling_step_timer%write_stats()
-
-        print *, 'CICE: cice_run finished PE ', my_task
+      call ice_step_timer%write_stats()
+      call ocean_wait_timer%write_stats()
+      call coupling_step_timer%write_stats()
 
       end subroutine CICE_Run
 

@@ -41,6 +41,7 @@ setenv IO_TYPE  netcdf    # set to none if netcdf library is unavailable
 setenv DITTO    no        # reproducible diagnostics
 setenv THRD     no        # set to yes for OpenMP threading
 if ( $THRD == 'yes') setenv OMP_NUM_THREADS 2 # positive integer 
+setenv BARRIERS yes       # set -Dgather_scatter_barrier, prevents hangs on raijin
 setenv AusCOM   yes
 if ($driver == 'access') then
     setenv ACCESS   yes
