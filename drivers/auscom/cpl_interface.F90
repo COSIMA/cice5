@@ -1,8 +1,3 @@
-
-#if (MXBLCKS != 1)
-#error The code assumes that max_blocks == 1
-#endif
-
 !============================================================================
   module cpl_interface
 !============================================================================
@@ -13,6 +8,8 @@
   !prism stuff
   use mpi
   use mod_prism
+  use mod_oasis, only : oasis_def_partition, oasis_def_var
+  use mod_oasis, only : oasis_put, oasis_get, oasis_enddef
 
   !cice stuff
   use ice_kinds_mod
@@ -28,6 +25,7 @@
   use ice_constants
   use ice_boundary, only : ice_HaloUpdate
   use ice_domain, only: distribution_type, distrb_info
+  use ice_domain, only: nblocks, blocks_ice
   use ice_domain, only: ew_boundary_type, ns_boundary_type, halo_info
 
   !cpl stuff
@@ -46,6 +44,7 @@
   use ice_broadcast, only :  broadcast_array
 
   use coupler_mod, only: coupler_type => coupler
+  use logger_mod, only : logger_type => logger, LOG_ERROR
 
   implicit none
 
@@ -114,7 +113,7 @@
   il_nbcplproc = il_nbtotproc   !multi-process coupling
 
   ! Open the process log file
-#if defined(DEBUG) 
+#if defined(DEBUG)
   il_out = 85 + my_task
   write(chout,'(I6.6)')il_out
   chiceout='iceout'//trim(chout)
@@ -130,94 +129,66 @@
 
   end subroutine prism_init
 
-!=======================================================================
-  subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
+subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
 
-  !use mpi
-  include 'mpif.h'
+    integer, intent(in) :: runtime_seconds
+    integer, dimension(:), intent(in) :: coupling_field_timesteps
+    type(logger_type), intent(in) :: logger
 
-  integer, intent(in) :: runtime_seconds
-  integer, dimension(:), intent(in) :: coupling_field_timesteps
-!--------------------!
+    integer(kind=int_kind) :: jf
 
-  integer(kind=int_kind) :: jf
+    integer(kind=int_kind), dimension(:), allocatable :: part_def
+    integer :: part_id, part_idx
 
-!  logical :: ll_comparal                   ! paralell or mono-cpl coupling
-!  integer(kind=int_kind) :: il_nbtotproc   ! Total number of processes
-!  integer(kind=int_kind) :: il_nbcplproc   ! Number of processes involved in the coupling
-  integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
-  integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
-  integer(kind=int_kind) :: il_part_id     ! Local partition ID
-  integer(kind=int_kind) :: il_length      ! Size of partial field for each process
+    integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
+    integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
 
-!  integer,parameter :: nprocsX=3, nprocsY=2
+    integer, dimension(2) :: starts,sizes,subsizes
+    integer(kind=mpi_address_kind) :: start, extent
+    real(kind=dbl_kind) :: realvalue
+    integer (int_kind) :: nprocs
 
-  integer, dimension(2) :: starts,sizes,subsizes
-  integer(kind=mpi_address_kind) :: start, extent
-  real(kind=dbl_kind) :: realvalue
-  integer (int_kind) :: nprocs
+    integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
+    integer(kind=int_kind) :: grid_task   ! Equivalent task ID on nonmasked grid
 
-!-------------------------------------------------------------------------
+    integer :: err
+    type(block) :: this_block
 
-  integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
-  integer(kind=int_kind) :: grid_task   ! Equivalent task ID on nonmasked grid
+    ! Send ice grid details to atmosphere. This is used to regrid runoff.
+    call send_grid_to_atm()
 
-  ! Send ice grid details to atmosphere. This is used to regrid runoff.
-  call send_grid_to_atm()
+    ! Define oasis partition and variables using orange partition. This is
+    ! fairly general so other partition types should not be needed.
+    allocate(part_def(2 + 2*block_size_y*nblocks))
+    part_def(:) = 0
+    part_def(1) = 3
+    part_def(2) = block_size_y*nblocks
+    part_idx = 3
 
-  ! cartesian presets these, but roundrobin does not
-  ! TODO: Remove these from ice_distribute's create_distrb_cart
-  nprocsx = nx_global / block_size_x
-  nprocsy = ny_global / block_size_y
+    do iblk=1, nblocks
+        this_block = get_block(blocks_ice(iblk), iblk)
+        ilo = this_block%ilo
+        jlo = this_block%jlo
+        jhi = this_block%jhi
 
-  if (distribution_type == 'cartesian') then
-      grid_task = my_task
-  else if (distribution_type == 'roundrobin') then
-      grid_task = distrb_info%blockIndex(my_task + 1, 1) - 1
-  else
-      call abort_ice('ice: distribution_type not yet supported.')
-  end if
+        do j = jlo, jhi
+            ! Oasis uses zero-indexing for this, hence the final - 1
+            part_def(part_idx) = ((this_block%j_glob(j) - 1) * nx_global) + this_block%i_glob(ilo) - 1
+            part_idx = part_idx + 1
+            part_def(part_idx) = block_size_x
+            part_idx = part_idx + 1
+        enddo
+    enddo
+    call oasis_def_partition(part_id, part_def, err, nx_global * ny_global)
 
-  !calculate partition using nprocsX and nprocsX
-  l_ilo = mod(grid_task, nprocsX) * block_size_x + 1
-  l_ihi = l_ilo + block_size_x - 1
-  l_jlo = int(grid_task / nprocsX) * block_size_y + 1
-  l_jhi = l_jlo + block_size_y - 1
-
-#if defined(DEBUG) 
-  write(il_out,*) 'nprocsX and nprocsY:', nprocsX, nprocsY
-  write(il_out,*) '  2local partion, ilo, ihi, jlo, jhi=', l_ilo, l_ihi, l_jlo, l_jhi
-  write(il_out,*) '  2partition x,y sizes:', l_ihi-l_ilo+1, l_jhi-l_jlo+1
-#endif
-
-    !
-    ! The following steps need to be done:
-    ! -> by the process if cice is monoprocess;
-    ! -> only by the master process, if cice is parallel and only 
-    !    master process is involved in the coupling;
-    ! -> by all processes, if cice is parallel and all processes 
-    ! are involved in the coupling.
-    
-    call decomp_def (il_part_id, il_length, nt_cells, &
-         my_task, il_nbcplproc, .true., il_out)
-
-#if defined(DEBUG) 
-    write(il_out,*)'(init_cpl) called decomp_def, my_task, ierror = ',my_task, ierror
-#endif
-
-    !
-    ! PSMILe coupling fields declaration
-    !
-
-    il_var_nodims(1) = 2 ! rank of coupling field
+    ! Define coupling fields
+    il_var_nodims(1) = 1 ! rank of coupling field
     il_var_nodims(2) = 1 ! number of bundles in coupling field (always 1)
-    il_var_shape(1)= 1 !l_ilo ! min index for the coupling field local dimension
-    il_var_shape(2)= l_ihi-l_ilo+1 ! max index for the coupling field local dim
-    il_var_shape(3)= 1 !l_jlo ! min index for the coupling field local dim
-    il_var_shape(4)= l_jhi-l_jlo+1 ! max index for the coupling field local dim
+    il_var_shape(1) = 1 ! min index for the coupling field local dimension
+    il_var_shape(2) = block_size_x*block_size_y*nblocks
 
     !
-    ! Define name (as in namcouple) and declare each field sent by ice 
+    ! Define name (as in namcouple) and declare each field sent by ice
     !
 
     !ice ==> atm
@@ -238,13 +209,11 @@
     cl_writ(n_i2a+13)='aice_io'
     cl_writ(n_i2a+14)='melt_io'
     cl_writ(n_i2a+15)='form_io'
-    !cl_writ(n_i2a+16)='co2_i1'
-    !cl_writ(n_i2a+17)='wnd_i1'
 
     do jf=1, jpfldout
-      call prism_def_var_proto (il_var_id_out(jf),cl_writ(jf), il_part_id, &
-         il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
-    enddo 
+        call oasis_def_var(il_var_id_out(jf),cl_writ(jf), part_id, &
+                           il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
+    enddo
     !
     ! Define name (as in namcouple) and declare each field received by ice
     !
@@ -268,98 +237,91 @@
     cl_read(n_a2i+5)='sslx_i'
     cl_read(n_a2i+6)='ssly_i'
     cl_read(n_a2i+7)='pfmice_i'
-    !cl_read(n_a2i+8)='co2_oi'
-    !cl_read(n_a2i+9)='co2fx_oi'
-    !
+
     do jf=1, jpfldin
-      call prism_def_var_proto (il_var_id_in(jf), cl_read(jf), il_part_id, &
-         il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
-    enddo 
+      call oasis_def_var(il_var_id_in(jf), cl_read(jf), part_id, &
+                         il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
+    enddo
     !
-    ! 7- PSMILe end of declaration phase 
+    ! 7- PSMILe end of declaration phase
     !
-    call prism_enddef_proto (ierror, runtime=runtime_seconds, &
-                             coupling_field_timesteps=coupling_field_timesteps)
+    call oasis_enddef(ierror, runtime=runtime_seconds, &
+                      coupling_field_timesteps=coupling_field_timesteps)
 
-  !
-  ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:! 
-  !
+    !
+    ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:!
+    !
 
-  ! fields in: (local domain)
-  allocate ( tair0(nx_block,ny_block,max_blocks));  tair0(:,:,:) = 0
-  allocate (swflx0(nx_block,ny_block,max_blocks)); swflx0(:,:,:) = 0
-  allocate (lwflx0(nx_block,ny_block,max_blocks)); lwflx0(:,:,:) = 0
-  allocate ( uwnd0(nx_block,ny_block,max_blocks));  uwnd0(:,:,:) = 0
-  allocate ( vwnd0(nx_block,ny_block,max_blocks));  vwnd0(:,:,:) = 0
-  allocate ( qair0(nx_block,ny_block,max_blocks));  qair0(:,:,:) = 0
-  allocate ( rain0(nx_block,ny_block,max_blocks));  rain0(:,:,:) = 0
-  allocate ( snow0(nx_block,ny_block,max_blocks));  snow0(:,:,:) = 0
-  allocate ( runof0(nx_block,ny_block,max_blocks)); runof0(:,:,:) = 0
-  allocate ( press0(nx_block,ny_block,max_blocks)); press0(:,:,:) = 0
+    ! fields in: (local domain)
+    allocate (tair0(nx_block, ny_block, max_blocks));  tair0(:,:,:) = 0
+    allocate (swflx0(nx_block, ny_block, max_blocks)); swflx0(:,:,:) = 0
+    allocate (lwflx0(nx_block, ny_block, max_blocks)); lwflx0(:,:,:) = 0
+    allocate (uwnd0(nx_block, ny_block, max_blocks));  uwnd0(:,:,:) = 0
+    allocate (vwnd0(nx_block, ny_block, max_blocks));  vwnd0(:,:,:) = 0
+    allocate (qair0(nx_block, ny_block, max_blocks));  qair0(:,:,:) = 0
+    allocate (rain0(nx_block, ny_block, max_blocks));  rain0(:,:,:) = 0
+    allocate (snow0(nx_block, ny_block, max_blocks));  snow0(:,:,:) = 0
+    allocate (runof0(nx_block, ny_block, max_blocks)); runof0(:,:,:) = 0
+    allocate (press0(nx_block, ny_block, max_blocks)); press0(:,:,:) = 0
 
-  allocate ( runof(nx_block,ny_block,max_blocks)); runof(:,:,:) = 0
-  allocate ( press(nx_block,ny_block,max_blocks)); press(:,:,:) = 0
+    allocate (runof(nx_block, ny_block, max_blocks)); runof(:,:,:) = 0
+    allocate (press(nx_block, ny_block, max_blocks)); press(:,:,:) = 0
 
-  !
-  allocate ( core_runoff(nx_block,ny_block,max_blocks));  core_runoff(:,:,:) = 0.
-  !
+    allocate (core_runoff(nx_block, ny_block, max_blocks));  core_runoff(:,:,:) = 0.
 
-  allocate (ssto(nx_block,ny_block,max_blocks));  ssto(:,:,:) = 0
-  allocate (ssso(nx_block,ny_block,max_blocks));  ssso(:,:,:) = 0
-  allocate (ssuo(nx_block,ny_block,max_blocks));  ssuo(:,:,:) = 0
-  allocate (ssvo(nx_block,ny_block,max_blocks));  ssvo(:,:,:) = 0
-  allocate (sslx(nx_block,ny_block,max_blocks));  sslx(:,:,:) = 0
-  allocate (ssly(nx_block,ny_block,max_blocks));  ssly(:,:,:) = 0
-  allocate (pfmice(nx_block,ny_block,max_blocks));  pfmice(:,:,:) = 0
+    allocate (ssto(nx_block, ny_block, max_blocks));  ssto(:,:,:) = 0
+    allocate (ssso(nx_block, ny_block, max_blocks));  ssso(:,:,:) = 0
+    allocate (ssuo(nx_block, ny_block, max_blocks));  ssuo(:,:,:) = 0
+    allocate (ssvo(nx_block, ny_block, max_blocks));  ssvo(:,:,:) = 0
+    allocate (sslx(nx_block, ny_block, max_blocks));  sslx(:,:,:) = 0
+    allocate (ssly(nx_block, ny_block, max_blocks));  ssly(:,:,:) = 0
+    allocate (pfmice(nx_block, ny_block, max_blocks));  pfmice(:,:,:) = 0
 
-  !
-  allocate (iostrsu(nx_block,ny_block,max_blocks)); iostrsu(:,:,:) = 0
-  allocate (iostrsv(nx_block,ny_block,max_blocks)); iostrsv(:,:,:) = 0
-  allocate (iorain(nx_block,ny_block,max_blocks));  iorain(:,:,:) = 0
-  allocate (iosnow(nx_block,ny_block,max_blocks));  iosnow(:,:,:) = 0
-  allocate (iostflx(nx_block,ny_block,max_blocks)); iostflx(:,:,:) = 0
-  allocate (iohtflx(nx_block,ny_block,max_blocks)); iohtflx(:,:,:) = 0
-  allocate (ioswflx(nx_block,ny_block,max_blocks)); ioswflx(:,:,:) = 0
-  allocate (ioqflux(nx_block,ny_block,max_blocks)); ioqflux(:,:,:) = 0
-  allocate (iolwflx(nx_block,ny_block,max_blocks)); iolwflx(:,:,:) = 0
-  allocate (ioshflx(nx_block,ny_block,max_blocks)); ioshflx(:,:,:) = 0
-  allocate (iorunof(nx_block,ny_block,max_blocks)); iorunof(:,:,:) = 0
-  allocate (iopress(nx_block,ny_block,max_blocks)); iopress(:,:,:) = 0
-  allocate (ioaice (nx_block,ny_block,max_blocks)); ioaice(:,:,:) = 0
-  !!!
-  allocate (iomelt (nx_block,ny_block,max_blocks)); iomelt(:,:,:) = 0
-  allocate (ioform (nx_block,ny_block,max_blocks)); ioform(:,:,:) = 0
+    allocate (iostrsu(nx_block, ny_block, max_blocks)); iostrsu(:,:,:) = 0
+    allocate (iostrsv(nx_block, ny_block, max_blocks)); iostrsv(:,:,:) = 0
+    allocate (iorain(nx_block, ny_block, max_blocks));  iorain(:,:,:) = 0
+    allocate (iosnow(nx_block, ny_block, max_blocks));  iosnow(:,:,:) = 0
+    allocate (iostflx(nx_block, ny_block, max_blocks)); iostflx(:,:,:) = 0
+    allocate (iohtflx(nx_block, ny_block, max_blocks)); iohtflx(:,:,:) = 0
+    allocate (ioswflx(nx_block, ny_block, max_blocks)); ioswflx(:,:,:) = 0
+    allocate (ioqflux(nx_block, ny_block, max_blocks)); ioqflux(:,:,:) = 0
+    allocate (iolwflx(nx_block, ny_block, max_blocks)); iolwflx(:,:,:) = 0
+    allocate (ioshflx(nx_block, ny_block, max_blocks)); ioshflx(:,:,:) = 0
+    allocate (iorunof(nx_block, ny_block, max_blocks)); iorunof(:,:,:) = 0
+    allocate (iopress(nx_block, ny_block, max_blocks)); iopress(:,:,:) = 0
+    allocate (ioaice (nx_block, ny_block, max_blocks)); ioaice(:,:,:) = 0
 
-  allocate (tiostrsu(nx_block,ny_block,max_blocks)); tiostrsu(:,:,:) = 0
-  allocate (tiostrsv(nx_block,ny_block,max_blocks)); tiostrsv(:,:,:) = 0
-  allocate (tiorain(nx_block,ny_block,max_blocks));  tiorain(:,:,:) = 0
-  allocate (tiosnow(nx_block,ny_block,max_blocks));  tiosnow(:,:,:) = 0
-  allocate (tiostflx(nx_block,ny_block,max_blocks)); tiostflx(:,:,:) = 0
-  allocate (tiohtflx(nx_block,ny_block,max_blocks)); tiohtflx(:,:,:) = 0
-  allocate (tioswflx(nx_block,ny_block,max_blocks)); tioswflx(:,:,:) = 0
-  allocate (tioqflux(nx_block,ny_block,max_blocks)); tioqflux(:,:,:) = 0
-  allocate (tiolwflx(nx_block,ny_block,max_blocks)); tiolwflx(:,:,:) = 0
-  allocate (tioshflx(nx_block,ny_block,max_blocks)); tioshflx(:,:,:) = 0
-  allocate (tiorunof(nx_block,ny_block,max_blocks)); tiorunof(:,:,:) = 0
-  allocate (tiopress(nx_block,ny_block,max_blocks)); tiopress(:,:,:) = 0
-  allocate (tioaice(nx_block,ny_block,max_blocks));  tioaice(:,:,:) = 0
-  !!!
-  allocate (tiomelt(nx_block,ny_block,max_blocks));  tiomelt(:,:,:) = 0
-  allocate (tioform(nx_block,ny_block,max_blocks));  tioform(:,:,:) = 0
+    allocate (iomelt (nx_block, ny_block, max_blocks)); iomelt(:,:,:) = 0
+    allocate (ioform (nx_block, ny_block, max_blocks)); ioform(:,:,:) = 0
 
-  allocate (vwork(nx_block,ny_block,max_blocks)); vwork(:,:,:) = 0
-  allocate (gwork(nx_global,ny_global)); gwork(:,:) = 0
+    allocate (tiostrsu(nx_block, ny_block, max_blocks)); tiostrsu(:,:,:) = 0
+    allocate (tiostrsv(nx_block, ny_block, max_blocks)); tiostrsv(:,:,:) = 0
+    allocate (tiorain(nx_block, ny_block, max_blocks));  tiorain(:,:,:) = 0
+    allocate (tiosnow(nx_block, ny_block, max_blocks));  tiosnow(:,:,:) = 0
+    allocate (tiostflx(nx_block, ny_block, max_blocks)); tiostflx(:,:,:) = 0
+    allocate (tiohtflx(nx_block, ny_block, max_blocks)); tiohtflx(:,:,:) = 0
+    allocate (tioswflx(nx_block, ny_block, max_blocks)); tioswflx(:,:,:) = 0
+    allocate (tioqflux(nx_block, ny_block, max_blocks)); tioqflux(:,:,:) = 0
+    allocate (tiolwflx(nx_block, ny_block, max_blocks)); tiolwflx(:,:,:) = 0
+    allocate (tioshflx(nx_block, ny_block, max_blocks)); tioshflx(:,:,:) = 0
+    allocate (tiorunof(nx_block, ny_block, max_blocks)); tiorunof(:,:,:) = 0
+    allocate (tiopress(nx_block, ny_block, max_blocks)); tiopress(:,:,:) = 0
+    allocate (tioaice(nx_block, ny_block, max_blocks));  tioaice(:,:,:) = 0
 
-  !
-  allocate (sicemass(nx_block,ny_block,max_blocks)); sicemass(:,:,:) = 0.
-  allocate (u_star0(nx_block,ny_block,max_blocks)); u_star0(:,:,:) = 0.
-  allocate (rough_mom0(nx_block,ny_block,max_blocks)); rough_mom0(:,:,:) = 0.
-  allocate (rough_heat0(nx_block,ny_block,max_blocks)); rough_heat0(:,:,:) = 0.
-  allocate (rough_moist0(nx_block,ny_block,max_blocks)); rough_moist0(:,:,:) = 0.
-  !
-  allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
+    allocate (tiomelt(nx_block, ny_block, max_blocks));  tiomelt(:,:,:) = 0
+    allocate (tioform(nx_block, ny_block, max_blocks));  tioform(:,:,:) = 0
 
-end subroutine init_cpl
+    allocate (vwork(nx_block, ny_block, max_blocks)); vwork(:,:,:) = 0
+    allocate (gwork(nx_global, ny_global)); gwork(:,:) = 0
+    allocate (vwork2d(l_ilo:l_ihi, l_jlo:l_jhi)); vwork2d(:,:) = 0.
+
+    allocate (sicemass(nx_block, ny_block, max_blocks)); sicemass(:,:,:) = 0.
+    allocate (u_star0(nx_block, ny_block, max_blocks)); u_star0(:,:,:) = 0.
+    allocate (rough_mom0(nx_block, ny_block, max_blocks)); rough_mom0(:,:,:) = 0.
+    allocate (rough_heat0(nx_block, ny_block, max_blocks)); rough_heat0(:,:,:) = 0.
+    allocate (rough_moist0(nx_block, ny_block, max_blocks)); rough_moist0(:,:,:) = 0.
+
+endsubroutine init_cpl
 
 subroutine send_grid_to_atm()
 
@@ -414,42 +376,94 @@ subroutine send_grid_to_atm()
 
 end subroutine send_grid_to_atm
 
+!> Coupling arrays are 1d and need to be unpacked into the 3d format used by CICE.
+subroutine unpack_coupling_array(input, output)
+    real, dimension(:), intent(in) :: input
+    real, dimension(:, :, :), intent(inout) :: output
+
+    integer :: isc, iec, jsc, jec
+    integer :: block_size, iblk, offset
+
+    isc = 1+nghost
+    iec = nx_block-nghost
+    jsc = isc
+    jec = ny_block-nghost
+    block_size = block_size_x*block_size_y
+
+    do iblk=1, nblocks
+        offset = (iblk - 1)*block_size
+        output(isc:iec, jsc:jec, iblk) = reshape(input((offset + 1):(offset + block_size)), &
+                                                 (/ block_size_x, block_size_y /))
+    enddo
+
+endsubroutine unpack_coupling_array
+
+!> Coupling 3d arrays into 1d coupling array
+subroutine pack_coupling_array(input, output)
+    real, dimension(:, :, :), intent(in) :: input
+    real, dimension(:), intent(inout) :: output
+
+    integer :: isc, iec, jsc, jec
+    integer :: block_size, iblk, offset
+
+    isc = 1+nghost
+    iec = nx_block-nghost
+    jsc = isc
+    jec = ny_block-nghost
+    block_size = block_size_x*block_size_y
+
+    do iblk=1, nblocks
+        offset = (iblk - 1)*block_size
+        output((offset + 1):(offset + block_size)) = reshape(input(isc:iec, jsc:jec, iblk), &
+                                                             (/ block_size_x * block_size_y /))
+    enddo
+
+endsubroutine pack_coupling_array
+
 subroutine from_atm(isteps)
-
-  implicit none
-
   integer(kind=int_kind), intent(in) :: isteps
 
-  integer(kind=int_kind) :: tag, request, info, i, j, n
+  integer(kind=int_kind) :: tag, request, info
   integer(kind=int_kind) :: buf(1)
-  integer :: isc, iec, jsc, jec
-  real(kind=dbl_kind) :: total_runoff
+  real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
 #if defined(DEBUG)
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
 #endif
 
-  isc = 1+nghost
-  iec = nx_block-nghost
-  jsc = isc
-  jec = ny_block-nghost
-
   call ice_timer_start(timer_from_atm)
 
-  ! The return value 'info' is not checked, oasis does not return errors, it
-  ! will abort if there is any problem.
   call ice_timer_start(timer_waiting_atm)
-  call prism_get_proto(il_var_id_in(1), isteps, swflx0(isc:iec, jsc:jec, 1), info)
+  call oasis_get(il_var_id_in(1), isteps, work, info)
+  call unpack_coupling_array(work, swflx0)
   call ice_timer_stop(timer_waiting_atm)
-  call prism_get_proto(il_var_id_in(2), isteps, lwflx0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(3), isteps, rain0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(4), isteps, snow0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(5), isteps, press0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(6), isteps, runof0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(7), isteps, tair0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(8), isteps, qair0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(9), isteps, uwnd0(isc:iec, jsc:jec, 1), info)
-  call prism_get_proto(il_var_id_in(10), isteps, vwnd0(isc:iec, jsc:jec, 1), info)
+
+  call oasis_get(il_var_id_in(2), isteps, work, info)
+  call unpack_coupling_array(work, lwflx0)
+
+  call oasis_get(il_var_id_in(3), isteps, work, info)
+  call unpack_coupling_array(work, rain0)
+
+  call oasis_get(il_var_id_in(4), isteps, work, info)
+  call unpack_coupling_array(work, snow0)
+
+  call oasis_get(il_var_id_in(5), isteps, work, info)
+  call unpack_coupling_array(work, press0)
+
+  call oasis_get(il_var_id_in(6), isteps, work, info)
+  call unpack_coupling_array(work, runof0)
+
+  call oasis_get(il_var_id_in(7), isteps, work, info)
+  call unpack_coupling_array(work, tair0)
+
+  call oasis_get(il_var_id_in(8), isteps, work, info)
+  call unpack_coupling_array(work, qair0)
+
+  call oasis_get(il_var_id_in(9), isteps, work, info)
+  call unpack_coupling_array(work, uwnd0)
+
+  call oasis_get(il_var_id_in(10), isteps, work, info)
+  call unpack_coupling_array(work, vwnd0)
 
   ! need do t-grid to u-grid shift for vectors since all coupling occur on
   ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
@@ -475,150 +489,113 @@ subroutine from_atm(isteps)
 
 end subroutine from_atm
 
-!=======================================================================
-  subroutine from_ocn(isteps)
-!-------------------------------------------!  
+subroutine from_ocn(isteps)
+    integer(kind=int_kind), intent(in) :: isteps
 
-  integer(kind=int_kind), intent(in) :: isteps
- 
-  integer(kind=int_kind) :: jf, field_type
-
-  call ice_timer_start(timer_from_ocn)
+    integer :: info
+    real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
 #if defined(DEBUG)
     write(il_out,*) '(from_ocn) receiving coupling fields at rtime: ', isteps
 #endif
 
-  do jf = n_a2i+1, jpfldin          !no 11-17 from ocn
+    call ice_timer_start(timer_from_ocn)
+    call ice_timer_start(timer_waiting_ocn)
 
-      if (jf == n_a2i+1) then
-        call ice_timer_start(timer_waiting_ocn)
-      elseif (jf == n_a2i+2) then
-        call ice_timer_stop(timer_waiting_ocn)
-      endif
+    call oasis_get(il_var_id_in(11), isteps, work, info)
+    call unpack_coupling_array(work, ssto)
+    call ice_timer_start(timer_waiting_ocn)
 
-      !jf-th field in
-#if defined(DEBUG)
-      write(il_out,*) '*** receiving coupling fields No. ', jf, cl_read(jf)
-#endif
+    call oasis_get(il_var_id_in(12), isteps, work, info)
+    call unpack_coupling_array(work, ssso)
 
-        call prism_get_proto (il_var_id_in(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-      if ( ierror /= PRISM_Ok .and. ierror < PRISM_Recvd) then
-#if defined(DEBUG)
-        write(il_out,*) 'Err in _get_ sst at time with error: ', isteps, ierror
-#endif
-        call prism_abort_proto(il_comp_id, 'cice from_atm','stop 1')
-      else
-#if defined(DEBUG)
-        write(il_out,*)'(from_ocn) rcvd at time with err: ',cl_read(jf),isteps,ierror
-#endif
-      endif
+    call oasis_get(il_var_id_in(13), isteps, work, info)
+    call unpack_coupling_array(work, ssuo)
 
-    ! Copy over non-ghost part of coupled field.
-    select case (jf)
-        case (n_a2i+1)
-            ssto(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+2)
-            ssso(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+3)
-            ssuo(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+4)
-            ssvo(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+5)
-            sslx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+6)
-            ssly(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case (n_a2i+7)
-            pfmice(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1) = vwork2d
-        case default
-            stop "Error: invalid case in subroutine from_ocn()"
-    end select
+    call oasis_get(il_var_id_in(14), isteps, work, info)
+    call unpack_coupling_array(work, ssvo)
 
-  enddo
+    call oasis_get(il_var_id_in(15), isteps, work, info)
+    call unpack_coupling_array(work, sslx)
 
-  if (chk_o2i_fields) then
-    call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
-  endif
+    call oasis_get(il_var_id_in(16), isteps, work, info)
+    call unpack_coupling_array(work, ssly)
 
-  call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
+    call oasis_get(il_var_id_in(17), isteps, work, info)
+    call unpack_coupling_array(work, pfmice)
 
-  end subroutine from_ocn
+    if (chk_o2i_fields) then
+      call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
+    endif
 
-!=======================================================================
-  subroutine into_ocn(isteps, scale)
+    call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
+
+end subroutine from_ocn
+
 !
 ! Note dummy 'scale', if /= 1 (then must be 1/coef_ic), is used here for the very 
 ! first-time-step-of-exp i2o fluxes scaling-up, because routine 'tavg_i2o_fluxes' 
 ! has scaled-down the current step i2o fluxes (calculated in get_i2o_fluxes) by 
 ! * coef_ic.  
-! 
-  integer(kind=int_kind), intent(in) :: isteps
-  real, intent(in) :: scale             !only 1 or 1/coef_ic allowed! 
-  integer(kind=int_kind) :: jf
+!
+subroutine into_ocn(isteps, scale)
+ 
+    integer(kind=int_kind), intent(in) :: isteps
+    real, intent(in) :: scale             !only 1 or 1/coef_ic allowed! 
 
-    do jf = n_i2a+1, jpfldout       !no 2-14 are for the ocn
+    real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
-    if (jf == n_i2a+1 ) then
-        vwork2d(:,:) = scale * iostrsu(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+2 ) then
-        vwork2d(:,:) = scale * iostrsv(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+3 ) then
-        vwork2d(:,:) = scale * iorain(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+4 ) then
-        vwork2d(:,:) = scale * iosnow(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+5 ) then
-        vwork2d(:,:) = scale * iostflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+6 ) then
-         vwork2d(:,:) = scale * iohtflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+7 ) then
-         vwork2d(:,:) = scale * ioswflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+8 ) then
-        vwork2d(:,:) = scale * ioqflux(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+9 ) then
-        vwork2d(:,:) = scale * ioshflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+10 ) then
-        vwork2d(:,:) = scale * iolwflx(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+11) then 
-       if ( use_core_nyf_runoff .or. use_core_iaf_runoff ) then 
-         vwork2d(:,:) = core_runoff(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-       else 
-         vwork2d(:,:) = scale * iorunof(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-       endif 
-    elseif (jf == n_i2a+12) then
-        vwork2d(:,:) = scale * iopress(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+13) then
-        vwork2d(:,:) = scale * ioaice(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+14) then
-        vwork2d(:,:) = scale * iomelt(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
-    elseif (jf == n_i2a+15) then
-        vwork2d(:,:) = scale * ioform(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+    call pack_coupling_array(iostrsu*scale, work)
+    call oasis_put(il_var_id_out(2), isteps, work, ierror)
+
+    call pack_coupling_array(iostrsv*scale, work)
+    call oasis_put(il_var_id_out(3), isteps, work, ierror)
+
+    call pack_coupling_array(iorain*scale, work)
+    call oasis_put(il_var_id_out(4), isteps, work, ierror)
+
+    call pack_coupling_array(iosnow*scale, work)
+    call oasis_put(il_var_id_out(5), isteps, work, ierror)
+
+    call pack_coupling_array(iostflx*scale, work)
+    call oasis_put(il_var_id_out(6), isteps, work, ierror)
+
+    call pack_coupling_array(iohtflx*scale, work)
+    call oasis_put(il_var_id_out(7), isteps, work, ierror)
+
+    call pack_coupling_array(ioswflx*scale, work)
+    call oasis_put(il_var_id_out(8), isteps, work, ierror)
+
+    call pack_coupling_array(ioqflux*scale, work)
+    call oasis_put(il_var_id_out(9), isteps, work, ierror)
+
+    call pack_coupling_array(ioshflx*scale, work)
+    call oasis_put(il_var_id_out(10), isteps, work, ierror)
+
+    call pack_coupling_array(iolwflx*scale, work)
+    call oasis_put(il_var_id_out(11), isteps, work, ierror)
+
+    call pack_coupling_array(iorunof*scale, work)
+    call oasis_put(il_var_id_out(12), isteps, work, ierror)
+
+    call pack_coupling_array(iopress*scale, work)
+    call oasis_put(il_var_id_out(13), isteps, work, ierror)
+
+    call pack_coupling_array(ioaice*scale, work)
+    call oasis_put(il_var_id_out(14), isteps, work, ierror)
+
+    call pack_coupling_array(iomelt*scale, work)
+    call oasis_put(il_var_id_out(15), isteps, work, ierror)
+
+    call pack_coupling_array(ioform*scale, work)
+    call oasis_put(il_var_id_out(16), isteps, work, ierror)
+
+    if (chk_i2o_fields) then
+    call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
     endif
 
-    !vwork2d(l_ilo:l_ihi, l_jlo:l_jhi) = vwork(1+nghost:nx_block-nghost,1+nghost:ny_block-nghost, 1)
+end subroutine into_ocn
 
-#if defined(DEBUG)
-      write(il_out,*) '*** sending coupling field No. ', jf, cl_writ(jf)
-      write(il_out,*) 'chk: vwork2d', isteps, minval(vwork2d), maxval(vwork2d), sum(vwork2d)
-#endif
-      call prism_put_proto(il_var_id_out(jf), isteps, vwork2d(l_ilo:l_ihi, l_jlo:l_jhi), ierror)
-      if ( ierror /= PRISM_Ok .and. ierror < PRISM_Sent) then
-#if defined(DEBUG)
-        write(il_out,*) '(into_ocn) Err in _put_ ', cl_writ(jf), isteps, ierror
-#endif
-        call prism_abort_proto(il_comp_id, 'cice into_ocn','STOP 1') 
-      else
-#if defined(DEBUG)
-        write(il_out,*)'(into_ocn) sent: ', cl_writ(jf), isteps, ierror
-#endif
-      endif
-
-  enddo     !jf = 6, jpfldout
-
-  if (chk_i2o_fields) then
-    call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
-  endif
-
-  end subroutine into_ocn
 
 subroutine update_halos_from_ocn(time)
 
@@ -691,153 +668,6 @@ end subroutine update_halos_from_atm
     call MPI_Finalize (ierror)
 
   end subroutine coupler_termination
-
-!=======================================================================
-  subroutine decomp_def(id_part_id, id_length, id_imjm, &
-   id_rank, id_nbcplproc, ld_comparal, ld_mparout)
-!-------------------------------------------------------!
-  !
-  !use mod_prism_proto
-  !use mod_prism_def_partition_proto
-
-  implicit none
-
-  integer(kind=int_kind), dimension(:), allocatable :: il_paral ! Decomposition for each proc
-  integer(kind=int_kind) :: ig_nsegments  ! Number of segments of process decomposition 
-  integer(kind=int_kind) :: ig_parsize    ! Size of array decomposition
-  integer(kind=int_kind) :: id_nbcplproc  ! Number of processes involved in the coupling
-  integer(kind=int_kind) :: id_part_id    ! Local partition ID
-  integer(kind=int_kind) :: id_imjm       ! Total grid dimension, ib, ierror, my_task
-  integer(kind=int_kind) :: id_length     ! Size of partial field for each process
-  integer(kind=int_kind) :: id_rank       ! Rank of process
-  integer(kind=int_kind) :: ld_mparout    ! Unit of log file
-  logical :: ld_comparal
-  integer(kind=int_kind) :: ib, ierror
-  character(len=80), parameter :: cdec='BOX'
-  !
-  integer(kind=int_kind) :: ilo, ihi, jlo, jhi
-  !
-  !
-  ! Refer to oasis/psmile/prism/modules/mod_prism_proto.F90 for integer(kind=int_kind) value
-  ! of clim_xxxx parameters
-  !
-  if ( .not. ld_comparal .and. id_rank == 0) then
-      ! Monoprocess model, or parallel model with only master process involved 
-      ! in coupling: the entire field will be exchanged by the process. 
-      ig_nsegments = 1
-      ig_parsize = 3
-      allocate(il_paral(ig_parsize))
-      !
-      il_paral ( clim_strategy ) = clim_serial
-      il_paral ( clim_offset   ) = 0
-      il_paral ( clim_length   ) = id_imjm
-      id_length = id_imjm
-      !
-      call prism_def_partition_proto (id_part_id, il_paral, ierror)
-      deallocate(il_paral)
-      !
-  else
-      ! Parallel atm with all process involved in the coupling
-      !
-      if (cdec == 'APPLE') then
-          ! Each process is responsible for a part of field defined by
-          ! the number of grid points and the offset of the first point
-          !
-          ig_nsegments = 1
-          ig_parsize = 3
-          allocate(il_paral(ig_parsize))
-
-#if defined(DEBUG)
-          write(ld_mparout,*) 'APPLE partitioning'
-          write(ld_mparout,*) 'ig_parsize',ig_parsize
-#endif
-
-          if (id_rank .LT. (id_nbcplproc-1)) then
-              il_paral ( clim_strategy ) = clim_apple
-              il_paral ( clim_length   ) = id_imjm/id_nbcplproc
-              il_paral ( clim_offset   ) = id_rank*(id_imjm/id_nbcplproc)
-          else
-              il_paral ( clim_strategy ) = clim_apple
-              il_paral ( clim_length   ) = id_imjm-(id_rank*(id_imjm/id_nbcplproc))
-              il_paral ( clim_offset   ) = id_rank*(id_imjm/id_nbcplproc)
-          endif
-          id_length = il_paral(clim_length) 
-          !
-          call prism_def_partition_proto (id_part_id, il_paral, ierror)
-          deallocate(il_paral)
-          !
-      else if (cdec == 'BOX') then
-          !B: CICE uses a kind of Cartisian decomposition which actually may NOT
-          !   be simply taken as "BOX" decomposition described here !!!
-          !   (there is an issue associated with the 'halo' boundary for each
-          !    segment and may NOT be treated as what we do below! 
-          !    It needs further consideration to make this work correctly 
-          !    for 'paralell coupling' if really needed in the future ...)
-          !  
-          ! Each process is responsible for a rectangular box 
-          !
-          ig_parsize = 5
-          allocate(il_paral(ig_parsize))
-
-#if defined(DEBUG)
-          write(ld_mparout,*) 'BOX partitioning'
-          write(ld_mparout,*)'ig_parsize',ig_parsize
-#endif
-
-          il_paral ( clim_strategy ) = clim_Box
-          il_paral ( clim_offset   ) = (l_ilo-1)+(l_jlo-1)*nx_global
-          il_paral ( clim_SizeX    ) = l_ihi-l_ilo+1
-          il_paral ( clim_SizeY    ) = l_jhi-l_jlo+1
-          il_paral ( clim_LdX      ) = nx_global
-
-          id_length = il_paral(clim_sizeX) * il_paral(clim_sizeY)
-
-#if defined(DEBUG)
-          write(ld_mparout,*)'il_paral: ',il_paral
-#endif
-
-          call prism_def_partition_proto (id_part_id, il_paral, ierror, &
-                                          nx_global * ny_global)
-          deallocate(il_paral)
-          !
-      else if (cdec == 'ORANGE') then
-          !B: NOT FOR COMMON USE!
-          ! Each process is responsible for arbitrarily distributed
-          ! pieces of the field (here two segments by process)
-          !
-          ig_nsegments = 2
-          ig_parsize = 2 * ig_nsegments + 2
-          allocate(il_paral(ig_parsize))
-
-#if defined(DEBUG)
-          write(ld_mparout,*) 'ORANGE partitioning'
-          write(ld_mparout,*)'ig_parsize',ig_parsize
-#endif
-
-          il_paral ( clim_strategy   ) = clim_orange
-          il_paral ( clim_segments   ) = 2
-          il_paral ( clim_segments+1 ) = id_rank*768
-          il_paral ( clim_segments+2 ) = 768
-          il_paral ( clim_segments+3 ) = (id_rank+3)*768
-          il_paral ( clim_segments+4 ) = 768
-          id_length = 0
-          do ib=1,2*il_paral(clim_segments) 
-            if (mod(ib,2).eq.0) then
-                id_length = id_length + il_paral(clim_segments+ib)
-            endif
-          enddo
-          !
-          call prism_def_partition_proto (id_part_id, il_paral, ierror)
-          deallocate(il_paral)
-          !
-      else
-#if defined(DEBUG)
-          write (ld_mparout,*) 'incorrect decomposition '
-#endif
-      endif
-  endif
-
-  end subroutine decomp_def
 
 subroutine write_boundary_checksums(time)
    integer, intent(in) :: time

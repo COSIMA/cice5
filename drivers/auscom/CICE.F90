@@ -42,28 +42,30 @@
       use CICE_RunMod
       use CICE_FinalMod
       use accessom2_mod, only : accessom2_type => accessom2
+      use logger_mod, only : logger_type => logger
 
       implicit none
       
       type(accessom2_type) :: accessom2
+      type(logger_type) :: logger
 
       !-----------------------------------------------------------------
       ! Initialize CICE
       !-----------------------------------------------------------------
 
-      call CICE_Initialize(accessom2)
+      call CICE_Initialize(accessom2, logger)
 
       !-----------------------------------------------------------------
       ! Run CICE
       !-----------------------------------------------------------------
 
-      call CICE_Run(accessom2)
+      call CICE_Run(accessom2, logger)
 
       !-----------------------------------------------------------------
       ! Finalize CICE 
       !-----------------------------------------------------------------
 
-      call CICE_Finalize(accessom2)
+      call CICE_Finalize(accessom2, logger)
 
       end program icemodel
 

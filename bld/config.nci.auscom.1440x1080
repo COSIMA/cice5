@@ -12,8 +12,8 @@ setenv RES 1440x1080
 set NXGLOB = `echo $RES | sed s/x.\*//`
 set NYGLOB = `echo $RES | sed s/.\*x//`
 
-setenv BLCKX `expr $NXGLOB / 24`       # x-dimension of blocks ( not including )
-setenv BLCKY `expr $NYGLOB / 20`         # y-dimension of blocks (  ghost cells  )
+setenv BLCKX `expr $NXGLOB / 48`       # x-dimension of blocks ( not including )
+setenv BLCKY `expr $NYGLOB / 40`         # y-dimension of blocks (  ghost cells  )
 
 source /etc/profile.d/nf_csh_modules
 module purge
