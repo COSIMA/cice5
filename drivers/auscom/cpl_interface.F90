@@ -19,8 +19,6 @@
   use ice_read_write,  only : ice_read_global_nc, ice_open_nc, ice_close_nc
   use ice_domain_size
   use ice_exit, only: abort_ice
-!ars599: 26032014 add distrb
-  use ice_distribution, only : nprocsX, nprocsY, distrb
   use ice_gather_scatter
   use ice_constants
   use ice_boundary, only : ice_HaloUpdate
@@ -34,14 +32,12 @@
   use cpl_arrays_setup
   use cpl_forcing_handler
 
+  use ifport
+
   use ice_timers, only: ice_timer_start, ice_timer_stop
   use ice_timers, only: timer_from_atm_halos, timer_from_ocn_halos
   use ice_timers, only: timer_from_atm, timer_waiting_atm, timer_waiting_ocn
   use ice_timers, only: timer_from_ocn, timer_runoff_remap
-
-!ars599: 27032014 add distrb
-  !mpi stuff
-  use ice_broadcast, only :  broadcast_array
 
   use coupler_mod, only: coupler_type => coupler
   use logger_mod, only : logger_type => logger, LOG_ERROR
@@ -60,6 +56,7 @@
   integer(kind=int_kind), dimension(jpfldin)  :: il_var_id_in  ! ID for fields rcvd
 
   character(len=6), parameter :: cp_modnam='cicexx' ! Component model name
+  integer, parameter :: ORANGE = 3
 
   integer(kind=int_kind) :: il_commlocal  ! Component internal communicator 
   integer(kind=int_kind) :: ierror
@@ -127,7 +124,21 @@
                    nx_block,ny_block,max_blocks
 #endif
 
-  end subroutine prism_init
+end subroutine prism_init
+
+function cmp_function(a, b)
+    integer(kind=int_kind), intent(in) :: a, b
+    integer(2) :: cmp_function
+
+    if (a > b) then
+        cmp_function = 1
+    elseif (b > a) then
+        cmp_function = -1
+    else
+        cmp_function = 0
+    endif
+
+endfunction cmp_function
 
 subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
 
@@ -138,6 +149,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
     integer(kind=int_kind) :: jf
 
     integer(kind=int_kind), dimension(:), allocatable :: part_def
+    integer(kind=int_kind), dimension(:), allocatable :: tmp
     integer :: part_id, part_idx
 
     integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
@@ -159,26 +171,77 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
 
     ! Define oasis partition and variables using orange partition. This is
     ! fairly general so other partition types should not be needed.
+
+    ! The blocks may not be in increasing order of global index. Oasis/MCT
+    ! doesn't like this and will try to reorder things. So we figure out a way
+    ! to iterate over the blocks such that the global indices of grid points in
+    ! the block are always increasing.
+    do iblk=1, nblocks
+        this_block = get_block(blocks_ice(iblk), iblk)
+        ilo = this_block%ilo
+        jlo = this_block%jlo
+        blk_gx(iblk) = this_block%j_glob(jlo) * nx_global + this_block%i_glob(ilo)
+    enddo
+
+    blk_gx_sorted(:) = blk_gx(:)
+    call qsort(blk_gx_sorted, size(blk_gx_sorted), &
+                sizeof(blk_gx_sorted(1)), cmp_function)
+    do m, nblocks
+        do n, nblocks
+            if (blk_gx_sorted(m) == blk_gx(n)) then
+                blk_indx_map(m) = n
+                exit
+            endif
+        enddo
+    enddo
+
+    ! Orange partitioning allows us to define the partition for a particular PE
+    ! as a collection of contiguous segments. Each segment is described by its
+    ! global offset and local extent. We define a segment as being a single row
+    ! of grid points in a block, i.e. the size of each segment is block_size_x.
     allocate(part_def(2 + 2*block_size_y*nblocks))
     part_def(:) = 0
-    part_def(1) = 3
+    part_def(1) = ORANGE
+    ! The number of segments.
     part_def(2) = block_size_y*nblocks
     part_idx = 3
 
-    do iblk=1, nblocks
+    print*, 'my_task, nblocks: ', my_task, nblocks
+    print*, 'block_size_x, block_size_y: ', block_size_x, block_size_y
+
+    do n=1, nblocks
+        iblk = blk_indx_map(n)
         this_block = get_block(blocks_ice(iblk), iblk)
         ilo = this_block%ilo
         jlo = this_block%jlo
         jhi = this_block%jhi
 
         do j = jlo, jhi
-            ! Oasis uses zero-indexing for this, hence the final - 1
+            ! Oasis uses zero-indexing to define the global offset, hence the final - 1
             part_def(part_idx) = ((this_block%j_glob(j) - 1) * nx_global) + this_block%i_glob(ilo) - 1
             part_idx = part_idx + 1
+            ! This is the local extent
             part_def(part_idx) = block_size_x
             part_idx = part_idx + 1
         enddo
     enddo
+    ! Try sorting the segment global offsets
+    allocate(tmp(block_size_y*nblocks))
+    tmp(:) = part_def(3::2)
+
+    if (my_task == 0) then
+        print*, 'before sort part_def: ', part_def
+        print*, 'before sort tmp: ', tmp
+    endif
+
+    call qsort(tmp, size(tmp), sizeof(tmp(1)), cmp_function)
+    part_def(3::2) = tmp(:)
+    if (my_task == 0) then
+        print*, 'after sort part_def: ', part_def
+        print*, 'after sort tmp: ', tmp
+    endif
+    deallocate(tmp)
+
     call oasis_def_partition(part_id, part_def, err, nx_global * ny_global)
 
     ! Define coupling fields
