@@ -1,7 +1,7 @@
 !============================================================================
   module cpl_interface
 !============================================================================
-! coupling interface between CICE and the oasis3_25 coupler (via MPI2) using 
+! coupling interface between CICE and the oasis3_25 coupler (via MPI2) using
 ! the PRISM System Model Interface (PSMILe).
 !----------------------------------------------------------------------------
 
@@ -32,8 +32,6 @@
   use cpl_arrays_setup
   use cpl_forcing_handler
 
-  use ifport
-
   use ice_timers, only: ice_timer_start, ice_timer_stop
   use ice_timers, only: timer_from_atm_halos, timer_from_ocn_halos
   use ice_timers, only: timer_from_atm, timer_waiting_atm, timer_waiting_ocn
@@ -42,6 +40,8 @@
   use coupler_mod, only: coupler_type => coupler
   use logger_mod, only : logger_type => logger, LOG_ERROR
 
+  use qsort, only : qsort_segments
+
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
@@ -49,24 +49,40 @@
   public :: update_halos_from_ocn, update_halos_from_atm
   public :: write_boundary_checksums
   public :: coupler
+  public :: segment
 
   private
 
-  integer(kind=int_kind), dimension(jpfldout) :: il_var_id_out ! ID for fields sent 
+  ! Nomenclature:
+  ! 'partition': a specification of all grid points (in global space) that this
+  ! rank is responsible for. Made up from a list of segments.
+  ! 'segment': a single element of the partition. A segment is defined by a
+  ! global offset and a size. In this case the size is fixed so we don't bother
+  ! keeping track of it.
+
+  ! Segment specifies a list of points using a global offset and size. It also
+  ! tracks the CICE block that these points come from.
+  type segment
+    integer :: global_offset
+    integer :: block_index
+  endtype
+
+  ! List of all segments that make up the partition. This is kept in sorted
+  ! order according to ascending global_offset of segments.
+  type(segment), dimension(:), allocatable :: part_def
+
+  integer(kind=int_kind), dimension(jpfldout) :: il_var_id_out ! ID for fields sent
   integer(kind=int_kind), dimension(jpfldin)  :: il_var_id_in  ! ID for fields rcvd
 
   character(len=6), parameter :: cp_modnam='cicexx' ! Component model name
   integer, parameter :: ORANGE = 3
 
-  integer(kind=int_kind) :: il_commlocal  ! Component internal communicator 
+  integer(kind=int_kind) :: il_commlocal  ! Component internal communicator
   integer(kind=int_kind) :: ierror
   integer(kind=int_kind) :: il_comp_id    ! Component ID
   integer(kind=int_kind) :: il_nbtotproc   ! Total number of processes
   integer(kind=int_kind) :: il_nbcplproc   ! Number of processes involved in the coupling
   integer(kind=int_kind) :: l_ilo, l_ihi, l_jlo, l_jhi !local partition
-
-  integer :: sendsubarray, recvsubarray , resizedrecvsubarray
-  integer, dimension(:), allocatable :: counts, disps
 
   real(kind=dbl_kind), dimension(:,:), allocatable :: vwork2d
 
@@ -126,20 +142,6 @@
 
 end subroutine prism_init
 
-function cmp_function(a, b)
-    integer(kind=int_kind), intent(in) :: a, b
-    integer(2) :: cmp_function
-
-    if (a > b) then
-        cmp_function = 1
-    elseif (b > a) then
-        cmp_function = -1
-    else
-        cmp_function = 0
-    endif
-
-endfunction cmp_function
-
 subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
 
     integer, intent(in) :: runtime_seconds
@@ -148,20 +150,15 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
 
     integer(kind=int_kind) :: jf
 
-    integer(kind=int_kind), dimension(:), allocatable :: part_def
-    integer(kind=int_kind), dimension(:), allocatable :: tmp
+    integer(kind=int_kind), dimension(:), allocatable :: oasis_part_def
     integer :: part_id, part_idx
 
     integer(kind=int_kind), dimension(2) :: il_var_nodims ! see below
     integer(kind=int_kind), dimension(4) :: il_var_shape  ! see below
 
-    integer, dimension(2) :: starts,sizes,subsizes
-    integer(kind=mpi_address_kind) :: start, extent
-    real(kind=dbl_kind) :: realvalue
-    integer (int_kind) :: nprocs
+    integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j,n,m
 
-    integer(kind=int_kind) :: ilo,ihi,jlo,jhi,iblk,i,j, n
-    integer(kind=int_kind) :: grid_task   ! Equivalent task ID on nonmasked grid
+    integer(2), external :: cmp_function
 
     integer :: err
     type(block) :: this_block
@@ -172,45 +169,13 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
     ! Define oasis partition and variables using orange partition. This is
     ! fairly general so other partition types should not be needed.
 
-    ! The blocks may not be in increasing order of global index. Oasis/MCT
-    ! doesn't like this and will try to reorder things. So we figure out a way
-    ! to iterate over the blocks such that the global indices of grid points in
-    ! the block are always increasing.
-    do iblk=1, nblocks
-        this_block = get_block(blocks_ice(iblk), iblk)
-        ilo = this_block%ilo
-        jlo = this_block%jlo
-        blk_gx(iblk) = this_block%j_glob(jlo) * nx_global + this_block%i_glob(ilo)
-    enddo
-
-    blk_gx_sorted(:) = blk_gx(:)
-    call qsort(blk_gx_sorted, size(blk_gx_sorted), &
-                sizeof(blk_gx_sorted(1)), cmp_function)
-    do m, nblocks
-        do n, nblocks
-            if (blk_gx_sorted(m) == blk_gx(n)) then
-                blk_indx_map(m) = n
-                exit
-            endif
-        enddo
-    enddo
-
     ! Orange partitioning allows us to define the partition for a particular PE
     ! as a collection of contiguous segments. Each segment is described by its
     ! global offset and local extent. We define a segment as being a single row
     ! of grid points in a block, i.e. the size of each segment is block_size_x.
-    allocate(part_def(2 + 2*block_size_y*nblocks))
-    part_def(:) = 0
-    part_def(1) = ORANGE
-    ! The number of segments.
-    part_def(2) = block_size_y*nblocks
-    part_idx = 3
-
-    print*, 'my_task, nblocks: ', my_task, nblocks
-    print*, 'block_size_x, block_size_y: ', block_size_x, block_size_y
-
+    allocate(part_def(block_size_y*nblocks))
+    part_idx = 1
     do n=1, nblocks
-        iblk = blk_indx_map(n)
         this_block = get_block(blocks_ice(iblk), iblk)
         ilo = this_block%ilo
         jlo = this_block%jlo
@@ -218,31 +183,33 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
 
         do j = jlo, jhi
             ! Oasis uses zero-indexing to define the global offset, hence the final - 1
-            part_def(part_idx) = ((this_block%j_glob(j) - 1) * nx_global) + this_block%i_glob(ilo) - 1
-            part_idx = part_idx + 1
-            ! This is the local extent
-            part_def(part_idx) = block_size_x
+            part_def(part_idx).global_offset = ((this_block%j_glob(j) - 1) * nx_global) + this_block%i_glob(ilo) - 1
+            part_def(part_idx).block_index = n
             part_idx = part_idx + 1
         enddo
     enddo
-    ! Try sorting the segment global offsets
-    allocate(tmp(block_size_y*nblocks))
-    tmp(:) = part_def(3::2)
+
+    ! The segments may not be in increasing order of global index. MCT
+    ! doesn't like this and will try to reorder things which causes confusion
+    ! because OASIS does not reverse the ordering when delivering the field.
+    ! We keep this sorted.
+    call qsort_segments(part_def, size(part_def), sizeof(part_def(1)), cmp_function)
+
+    ! Set up the partition definition in OASIS format.
+    allocate(oasis_part_def(2 + 2*block_size_y*nblocks))
+    ! Partition type
+    oasis_part_def(1) = ORANGE
+    ! The total number of segments
+    oasis_part_def(2) = block_size_y*nblocks
+    oasis_part_def(3::2) = part_def(:).global_offset
+    oasis_part_def(4::2) = block_size_x
 
     if (my_task == 0) then
-        print*, 'before sort part_def: ', part_def
-        print*, 'before sort tmp: ', tmp
+        print*, 'after sort part_def: ', oasis_part_def
     endif
 
-    call qsort(tmp, size(tmp), sizeof(tmp(1)), cmp_function)
-    part_def(3::2) = tmp(:)
-    if (my_task == 0) then
-        print*, 'after sort part_def: ', part_def
-        print*, 'after sort tmp: ', tmp
-    endif
-    deallocate(tmp)
-
-    call oasis_def_partition(part_id, part_def, err, nx_global * ny_global)
+    call oasis_def_partition(part_id, oasis_part_def, err, nx_global * ny_global)
+    deallocate(oasis_part_def)
 
     ! Define coupling fields
     il_var_nodims(1) = 1 ! rank of coupling field
@@ -439,46 +406,62 @@ subroutine send_grid_to_atm()
 
 end subroutine send_grid_to_atm
 
-!> Coupling arrays are 1d and need to be unpacked into the 3d format used by CICE.
+!> Convert 1d coupling arrays into 3d CICE arrays. The 1d coupling array is in
+! the format set by the partition definition.
 subroutine unpack_coupling_array(input, output)
     real, dimension(:), intent(in) :: input
     real, dimension(:, :, :), intent(inout) :: output
 
-    integer :: isc, iec, jsc, jec
-    integer :: block_size, iblk, offset
+    integer :: isc, iec
+    integer :: iseg
+    integer :: iblk, offset
+    integer, dimension(nblocks) :: blk_seg_num
 
     isc = 1+nghost
     iec = nx_block-nghost
-    jsc = isc
-    jec = ny_block-nghost
-    block_size = block_size_x*block_size_y
 
-    do iblk=1, nblocks
-        offset = (iblk - 1)*block_size
-        output(isc:iec, jsc:jec, iblk) = reshape(input((offset + 1):(offset + block_size)), &
-                                                 (/ block_size_x, block_size_y /))
+    blk_seg_num(:) = 1
+    offset = 1
+
+    do iseg=1, size(part_def)
+        iblk = part_def(iseg).block_index
+
+        output(isc:iec, blk_seg_num(iblk), iblk) = input(offset:(offset + block_size_x))
+
+        offset = offset + block_size_x + 1
+        blk_seg_num(iblk) = blk_seg_num(iblk) + 1
     enddo
 
 endsubroutine unpack_coupling_array
 
-!> Coupling 3d arrays into 1d coupling array
+!> Convert 3d CICE arrays into a 1d coupling array. The 1d coupling array needs
+! to be in a specific format to match the partition definition that has been set
+! up with Oasis.
 subroutine pack_coupling_array(input, output)
     real, dimension(:, :, :), intent(in) :: input
     real, dimension(:), intent(inout) :: output
 
-    integer :: isc, iec, jsc, jec
-    integer :: block_size, iblk, offset
+    integer :: isc, iec
+    integer :: iseg
+    integer :: iblk, offset
+    integer, dimension(nblocks) :: blk_seg_num
 
     isc = 1+nghost
     iec = nx_block-nghost
-    jsc = isc
-    jec = ny_block-nghost
-    block_size = block_size_x*block_size_y
 
-    do iblk=1, nblocks
-        offset = (iblk - 1)*block_size
-        output((offset + 1):(offset + block_size)) = reshape(input(isc:iec, jsc:jec, iblk), &
-                                                             (/ block_size_x * block_size_y /))
+    blk_seg_num(:) = 1
+    offset = 1
+
+    ! Load the coupling array one segemnt at a time.  The code relies on the
+    ! part_def being sorted so simply incrementing the blk_seg_num gets data
+    ! from the next segmennt.
+    do iseg=1, size(part_def)
+        iblk = part_def(iseg).block_index
+
+        output(offset:(offset + block_size_x)) = input(isc:iec, blk_seg_num(iblk), iblk)
+
+        offset = offset + block_size_x + 1
+        blk_seg_num(iblk) = blk_seg_num(iblk) + 1
     enddo
 
 endsubroutine pack_coupling_array
@@ -786,5 +769,6 @@ subroutine write_boundary_checksums(time)
 
 end subroutine
 
+end module cpl_interface
 
-  end module cpl_interface
+
