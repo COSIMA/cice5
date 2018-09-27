@@ -40,8 +40,6 @@
   use coupler_mod, only: coupler_type => coupler
   use logger_mod, only : logger_type => logger, LOG_ERROR
 
-  use qsort, only : qsort_segments
-
   implicit none
 
   public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
@@ -104,7 +102,7 @@
   !       let's move slowly for now.
 
   !-----------------------------------
-  ! 'define' the model global domain: 
+  ! 'define' the model global domain:
   !-----------------------------------
   nt_cells = nx_global * ny_global
 
@@ -142,6 +140,25 @@
 
 end subroutine prism_init
 
+!> Sort segments in ascending order using an exchange sort
+subroutine sort_segments(seg_list)
+    type(segment), dimension(:), intent(inout) :: seg_list
+
+    integer :: i, j
+    type(segment) :: tmp
+
+    do i=1, size(seg_list) - 1
+        do j=i+1, size(seg_list)
+            if (seg_list(i).global_offset > seg_list(j).global_offset) then
+                tmp = seg_list(i)
+                seg_list(i) = seg_list(j)
+                seg_list(j) = tmp
+            endif
+        enddo
+    enddo
+
+endsubroutine sort_segments
+
 subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
 
     integer, intent(in) :: runtime_seconds
@@ -176,7 +193,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
     allocate(part_def(block_size_y*nblocks))
     part_idx = 1
     do n=1, nblocks
-        this_block = get_block(blocks_ice(iblk), iblk)
+        this_block = get_block(blocks_ice(n), n)
         ilo = this_block%ilo
         jlo = this_block%jlo
         jhi = this_block%jhi
@@ -193,7 +210,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
     ! doesn't like this and will try to reorder things which causes confusion
     ! because OASIS does not reverse the ordering when delivering the field.
     ! We keep this sorted.
-    call qsort_segments(part_def, size(part_def), sizeof(part_def(1)), cmp_function)
+    call sort_segments(part_def)
 
     ! Set up the partition definition in OASIS format.
     allocate(oasis_part_def(2 + 2*block_size_y*nblocks))
@@ -204,12 +221,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
     oasis_part_def(3::2) = part_def(:).global_offset
     oasis_part_def(4::2) = block_size_x
 
-    if (my_task == 0) then
-        print*, 'after sort part_def: ', oasis_part_def
-    endif
-
     call oasis_def_partition(part_id, oasis_part_def, err, nx_global * ny_global)
-    deallocate(oasis_part_def)
 
     ! Define coupling fields
     il_var_nodims(1) = 1 ! rank of coupling field
@@ -420,15 +432,15 @@ subroutine unpack_coupling_array(input, output)
     isc = 1+nghost
     iec = nx_block-nghost
 
-    blk_seg_num(:) = 1
-    offset = 1
+    blk_seg_num(:) = 1 + nghost
+    offset = 0
 
     do iseg=1, size(part_def)
         iblk = part_def(iseg).block_index
 
-        output(isc:iec, blk_seg_num(iblk), iblk) = input(offset:(offset + block_size_x))
+        output(isc:iec, blk_seg_num(iblk), iblk) = input((offset + 1):(offset + block_size_x))
 
-        offset = offset + block_size_x + 1
+        offset = offset + block_size_x
         blk_seg_num(iblk) = blk_seg_num(iblk) + 1
     enddo
 
@@ -449,8 +461,7 @@ subroutine pack_coupling_array(input, output)
     isc = 1+nghost
     iec = nx_block-nghost
 
-    blk_seg_num(:) = 1
-    offset = 1
+    blk_seg_num(:) = 1 + nghost
 
     ! Load the coupling array one segemnt at a time.  The code relies on the
     ! part_def being sorted so simply incrementing the blk_seg_num gets data
@@ -458,9 +469,9 @@ subroutine pack_coupling_array(input, output)
     do iseg=1, size(part_def)
         iblk = part_def(iseg).block_index
 
-        output(offset:(offset + block_size_x)) = input(isc:iec, blk_seg_num(iblk), iblk)
+        output((offset + 1):(offset + block_size_x)) = input(isc:iec, blk_seg_num(iblk), iblk)
 
-        offset = offset + block_size_x + 1
+        offset = offset + block_size_x
         blk_seg_num(iblk) = blk_seg_num(iblk) + 1
     enddo
 
@@ -637,7 +648,7 @@ subroutine into_ocn(isteps, scale)
     call oasis_put(il_var_id_out(16), isteps, work, ierror)
 
     if (chk_i2o_fields) then
-    call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
+        call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
     endif
 
 end subroutine into_ocn
