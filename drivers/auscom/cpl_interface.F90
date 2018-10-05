@@ -561,7 +561,7 @@ subroutine from_ocn(isteps)
 
     call oasis_get(il_var_id_in(11), isteps, work, info)
     call unpack_coupling_array(work, ssto)
-    call ice_timer_start(timer_waiting_ocn)
+    call ice_timer_stop(timer_waiting_ocn)
 
     call oasis_get(il_var_id_in(12), isteps, work, info)
     call unpack_coupling_array(work, ssso)
