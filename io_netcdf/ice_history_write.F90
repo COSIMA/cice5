@@ -864,7 +864,10 @@
       !-----------------------------------------------------------------
 
         status = nf90_enddef(ncid)
-        if (status /= nf90_noerr) call abort_ice('ice: Error in nf90_enddef')
+        if (status /= nf90_noerr) then
+            call abort_ice('ice: Error in nf90_enddef: '// &
+                            trim(nf90_strerror(status)))
+        endif
 
       !-----------------------------------------------------------------
       ! write time variable
