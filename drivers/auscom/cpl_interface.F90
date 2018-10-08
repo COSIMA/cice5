@@ -186,6 +186,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
     ! Define oasis partition and variables using orange partition. This is
     ! fairly general so other partition types should not be needed.
 
+    print*, 'PE nblocks: ', my_task, nblocks
+
     ! Orange partitioning allows us to define the partition for a particular PE
     ! as a collection of contiguous segments. Each segment is described by its
     ! global offset and local extent. We define a segment as being a single row
