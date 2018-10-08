@@ -38,7 +38,6 @@
   use ice_timers, only: timer_from_ocn, timer_runoff_remap
 
   use coupler_mod, only: coupler_type => coupler
-  use logger_mod, only : logger_type => logger, LOG_ERROR
 
   implicit none
 
@@ -159,11 +158,10 @@ subroutine sort_segments(seg_list)
 
 endsubroutine sort_segments
 
-subroutine init_cpl(runtime_seconds, coupling_field_timesteps, logger)
+subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     integer, intent(in) :: runtime_seconds
     integer, dimension(:), intent(in) :: coupling_field_timesteps
-    type(logger_type), intent(in) :: logger
 
     integer(kind=int_kind) :: jf
 

@@ -30,7 +30,6 @@
       use cpl_interface, only : write_boundary_checksums
       use accessom2_mod, only : accessom2_type => accessom2
       use simple_timer_mod, only : simple_timer_type => simple_timer
-      use logger_mod, only : logger_type => logger
 #endif
 
       implicit none
@@ -50,7 +49,7 @@
 !         Philip W. Jones, LANL
 !         William H. Lipscomb, LANL
 
-      subroutine CICE_Run(accessom2, logger)
+      subroutine CICE_Run(accessom2)
 
       use ice_aerosol, only: faero_default
       use ice_algae, only: get_forcing_bgc
@@ -73,7 +72,6 @@
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
 
       type(accessom2_type), intent(inout) :: accessom2
-      type(logger_type), intent(in) :: logger
 
       integer (kind=int_kind) :: time_sec, itap, icpl_ai, icpl_io
       integer (kind=int_kind) :: stimestamp_ai
@@ -85,7 +83,6 @@
       ! Keep some stats about ice_step performance and ocean wait times.
       type(simple_timer_type) :: ice_step_timer, ocean_wait_timer
       type(simple_timer_type) :: coupling_step_timer
-#endif
 
    !--------------------------------------------------------------------
    !  initialize error code and step timer
@@ -93,10 +90,13 @@
 
       call ice_timer_start(timer_step)   ! start timing entire run
 
-      ! Initialise simple timers
-      call ice_step_timer%init('ice_step', logger)
-      call ocean_wait_timer%init('ocean_wait', logger)
-      call coupling_step_timer%init('coupling_step', logger)
+      ! Initialise some simple timers
+      call ice_step_timer%init('ice_step', accessom2%logger, &
+                               accessom2%simple_timers_enabled())
+      call ocean_wait_timer%init('ocean_wait', accessom2%logger, &
+                                 accessom2%simple_timers_enabled())
+      call coupling_step_timer%init('coupling_step', accessom2%logger, &
+                                    accessom2%simple_timers_enabled())
 
    !--------------------------------------------------------------------
    ! timestep loop

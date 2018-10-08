@@ -14,7 +14,6 @@
       use ice_kinds_mod
 
       use accessom2_mod, only : accessom2_type => accessom2
-      use logger_mod, only : logger_type => logger
       use cpl_interface, only : coupler_termination
 
       implicit none
@@ -30,7 +29,7 @@
 !
 !  This routine shuts down CICE by exiting all relevent environments.
 
-      subroutine CICE_Finalize(accessom2, logger)
+      subroutine CICE_Finalize(accessom2)
 
       use ice_exit, only: end_run
       use ice_fileunits, only: nu_diag, release_all_fileunits
@@ -41,7 +40,6 @@
       use ice_calendar, only : calendar, time, dt
 
       type(accessom2_type), intent(inout) :: accessom2
-      type(logger_type), intent(inout) :: logger
       integer, dimension(6) :: date_array
 
    !-------------------------------------------------------------------
@@ -63,7 +61,6 @@
    !-------------------------------------------------------------------
    ! quit MPI
    !-------------------------------------------------------------------
-    call logger%deinit()
 
     ! Allow libaccessom2 to check that datetime of all models is synchronised at
     ! the end of the run.
