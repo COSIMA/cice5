@@ -585,7 +585,7 @@ subroutine from_ocn(isteps)
       call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
     endif
 
-    call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
+    call ice_timer_stop(timer_from_ocn)  ! ice/ocn coupling
 
 end subroutine from_ocn
 

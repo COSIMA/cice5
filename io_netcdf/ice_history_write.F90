@@ -54,7 +54,7 @@
           lont_bounds, latt_bounds, lonu_bounds, latu_bounds
       use ice_history_shared
       use ice_itd, only: hin_max
-      use ice_restart_shared, only: runid
+      use ice_restart_shared, only: runid, lcdf64
       use netcdf
 #endif
 
@@ -81,7 +81,7 @@
       character (char_len) :: title
       character (char_len_long) :: ncfile(max_nstrm)
 
-      integer (kind=int_kind) :: ind,boundid
+      integer (kind=int_kind) :: ind,boundid, iflag
 
       character (char_len) :: start_time,current_date,current_time
       character (len=8) :: cdate
@@ -127,7 +127,9 @@
         endif
 
         ! create file
-        status = nf90_create(ncfile(ns), nf90_clobber, ncid)
+        iflag = nf90_clobber
+        if (lcdf64) iflag = ior(iflag, nf90_64bit_offset)
+        status = nf90_create(ncfile(ns), iflag, ncid)
         if (status /= nf90_noerr) call abort_ice( &
            'ice: Error creating history ncfile '//ncfile(ns))
 
@@ -221,6 +223,7 @@
         if (hist_avg) then
           dimid(1) = boundid
           dimid(2) = timid
+          print*, '1 nf90_def_var dimid: ', dimid(1:2)
           status = nf90_def_var(ncid,'time_bounds',nf90_float,dimid(1:2),varid)
           if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error defining var time_bounds')
@@ -320,6 +323,8 @@
         dimid(3) = timid
 
         do i = 1, ncoord
+          print*, '2 nf90_def_var dimid: ', dimid(1:2)
+          print*, 'coord_var(i)%short_name: '//coord_var(i)%short_name
           status = nf90_def_var(ncid, coord_var(i)%short_name, nf90_float, &
                                 dimid(1:2), varid)
           if (status /= nf90_noerr) call abort_ice( &
@@ -357,6 +362,8 @@
         
         do i = 1, nvarz
            if (igrdz(i)) then
+             print*, '3 nf90_def_var dimidex: ', dimidex(i)
+             print*, 'var_nz(i)%short_name: '//var_nz(i)%short_name
              status = nf90_def_var(ncid, var_nz(i)%short_name, &
                                    nf90_float, dimidex(i), varid)
              if (status /= nf90_noerr) call abort_ice( &
@@ -372,6 +379,8 @@
 
         ! Attributes for tmask, blkmask defined separately, since they have no units
         if (igrd(n_tmask)) then
+           print*, '4 nf90_def_var dimid: ', dimid(1:2)
+           print*, 'tmask'
            status = nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid)
            if (status /= nf90_noerr) call abort_ice( &
                          'ice: Error defining var tmask')
@@ -388,6 +397,7 @@
         endif
 
         if (igrd(n_blkmask)) then
+           print*, 'blkmask nf90_def_var dimid: ', dimid(1:2)
            status = nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid)
            if (status /= nf90_noerr) call abort_ice( &
                          'ice: Error defining var blkmask')
@@ -405,6 +415,8 @@
 
         do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
           if (igrd(i)) then
+             print*, '5 nf90_def_var dimid: ', dimid(1:2)
+             print*, 'var(i)%req%short_name: '//var(i)%req%short_name
              status = nf90_def_var(ncid, var(i)%req%short_name, &
                                    nf90_float, dimid(1:2), varid)
              if (status /= nf90_noerr) call abort_ice( &
@@ -433,6 +445,8 @@
         dimid_nverts(3) = jmtid
         do i = 1, nvar_verts
           if (f_bounds) then
+             print*, 'nf90_def_var dimid_nverts: ', dimid_nverts
+             print*, 'var_nverts(i)%short_name: '//var_nverts(i)%short_name
              status = nf90_def_var(ncid, var_nverts(i)%short_name, &
                                    nf90_float,dimid_nverts, varid)
              if (status /= nf90_noerr) call abort_ice( &
@@ -454,6 +468,8 @@
 
         do n=1,num_avail_hist_fields_2D
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            print*, 'nf90_def_var dimid: ', dimid
+            print*, 'avail_hist_fields(n)%vname: '//avail_hist_fields(n)%vname
             status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
                          nf90_float, dimid, varid)
             if (status /= nf90_noerr) call abort_ice( &
@@ -513,6 +529,8 @@
 
         do n = n2D + 1, n3Dccum
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            print*, 'nf90_def_var dimidz: ', dimidz
+            print*, 'avail_hist_fields(n)%vname: '//avail_hist_fields(n)%vname
             status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
                          nf90_float, dimidz, varid)
             if (status /= nf90_noerr) call abort_ice( &
@@ -564,6 +582,8 @@
 
         do n = n3Dccum + 1, n3Dzcum
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            print*, 'nf90_def_var dimidz: ', dimidz
+            print*, '10 avail_hist_fields(n)%vname '//avail_hist_fields(n)%vname
             status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
                          nf90_float, dimidz, varid)
             if (status /= nf90_noerr) call abort_ice( &
@@ -601,6 +621,8 @@
 
         do n = n3Dzcum + 1, n3Dbcum
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            print*, 'nf90_def_var dimidz: ', dimidz
+            print*, '23 avail_hist_fields(n)%vname '//avail_hist_fields(n)%vname
             status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
                          nf90_float, dimidz, varid)
             if (status /= nf90_noerr) call abort_ice( &
@@ -639,6 +661,8 @@
 
         do n = n3Dbcum + 1, n4Dicum
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            print*, 'nf90_def_var dimidcz: ', dimidcz
+            print*, '24 avail_hist_fields(n)%vname '//avail_hist_fields(n)%vname
             status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
 !                             nf90_float, dimidcz, varid)
                              nf90_float, dimidcz(1:4), varid) ! ferret    
@@ -692,6 +716,8 @@
 
         do n = n4Dicum + 1, n4Dscum
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            print*, 'nf90_def_var dimidcz: ', dimidcz
+            print*, '25 avail_hist_fields(n)%vname '//avail_hist_fields(n)%vname
             status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
 !                             nf90_float, dimidcz, varid)
                              nf90_float, dimidcz(1:4), varid) ! ferret    
@@ -745,6 +771,8 @@
 
         do n = n4Dscum + 1, n4Dbcum
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            print*, 'nf90_def_var dimidcz: ', dimidcz
+            print*, '26 avail_hist_fields(n)%vname '//avail_hist_fields(n)%vname
             status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
 !                             nf90_float, dimidcz, varid)
                              nf90_float, dimidcz(1:4), varid) ! ferret    
