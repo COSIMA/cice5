@@ -1,12 +1,4 @@
-
-# Recommendations:
-#   use processor_shape = slenderX1 or slenderX2 in ice_in
-#   one per processor with distribution_type='cartesian' or
-#   squarish blocks with distribution_type='rake'
-# If BLCKX (BLCKY) does not divide NXGLOB (NYGLOB) evenly, padding
-# will be used on the right (top) of the grid.
-
-setenv NTASK 720
+setenv NTASK 480
 setenv RES 1440x1080
 
 set NXGLOB = `echo $RES | sed s/x.\*//`
@@ -21,3 +13,4 @@ module load intel-fc/17.0.1.132
 module load intel-cc/17.0.1.132
 module load netcdf/4.3.2
 module load openmpi/1.10.2
+
