@@ -593,7 +593,7 @@
 
             if (vcoord(11:14) == 'time') then
                num_avail_hist_fields_2D  = num_avail_hist_fields_2D + 1
-            elseif (vcoord(11:14) == 'NCAT' .and. vcoord(16:19) == 'time') then
+            elseif (vcoord(11:14) == 'NCAT' .and. vcoord(17:20) == 'time') then
                num_avail_hist_fields_3Dc = num_avail_hist_fields_3Dc + 1
             elseif (vcoord(11:15) == 'VGRDi' .and. vcoord(17:20) == 'time') then
                num_avail_hist_fields_3Dz = num_avail_hist_fields_3Dz + 1
@@ -617,8 +617,10 @@
                 num_avail_hist_fields_3Db + &
                 num_avail_hist_fields_4Di + &
                 num_avail_hist_fields_4Ds + &
-                num_avail_hist_fields_4Db)  &
+                num_avail_hist_fields_4Db)  then
+
                call abort_ice("num_avail_hist_fields error")
+            endif
 
             id(ns) = num_avail_hist_fields_tot
 
