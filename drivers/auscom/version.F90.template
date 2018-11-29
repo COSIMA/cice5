@@ -1,0 +1,22 @@
+
+module version_mod
+
+! <OVERVIEW>
+!   This module provides a string which is the git hash (version) of the code
+!   used to build this executable.
+!
+!   This can be read from the command line with the following command:
+!   $ strings <executable> | grep 'CICE_COMMIT_HASH='
+! </OVERVIEW>
+
+implicit none
+private
+
+character (len=*), parameter, public :: CICE_COMMIT_HASH = "CICE_COMMIT_HASH={CICE_COMMIT_HASH}"
+
+contains
+
+subroutine dummy_sub()
+end subroutine dummy_sub
+
+end module version_mod

@@ -104,9 +104,12 @@
 #ifdef popcice
       use drv_forcing, only: sst_sss
 #endif
+      use version_mod, only: CICE_COMMIT_HASH
+
       type(accessom2_type), intent(inout) :: accessom2
 
       integer(kind=int_kind) :: idate_save
+
 
       call read_namelist_parameters()
 
@@ -251,6 +254,12 @@
       call init_flux_atm        ! initialize atmosphere fluxes sent to coupler
       call init_flux_ocn        ! initialize ocean fluxes sent to coupler
 #endif
+
+      ! Print out my version
+      if (my_task == master_task) then
+          print*, CICE_COMMIT_HASH
+          call accessom2%print_version_info()
+      endif
 
       if (write_ic) call accum_hist(dt) ! write initial conditions 
 
