@@ -21,7 +21,7 @@
       use ice_kinds_mod
       use ice_restart_shared, only: &
           restart, restart_ext, input_dir, restart_dir, restart_file, pointer_file, &
-          runid, runtype, use_restart_time, restart_format, lcdf64, lenstr
+          runid, runtype, use_restart_time, restart_format, lenstr
       use ice_restart
 
       implicit none
