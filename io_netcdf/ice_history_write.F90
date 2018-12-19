@@ -54,7 +54,7 @@
           lont_bounds, latt_bounds, lonu_bounds, latu_bounds
       use ice_history_shared
       use ice_itd, only: hin_max
-      use ice_restart_shared, only: runid, lcdf64
+      use ice_restart_shared, only: runid
       use netcdf
 #endif
 
@@ -81,7 +81,7 @@
       character (char_len) :: title
       character (char_len_long) :: ncfile(max_nstrm)
 
-      integer (kind=int_kind) :: ind,boundid, iflag
+      integer (kind=int_kind) :: ind,boundid
 
       character (char_len) :: start_time,current_date,current_time
       character (len=8) :: cdate
@@ -127,9 +127,7 @@
         endif
 
         ! create file
-        iflag = nf90_clobber
-        if (lcdf64) iflag = ior(iflag, nf90_64bit_offset)
-        status = nf90_create(ncfile(ns), iflag, ncid)
+        status = nf90_create(ncfile(ns), NF90_HDF5, ncid)
         if (status /= nf90_noerr) call abort_ice( &
            'ice: Error creating history ncfile '//ncfile(ns))
 
@@ -182,6 +180,9 @@
         status = nf90_def_var(ncid,'time',nf90_float,timid,varid)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error defining var time')
+        status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error deflating var time')
 
         status = nf90_put_att(ncid,varid,'long_name','model time')
         if (status /= nf90_noerr) call abort_ice( &
@@ -226,6 +227,11 @@
           status = nf90_def_var(ncid,'time_bounds',nf90_float,dimid(1:2),varid)
           if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error defining var time_bounds')
+
+          status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+          if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error deflating var time_bounds')
+
           status = nf90_put_att(ncid,varid,'long_name', &
                                 'boundaries for time-averaging interval')
           if (status /= nf90_noerr) call abort_ice( &
@@ -326,6 +332,11 @@
                                 dimid(1:2), varid)
           if (status /= nf90_noerr) call abort_ice( &
                'Error defining short_name for '//coord_var(i)%short_name)
+
+          status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+          if (status /= nf90_noerr) call abort_ice( &
+               'Error deflate short_name for '//coord_var(i)%short_name)
+
           status = nf90_put_att(ncid,varid,'long_name',coord_var(i)%long_name)
           if (status /= nf90_noerr) call abort_ice( &
                'Error defining long_name for '//coord_var(i)%short_name)
@@ -363,6 +374,11 @@
                                    nf90_float, dimidex(i), varid)
              if (status /= nf90_noerr) call abort_ice( &
                 'Error defining short_name for '//var_nz(i)%short_name)
+
+              status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+              if (status /= nf90_noerr) call abort_ice( &
+                'Error defining short_name for '//var_nz(i)%short_name)
+
              status = nf90_put_att(ncid,varid,'long_name',var_nz(i)%long_name)
              if (status /= nf90_noerr) call abort_ice( &
                 'Error defining long_name for '//var_nz(i)%short_name)
@@ -377,6 +393,11 @@
            status = nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid)
            if (status /= nf90_noerr) call abort_ice( &
                          'ice: Error defining var tmask')
+
+           status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+           if (status /= nf90_noerr) call abort_ice( &
+                         'ice: Error deflating var tmask')
+
            status = nf90_put_att(ncid,varid, 'long_name', 'ocean grid mask') 
            if (status /= nf90_noerr) call abort_ice('ice Error: tmask long_name') 
            status = nf90_put_att(ncid, varid, 'coordinates', 'TLON TLAT')
@@ -393,6 +414,11 @@
            status = nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid)
            if (status /= nf90_noerr) call abort_ice( &
                          'ice: Error defining var blkmask')
+
+           status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+           if (status /= nf90_noerr) call abort_ice( &
+                         'ice: Error deflating var blkmask')
+
            status = nf90_put_att(ncid,varid, 'long_name', 'ice grid block mask') 
            if (status /= nf90_noerr) call abort_ice('ice Error: blkmask long_name') 
            status = nf90_put_att(ncid, varid, 'coordinates', 'TLON TLAT')
@@ -411,6 +437,11 @@
                                    nf90_float, dimid(1:2), varid)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining variable '//var(i)%req%short_name)
+
+             status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+             if (status /= nf90_noerr) call abort_ice( &
+                  'Error deflating variable '//var(i)%req%short_name)
+
              status = nf90_put_att(ncid,varid, 'long_name', var(i)%req%long_name)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining long_name for '//var(i)%req%short_name)
@@ -439,6 +470,11 @@
                                    nf90_float,dimid_nverts, varid)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining variable '//var_nverts(i)%short_name)
+
+             status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+             if (status /= nf90_noerr) call abort_ice( &
+                  'Error deflating variable '//var_nverts(i)%short_name)
+
              status = nf90_put_att(ncid,varid, 'long_name', var_nverts(i)%long_name)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining long_name for '//var_nverts(i)%short_name)
@@ -460,6 +496,11 @@
                          nf90_float, dimid, varid)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
+
+            status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+            if (status /= nf90_noerr) call abort_ice( &
+               'Error deflating variable '//avail_hist_fields(n)%vname)
+
             status = nf90_put_att(ncid,varid,'units', &
                         avail_hist_fields(n)%vunit)
             if (status /= nf90_noerr) call abort_ice( &
@@ -519,6 +560,11 @@
                          nf90_float, dimidz, varid)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
+
+            status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+            if (status /= nf90_noerr) call abort_ice( &
+               'Error deflating variable '//avail_hist_fields(n)%vname)
+
             status = nf90_put_att(ncid,varid,'units', &
                         avail_hist_fields(n)%vunit)
             if (status /= nf90_noerr) call abort_ice( &
@@ -570,6 +616,11 @@
                          nf90_float, dimidz, varid)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
+
+            status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+            if (status /= nf90_noerr) call abort_ice( &
+               'Error deflating variable '//avail_hist_fields(n)%vname)
+
             status = nf90_put_att(ncid,varid,'units', &
                         avail_hist_fields(n)%vunit)
             if (status /= nf90_noerr) call abort_ice( &
@@ -607,6 +658,11 @@
                          nf90_float, dimidz, varid)
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
+
+            status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+            if (status /= nf90_noerr) call abort_ice( &
+               'Error deflating variable '//avail_hist_fields(n)%vname)
+
             status = nf90_put_att(ncid,varid,'units', &
                         avail_hist_fields(n)%vunit)
             if (status /= nf90_noerr) call abort_ice( &
@@ -646,6 +702,11 @@
                              nf90_float, dimidcz(1:4), varid) ! ferret    
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
+
+            status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+            if (status /= nf90_noerr) call abort_ice( &
+               'Error deflating variable '//avail_hist_fields(n)%vname)
+
             status = nf90_put_att(ncid,varid,'units', &
                         avail_hist_fields(n)%vunit)
             if (status /= nf90_noerr) call abort_ice( &
@@ -699,6 +760,11 @@
                              nf90_float, dimidcz(1:4), varid) ! ferret    
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
+
+            status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+            if (status /= nf90_noerr) call abort_ice( &
+               'Error deflating variable '//avail_hist_fields(n)%vname)
+
             status = nf90_put_att(ncid,varid,'units', &
                         avail_hist_fields(n)%vunit)
             if (status /= nf90_noerr) call abort_ice( &
@@ -752,6 +818,11 @@
                              nf90_float, dimidcz(1:4), varid) ! ferret    
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
+
+            status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+            if (status /= nf90_noerr) call abort_ice( &
+               'Error deflating variable '//avail_hist_fields(n)%vname)
+
             status = nf90_put_att(ncid,varid,'units', &
                         avail_hist_fields(n)%vunit)
             if (status /= nf90_noerr) call abort_ice( &

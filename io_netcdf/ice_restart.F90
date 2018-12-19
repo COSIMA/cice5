@@ -13,7 +13,7 @@
       use netcdf
       use ice_restart_shared, only: &
           restart, restart_ext, restart_dir, restart_file, pointer_file, &
-          runid, runtype, use_restart_time, restart_format, lcdf64, lenstr
+          runid, runtype, use_restart_time, restart_format, lenstr
 
       implicit none
       private
@@ -169,7 +169,6 @@
         dimid_ni,   & ! netCDF identifiers
         dimid_nj,   & !
         dimid_ncat, & !
-        iflag,      & ! netCDF creation flag
         status        ! status variable from netCDF routine
 
       character (len=3) :: nchar
@@ -195,9 +194,7 @@
          write(nu_rst_pointer,'(a)') filename
          close(nu_rst_pointer)
 
-         iflag = 0
-         if (lcdf64) iflag = nf90_64bit_offset
-         status = nf90_create(trim(filename), iflag, ncid)
+         status = nf90_create(trim(filename), NF90_HDF5, ncid)
          if (status /= nf90_noerr) call abort_ice( &
             'ice: Error creating restart ncfile '//trim(filename))
 
@@ -622,6 +619,9 @@
       status = nf90_def_var(ncid,trim(vname),nf90_double,dims,varid)
       call assert(status == NF90_NOERR, &
                   'in define_rest_field, on '//trim(vname), status)
+      status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
+      call assert(status /= nf90_noerr, &
+                  'deflate in define_rest_field, on '//trim(vname), status)
 
       end subroutine define_rest_field
 
