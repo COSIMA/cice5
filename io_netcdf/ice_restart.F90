@@ -194,7 +194,7 @@
          write(nu_rst_pointer,'(a)') filename
          close(nu_rst_pointer)
 
-         status = nf90_create(trim(filename), NF90_CLASSIC_MODEL, ncid)
+         status = nf90_create(trim(filename), IOR(NF90_HDF5, NF90_CLASSIC_MODEL), ncid)
          if (status /= nf90_noerr) call abort_ice( &
             'ice: Error creating restart ncfile '//trim(filename))
 
