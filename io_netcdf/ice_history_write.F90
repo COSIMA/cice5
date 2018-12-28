@@ -127,7 +127,8 @@
         endif
 
         ! create file
-        status = nf90_create(ncfile(ns), NF90_HDF5, ncid)
+        status = nf90_create(ncfile(ns), &
+                             ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid)
         if (status /= nf90_noerr) call abort_ice( &
            'ice: Error creating history ncfile '//ncfile(ns))
 
