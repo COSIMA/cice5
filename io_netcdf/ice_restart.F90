@@ -621,7 +621,7 @@
       call assert(status == NF90_NOERR, &
                   'in define_rest_field, on '//trim(vname), status)
       status = nf90_def_var_deflate(ncid, varid, 1, 1, 5)
-      call assert(status /= nf90_noerr, &
+      call assert(status == NF90_NOERR, &
                   'deflate in define_rest_field, on '//trim(vname), status)
 
       end subroutine define_rest_field
