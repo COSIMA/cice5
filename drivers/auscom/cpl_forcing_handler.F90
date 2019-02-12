@@ -973,13 +973,8 @@ do iblk = 1, nblocks
    !q_surf is not really used for seawater!
    q_surf(:,:) = q_atm_in(:,:) 
 
-   if (absolute_wind) then
-     u_surf(:,:) = 0.0
-     v_surf(:,:) = 0.0
-   else
-     u_surf(:,:) = ssuo(:,:,iblk)
-     v_surf(:,:) = ssvo(:,:,iblk)
-   endif
+   u_surf(:,:) = ssuo(:,:,iblk)
+   v_surf(:,:) = ssvo(:,:,iblk)
 
    endwhere
 

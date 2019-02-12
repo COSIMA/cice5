@@ -440,10 +440,14 @@ subroutine surface_flux_1d (                                           &
      th_atm  = t_atm  * p_ratio                ! potential T, using p_surf as refernce
      thv_atm = tv_atm * p_ratio                ! virt. potential T, using p_surf as reference 
      thv_surf= t_surf0 * (1.0 + d608*q_surf0 ) ! surface virtual (potential) T
-!     thv_surf= t_surf0                        ! surface virtual (potential) T -- just for testing tun off the q_surf
-
-     u_dif = u_surf - u_atm                    ! velocity components relative to surface
-     v_dif = v_surf - v_atm
+!     thv_surf= t_surf0                        ! surface virtual (potential) T -- just for testing turn off the q_surf
+     if (absolute_wind) then
+        u_dif = - u_atm                    ! absolute velocity components
+        v_dif = - v_atm
+     else
+        u_dif = u_surf - u_atm                    ! velocity components relative to surface
+        v_dif = v_surf - v_atm
+     endif
   endwhere
 
   if(alt_gustiness) then
