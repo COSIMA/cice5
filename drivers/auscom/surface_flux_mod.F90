@@ -261,6 +261,9 @@ real            :: d608   = d378/d622
 !   <DATA NAME="raoult_sat_vap"  TYPE="logical"  DEFAULT=".false.">
 !    Reduce saturation vapor pressures to account for seawater salinity.
 !   </DATA>
+!   <DATA NAME="absolute_wind"  TYPE="logical"  DEFAULT=".false.">
+!    Use absolute (rather than relative) wind for all surface fluxes.
+!   </DATA>
 ! </NAMELIST>
 
 logical :: no_neg_q              = .false.  ! for backwards compatibility
@@ -273,6 +276,7 @@ real    :: gust_min              =  0.0
 logical :: ncar_ocean_flux       = .false.
 logical :: ncar_ocean_flux_orig  = .false. ! for backwards compatibility 
 logical :: raoult_sat_vap        = .false.
+logical :: absolute_wind         = .false. 
 
 namelist /surface_flux_nml/ no_neg_q,             &
                             use_virtual_temp,     &
@@ -283,7 +287,8 @@ namelist /surface_flux_nml/ no_neg_q,             &
                             use_mixing_ratio,     &
                             ncar_ocean_flux,      &
                             ncar_ocean_flux_orig, &
-                            raoult_sat_vap
+                            raoult_sat_vap,       &
+                            absolute_wind
    
 
 
