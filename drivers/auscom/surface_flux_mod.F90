@@ -261,8 +261,9 @@ real            :: d608   = d378/d622
 !   <DATA NAME="raoult_sat_vap"  TYPE="logical"  DEFAULT=".false.">
 !    Reduce saturation vapor pressures to account for seawater salinity.
 !   </DATA>
-!   <DATA NAME="absolute_wind"  TYPE="logical"  DEFAULT=".false.">
-!    Use absolute (rather than relative) wind for all surface fluxes.
+!   <DATA NAME="surf_vel_scale"  TYPE=""  DEFAULT="1.0">
+!    Scaling factor for surface velocity when calculating surface wind stress.
+!    1.0: use relative wind, 0.0: use absolute wind.
 !   </DATA>
 ! </NAMELIST>
 
@@ -276,7 +277,7 @@ real    :: gust_min              =  0.0
 logical :: ncar_ocean_flux       = .false.
 logical :: ncar_ocean_flux_orig  = .false. ! for backwards compatibility 
 logical :: raoult_sat_vap        = .false.
-logical :: absolute_wind         = .false. 
+real    :: surf_vel_scale        = 1.0 
 
 namelist /surface_flux_nml/ no_neg_q,             &
                             use_virtual_temp,     &
@@ -288,7 +289,7 @@ namelist /surface_flux_nml/ no_neg_q,             &
                             ncar_ocean_flux,      &
                             ncar_ocean_flux_orig, &
                             raoult_sat_vap,       &
-                            absolute_wind
+                            surf_vel_scale
    
 
 
@@ -441,13 +442,8 @@ subroutine surface_flux_1d (                                           &
      thv_atm = tv_atm * p_ratio                ! virt. potential T, using p_surf as reference 
      thv_surf= t_surf0 * (1.0 + d608*q_surf0 ) ! surface virtual (potential) T
 !     thv_surf= t_surf0                        ! surface virtual (potential) T -- just for testing turn off the q_surf
-     if (absolute_wind) then
-        u_dif = - u_atm                    ! absolute velocity components
-        v_dif = - v_atm
-     else
-        u_dif = u_surf - u_atm                    ! velocity components relative to surface
-        v_dif = v_surf - v_atm
-     endif
+     u_dif = surf_vel_scale * u_surf - u_atm                    ! velocity components relative to surface
+     v_dif = surf_vel_scale * v_surf - v_atm
   endwhere
 
   if(alt_gustiness) then
