@@ -620,7 +620,7 @@
       status = nf90_def_var(ncid,trim(vname),nf90_double,dims,varid)
       call assert(status == NF90_NOERR, &
                   'in define_rest_field, on '//trim(vname), status)
-      status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+      status = nf90_def_var_deflate(ncid, varid, 1, 1, 0)
       call assert(status == NF90_NOERR, &
                   'deflate in define_rest_field, on '//trim(vname), status)
 
