@@ -45,6 +45,10 @@
          history_dir   , & ! directory name for history file
          incond_dir        ! directory for snapshot initial conditions
 
+      integer, public :: &
+         history_deflate_level ! Deflation/compression level to use for
+                               ! netCDF4 output
+
       character (len=char_len_long), public :: &
          pointer_file      ! input pointer file for restarts
 

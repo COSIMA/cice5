@@ -81,6 +81,8 @@
       character (char_len) :: title
       character (char_len_long) :: ncfile(max_nstrm)
 
+      integer (kind=int_kind) :: shuffle, deflate, deflate_level
+
       integer (kind=int_kind) :: ind,boundid
 
       character (char_len) :: start_time,current_date,current_time
@@ -112,6 +114,19 @@
       TYPE(coord_attributes), dimension(nvar_verts) :: var_nverts
       TYPE(coord_attributes), dimension(nvarz) :: var_nz
       CHARACTER (char_len), dimension(ncoord) :: coord_bounds
+
+      ! We leave shuffle at 0, this is only useful for integer data.
+      shuffle = 0
+
+      ! If history_deflate_level < 0 then don't do deflation,
+      ! otherwise it sets the deflate level
+      if (history_deflate_level < 0) then
+        deflate = 0
+        deflate_level = 0
+      else
+        deflate = 1
+        deflate_level = history_deflate_level
+      endif
 
       if (my_task == master_task) then
 
@@ -181,7 +196,8 @@
         status = nf90_def_var(ncid,'time',nf90_float,timid,varid)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error defining var time')
-        status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+        status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                      deflate_level)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error deflating var time')
 
@@ -229,7 +245,8 @@
           if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error defining var time_bounds')
 
-          status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+          status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                        deflate_level)
           if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error deflating var time_bounds')
 
@@ -334,7 +351,8 @@
           if (status /= nf90_noerr) call abort_ice( &
                'Error defining short_name for '//coord_var(i)%short_name)
 
-          status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+          status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                        deflate_level)
           if (status /= nf90_noerr) call abort_ice( &
                'Error deflate short_name for '//coord_var(i)%short_name)
 
@@ -376,7 +394,8 @@
              if (status /= nf90_noerr) call abort_ice( &
                 'Error defining short_name for '//var_nz(i)%short_name)
 
-              status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+              status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                            deflate_level)
               if (status /= nf90_noerr) call abort_ice( &
                 'Error defining short_name for '//var_nz(i)%short_name)
 
@@ -395,7 +414,8 @@
            if (status /= nf90_noerr) call abort_ice( &
                          'ice: Error defining var tmask')
 
-           status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+           status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                         deflate_level)
            if (status /= nf90_noerr) call abort_ice( &
                          'ice: Error deflating var tmask')
 
@@ -416,7 +436,8 @@
            if (status /= nf90_noerr) call abort_ice( &
                          'ice: Error defining var blkmask')
 
-           status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+           status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                         deflate_level)
            if (status /= nf90_noerr) call abort_ice( &
                          'ice: Error deflating var blkmask')
 
@@ -439,7 +460,8 @@
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining variable '//var(i)%req%short_name)
 
-             status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+             status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                           deflate_level)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error deflating variable '//var(i)%req%short_name)
 
@@ -472,7 +494,8 @@
              if (status /= nf90_noerr) call abort_ice( &
                   'Error defining variable '//var_nverts(i)%short_name)
 
-             status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+             status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                           deflate_level)
              if (status /= nf90_noerr) call abort_ice( &
                   'Error deflating variable '//var_nverts(i)%short_name)
 
@@ -498,7 +521,8 @@
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
 
-            status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                'Error deflating variable '//avail_hist_fields(n)%vname)
 
@@ -562,7 +586,8 @@
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
 
-            status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                'Error deflating variable '//avail_hist_fields(n)%vname)
 
@@ -618,7 +643,8 @@
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
 
-            status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                'Error deflating variable '//avail_hist_fields(n)%vname)
 
@@ -660,7 +686,8 @@
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
 
-            status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                'Error deflating variable '//avail_hist_fields(n)%vname)
 
@@ -704,7 +731,8 @@
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
 
-            status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                'Error deflating variable '//avail_hist_fields(n)%vname)
 
@@ -762,7 +790,8 @@
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
 
-            status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                'Error deflating variable '//avail_hist_fields(n)%vname)
 
@@ -820,7 +849,8 @@
             if (status /= nf90_noerr) call abort_ice( &
                'Error defining variable '//avail_hist_fields(n)%vname)
 
-            status = nf90_def_var_deflate(ncid, varid, 1, 1, 1)
+            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                'Error deflating variable '//avail_hist_fields(n)%vname)
 
