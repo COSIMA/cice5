@@ -1529,22 +1529,28 @@
       !-----------------------------------------------------------------
 
          if (update_ocn_f) then
-            if (ktherm <= 1) then
-               dfresh = -rhoi*vi0new(ij)/dt 
-               dfsalt = ice_ref_salinity*p001*dfresh
-               fresh(i,j) = fresh(i,j) + dfresh
-               fsalt(i,j) = fsalt(i,j) + dfsalt
+            dfresh = -rhoi*vi0new(ij)/dt
+            dfsalt = ice_ref_salinity*p001*dfresh
+
+            fresh(i,j)      = fresh(i,j)      + dfresh
+            fsalt(i,j)      = fsalt(i,j)      + dfsalt
+
+            !if (ktherm <= 1) then
+            !   dfresh = -rhoi*vi0new(ij)/dt 
+            !   dfsalt = ice_ref_salinity*p001*dfresh
+            !   fresh(i,j) = fresh(i,j) + dfresh
+            !   fsalt(i,j) = fsalt(i,j) + dfsalt
             ! elseif (ktherm == 2) the fluxes are added elsewhere
-            endif
-         else ! update_ocn_f = false
-            if (ktherm == 2) then ! return mushy-layer frazil to ocean (POP)
-               vi0tmp = fnew*dt / (rhoi*Lfresh)
-               dfresh = -rhoi*(vi0new(ij) - vi0tmp)/dt
-               dfsalt = ice_ref_salinity*p001*dfresh
-               fresh(i,j) = fresh(i,j) + dfresh
-               fsalt(i,j) = fsalt(i,j) + dfsalt
-            ! elseif ktherm==1 do nothing
-            endif
+            !endif
+         !else ! update_ocn_f = false
+         !   if (ktherm == 2) then ! return mushy-layer frazil to ocean (POP)
+         !      vi0tmp = fnew*dt / (rhoi*Lfresh)
+         !      dfresh = -rhoi*(vi0new(ij) - vi0tmp)/dt
+         !      dfsalt = ice_ref_salinity*p001*dfresh
+         !      fresh(i,j) = fresh(i,j) + dfresh
+         !      fsalt(i,j) = fsalt(i,j) + dfsalt
+         !   ! elseif ktherm==1 do nothing
+         !   endif
          endif
 
       !-----------------------------------------------------------------
