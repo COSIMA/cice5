@@ -1531,9 +1531,8 @@
          if (update_ocn_f) then
             dfresh = -rhoi*vi0new(ij)/dt
             dfsalt = ice_ref_salinity*p001*dfresh
-
-            fresh(i,j)      = fresh(i,j)      + dfresh
-            fsalt(i,j)      = fsalt(i,j)      + dfsalt
+            fresh(i,j) = fresh(i,j) + dfresh
+            fsalt(i,j) = fsalt(i,j) + dfsalt
          else ! update_ocn_f = false
             if (ktherm == 2) then ! return mushy-layer frazil to ocean (POP)
                vi0tmp = fnew*dt / (rhoi*Lfresh)
