@@ -55,10 +55,10 @@ setenv NICECAT    5       # number of ice thickness categories
 
 if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
-    setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
+    setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2 -L$(SRCDIR)/pio-2.4.3/usr/lib/ -lpiof'
     setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
     setenv OASISDIR $CPLINCDIR/oasis3-mct-prefix/src/oasis3-mct/Linux/build/lib/
-    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct'
+    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/pio-2.4.3/usr/include/'
 endif
 
 ### Setup the version string, this is the git hash of the commit used to build
@@ -108,7 +108,8 @@ setenv NUMIN 11           # minimum file unit number
 setenv NUMAX 99           # maximum file unit number
 
 if ($IO_TYPE == 'netcdf') then
-  setenv IODIR io_netcdf
+  setenv IODIR io_pio
+  #setenv IODIR io_netcdf
 else if ($IO_TYPE == 'pio') then
   setenv IODIR io_pio
 else
