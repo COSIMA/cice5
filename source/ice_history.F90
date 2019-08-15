@@ -1744,7 +1744,6 @@
               do i = ilo, ihi
                  if (tmask(i,j,iblk)) then 
                     ravgctz = c0
-                    write(nu_diag,*) 'albcnt',albcnt(i,j,iblk,ns)
                     if (albcnt(i,j,iblk,ns) > puny) &
                         ravgctz = c1/albcnt(i,j,iblk,ns)
                     if (f_albice (1:1) /= 'x' .and. n_albice(ns) /= 0) &
