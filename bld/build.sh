@@ -55,10 +55,10 @@ setenv NICECAT    5       # number of ice thickness categories
 
 if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
-    setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2 -L$(SRCDIR)/pio-2.4.3/usr/lib/ -lpiof'
+    setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2 -L$(SRCDIR)/pio-2.4.4/usr/lib/ -lpiof'
     setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
     setenv OASISDIR $CPLINCDIR/oasis3-mct-prefix/src/oasis3-mct/Linux/build/lib/
-    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/pio-2.4.3/usr/include/'
+    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/pio-2.4.4/usr/include/'
 endif
 
 ### Setup the version string, this is the git hash of the commit used to build
