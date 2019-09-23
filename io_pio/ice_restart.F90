@@ -12,7 +12,7 @@
       use ice_kinds_mod
       use ice_restart_shared, only: &
           restart, restart_ext, restart_dir, restart_file, pointer_file, &
-          runid, runtype, use_restart_time, restart_format, lcdf64, lenstr
+          runid, runtype, use_restart_time, restart_format, lenstr
       use ice_pio
       use pio
 
@@ -180,7 +180,7 @@
       
          File%fh=-1
          call ice_pio_init(mode='write',filename=trim(filename), File=File, &
-              clobber=.true., cdf64=lcdf64 )
+              clobber=.true.)
 
          status = pio_put_att(File,pio_global,'istep1',istep1)
          status = pio_put_att(File,pio_global,'time',time)

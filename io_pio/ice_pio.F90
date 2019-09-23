@@ -41,7 +41,7 @@
 
    subroutine ice_pio_init(mode, filename, File, clobber, cdf64)
 
-   use shr_pio_mod, only: shr_pio_getiosys, shr_pio_getiotype
+   use pio_types, only: pio_iotype_netcdf4p
      
    implicit none
    character(len=*)     , intent(in),    optional :: mode
@@ -65,7 +65,7 @@
    logical, save :: first_call = .true.
 
    ice_pio_subsystem => shr_pio_getiosys(inst_name)
-   pio_iotype =  shr_pio_getiotype(inst_name)
+   pio_iotype = pio_iotype_netcdf4p
 
    if (present(mode) .and. present(filename) .and. present(File)) then
       
