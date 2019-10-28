@@ -460,6 +460,7 @@ subroutine pack_coupling_array(input, output)
     iec = nx_block-nghost
 
     blk_seg_num(:) = 1 + nghost
+    offset = 0
 
     ! Load the coupling array one segemnt at a time.  The code relies on the
     ! part_def being sorted so simply incrementing the blk_seg_num gets data
