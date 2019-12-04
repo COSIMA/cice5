@@ -26,7 +26,10 @@
       use ice_gather_scatter
 
       use ice_communicate, only: my_task
+#ifdef PIO
       use ice_pio, only: ice_pio_init
+#endif
+
 #endif
 
       implicit none
@@ -124,7 +127,9 @@
       call init_fileunits()
 
       ! Initialise ParallelIO
+#ifdef PIO
       call ice_pio_init()
+#endif
 
       ! Initialise libaccessom2
       call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))
