@@ -7,12 +7,13 @@
   use ice_kinds_mod
   use ice_blocks
   use ice_broadcast
-  use ice_communicate
+  use ice_communicate, only : master_task, my_task, MPI_COMM_ICE, get_num_procs
   use ice_domain, only : nblocks, blocks_ice
   use ice_domain_size
-  use ice_fileunits  
+  use ice_fileunits
   use ice_exit
   use pio
+  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_subset
 
   implicit none
   private
@@ -26,9 +27,11 @@
   end interface
 
   public ice_pio_init
+  public ice_pio_initfile
   public ice_pio_initdecomp
-
-  type(iosystem_desc_t), pointer, public :: ice_pio_subsystem
+  logical :: pio_initialized = .false.
+  integer :: pio_iotype
+  type(iosystem_desc_t) :: ice_pio_subsystem
 
 !===============================================================================
 
@@ -36,13 +39,45 @@
 
 !===============================================================================
 
-!    Initialize the io subsystem
-!    2009-Feb-17 - J. Edwards - initial version
+   subroutine ice_pio_init(io_stride)
+        integer, intent(in), optional :: io_stride
+        integer :: num_iotasks, stride
 
-   subroutine ice_pio_init(mode, filename, File, clobber, cdf64)
+        character(*),parameter :: subName = '(ice_pio_init) '
 
-   use pio_types, only: pio_iotype_netcdf4p
-     
+        if (my_task == master_task) then
+            write(nu_diag,*) subname,' called'
+        end if
+
+        if (pio_initialized) then
+            return
+        endif
+
+        if (present(io_stride)) then
+            stride = io_stride
+        else
+            stride = 8
+        endif
+
+        pio_iotype = pio_iotype_netcdf4p
+
+        num_iotasks = get_num_procs() / io_stride
+
+        if (my_task == master_task) then
+            write(nu_diag,*) subname,' calling pio_init'
+        end if
+        call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_subset, ice_pio_subsystem)
+        if (my_task == master_task) then
+            write(nu_diag,*) subname,' finished pio_init'
+        end if
+
+
+        pio_initialized = .true.
+   end subroutine ice_pio_init
+
+   subroutine ice_pio_initfile(mode, filename, File, clobber, cdf64)
+
+
    implicit none
    character(len=*)     , intent(in),    optional :: mode
    character(len=*)     , intent(in),    optional :: filename
@@ -55,35 +90,23 @@
    integer (int_kind) :: &
       nml_error          ! namelist read error flag
 
-   integer :: pio_iotype
    logical :: exists
    logical :: lclobber
-   logical :: lcdf64
    integer :: status
-   integer :: nmode
    character(*),parameter :: subName = '(ice_pio_wopen) '
-   logical, save :: first_call = .true.
-
-   ice_pio_subsystem => shr_pio_getiosys(inst_name)
-   pio_iotype = pio_iotype_netcdf4p
 
    if (present(mode) .and. present(filename) .and. present(File)) then
-      
+
       if (trim(mode) == 'write') then
          lclobber = .false.
          if (present(clobber)) lclobber=clobber
-         
-         lcdf64 = .false.
-         if (present(cdf64)) lcdf64=cdf64
-         
+
          if (File%fh<0) then
             ! filename not open
             inquire(file=trim(filename),exist=exists)
             if (exists) then
                if (lclobber) then
-                  nmode = pio_clobber
-                  if (lcdf64) nmode = ior(nmode,PIO_64BIT_OFFSET)
-                  status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), nmode)
+                  status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), PIO_clobber)
                   if (my_task == master_task) then
                      write(nu_diag,*) subname,' create file ',trim(filename)
                   end if
@@ -94,9 +117,7 @@
                   end if
                endif
             else
-               nmode = pio_noclobber
-               if (lcdf64) nmode = ior(nmode,PIO_64BIT_OFFSET)
-               status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), nmode)
+               status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), pio_noclobber)
                if (my_task == master_task) then
                   write(nu_diag,*) subname,' create file ',trim(filename)
                end if
@@ -105,7 +126,7 @@
             ! filename is already open, just return
          endif
       end if
-      
+
       if (trim(mode) == 'read') then
          inquire(file=trim(filename),exist=exists)
          if (exists) then
@@ -120,7 +141,7 @@
 
    end if
 
-   end subroutine ice_pio_init
+   end subroutine ice_pio_initfile
 
 !================================================================================
 

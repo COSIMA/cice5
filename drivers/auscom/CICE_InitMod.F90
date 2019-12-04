@@ -26,6 +26,7 @@
       use ice_gather_scatter
 
       use ice_communicate, only: my_task
+      use ice_pio, only: ice_pio_init
 #endif
 
       implicit none
@@ -119,7 +120,11 @@
       call prism_init(trim(accessom2_config_dir))
       MPI_COMM_ICE = il_commlocal
 
-      call init_fileunits       ! unit numbers
+      ! unit numbers
+      call init_fileunits()
+
+      ! Initialise ParallelIO
+      call ice_pio_init()
 
       ! Initialise libaccessom2
       call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))

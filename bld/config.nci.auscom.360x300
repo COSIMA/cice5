@@ -9,7 +9,7 @@ setenv BLCKY `expr $NYGLOB / 1`        # y-dimension of blocks (  ghost cells  )
 
 source /etc/profile.d/nf_csh_modules
 module purge
-module load intel-fc/17.0.1.132
-module load intel-cc/17.0.1.132
+module load intel-cc/2018.3.222
+module load intel-fc/2018.3.222
 module load netcdf/4.6.1p
-module load openmpi/1.10.2
+module load openmpi/4.0.1

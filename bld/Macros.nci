@@ -62,7 +62,7 @@ endif
 ifeq ($(AusCOM), yes)
    CPPDEFS := $(CPPDEFS) -DAusCOM -Dcoupled
    INCLDIR := $(INCLDIR) $(CPL_INCS) $(LIBAUSCOM_INCS)
-   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -laccessom2
+   SLIBS   := $(SLIBS) $(CPLLIBS)
 endif
 
 ifeq ($(UNIT_TESTING), yes)
