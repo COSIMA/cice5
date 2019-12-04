@@ -21,9 +21,8 @@
       use ice_blocks, only: nx_block, ny_block, nghost
       use ice_exit, only: abort_ice
 
-#define ncdf
 #ifdef ncdf
-      use netcdf      
+      use netcdf
 #endif
 
       implicit none

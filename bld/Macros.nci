@@ -55,6 +55,13 @@ ifeq ($(IO_TYPE), netcdf)
    SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
 endif
 
+ifeq ($(IO_TYPE), pio)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf -DPIO
+   INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
+   SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
+   SLIBS   := $(SLIBS) -L$(SRCDIR)/pio-2.4.4/usr/lib/ -lpiof -lpioc
+endif
+
 ifeq ($(USE_ESMF), yes)
    CPPDEFS :=  $(CPPDEFS) -Duse_esmf
    INCLDIR :=  $(INCLDIR) -I ???
