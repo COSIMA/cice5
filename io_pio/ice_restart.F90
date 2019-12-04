@@ -74,7 +74,7 @@
 
       if (restart_format == 'pio') then
          File%fh=-1
-         call ice_pio_init(mode='read', filename=trim(filename), File=File)
+         call ice_pio_initfile(mode='read', filename=trim(filename), File=File)
       
          call ice_pio_initdecomp(iodesc=iodesc2d)
          call ice_pio_initdecomp(ndim3=ncat  , iodesc=iodesc3d_ncat,remap=.true.)
@@ -179,7 +179,7 @@
       if (restart_format == 'pio') then
       
          File%fh=-1
-         call ice_pio_init(mode='write',filename=trim(filename), File=File, &
+         call ice_pio_initfile(mode='write',filename=trim(filename), File=File, &
               clobber=.true.)
 
          status = pio_put_att(File,pio_global,'istep1',istep1)

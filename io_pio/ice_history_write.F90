@@ -1,20 +1,11 @@
 !  SVN:$Id: ice_history_write.F90 567 2013-01-07 02:57:36Z eclare $
 !=======================================================================
 !
-! Writes history in netCDF format
+! Writes history in using PIO
 !
 ! authors Tony Craig and Bruce Briegleb, NCAR
 !         Elizabeth C. Hunke and William H. Lipscomb, LANL
 !         C. M. Bitz, UW
-!
-! 2004 WHL: Block structure added 
-! 2006 ECH: Accepted some CCSM code into mainstream CICE
-!           Added ice_present, aicen, vicen; removed aice1...10, vice1...1.
-!           Added histfreq_n and histfreq='h' options, removed histfreq='w'
-!           Converted to free source form (F90)
-!           Added option for binary output instead of netCDF
-! 2009 D Bailey and ECH: Generalized for multiple frequency output
-! 2010 Alison McLaren and ECH: Added 3D capability
 !
       module ice_history_write
 
@@ -57,7 +48,6 @@
       use ice_history_shared
       use ice_itd, only: hin_max
       use ice_restart_shared, only: runid
-      use netcdf
 #endif
       use ice_pio	
       use pio
@@ -135,6 +125,7 @@
       integer (kind=int_kind), dimension(2) ::  &
          bnd_start,bnd_length          ! dimension quantities for netCDF
 
+      integer (kind=PIO_OFFSET_KIND) :: FRAME_1 = 1
 
       if (my_task == master_task) then
         call construct_filename(ncfile(ns),'nc',ns)
@@ -152,7 +143,7 @@
       ! create file
 
       File%fh=-1
-      call ice_pio_init(mode='write', filename=trim(filename), File=File, &
+      call ice_pio_initfile(mode='write', filename=trim(filename), File=File, &
 	clobber=.true., cdf64=lcdf64)
 
       call ice_pio_initdecomp(iodesc=iodesc2d)
@@ -890,7 +881,7 @@
             if (status /= pio_noerr) call abort_ice( &
                'ice: Error getting varid for '//avail_hist_fields(n)%vname)
             workr2(:,:,:) = a2D(:,:,n,1:nblocks)
-            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET))
+            call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc2d,&
                                   workr2, status, fillval=spval_dbl)
          endif
@@ -911,7 +902,7 @@
                workr3(:,:,j,i) = a3Dc(:,:,i,nn,j)
             enddo
             enddo
-            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET))
+            call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc3dc,&
                                   workr3, status, fillval=spval_dbl)
          endif
@@ -931,7 +922,7 @@
                workr3(:,:,j,i) = a3Dz(:,:,i,nn,j)
             enddo
             enddo
-            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET))
+            call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc3di,&
                                   workr3, status, fillval=spval_dbl)
          endif
@@ -951,7 +942,7 @@
                workr3(:,:,j,i) = a3Db(:,:,i,nn,j)
             enddo
             enddo
-            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET))
+            call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc3db,&
                                   workr3, status, fillval=spval_dbl)
          endif
@@ -973,7 +964,7 @@
             enddo ! k
             enddo ! i
             enddo ! j
-            call pio_setframe(File, varid, int(1,kind=PIO_OFFSET))
+            call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc4di,&
                                   workr4, status, fillval=spval_dbl)
          endif
@@ -995,7 +986,7 @@
             enddo ! k
             enddo ! i
             enddo ! j
-            call pio_setframe(varid, int(1,kind=PIO_OFFSET))
+            call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc4ds,&
                                   workr4, status, fillval=spval_dbl)
          endif
