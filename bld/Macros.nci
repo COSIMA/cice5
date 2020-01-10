@@ -20,7 +20,7 @@ ifeq ($(DEBUG), 1)
     FFLAGS     := -r8 -i4 -O0 -traceback -g -debug all -check all -no-vec -align all -w -fpe0 -ftz -convert big_endian -assume byterecl -assume nobuffered_io -check noarg_temp_created
     CPPDEFS    := $(CPPDEFS) -DDEBUG=$(DEBUG)
 else
-    FFLAGS     := -r8 -i4 -O2 -traceback -g -align all -xHost -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
+    FFLAGS     := -r8 -i4 -O2 -traceback -g -align all -xCORE-AVX2 -axSKYLAKE-AVX512,CASCADELAKE -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
 endif
 
 MOD_SUFFIX := mod
