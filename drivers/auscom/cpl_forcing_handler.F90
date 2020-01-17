@@ -45,6 +45,7 @@ subroutine nullify_i2o_fluxes()
     ioaice(:,:,:)  = 0.0
     iomelt(:,:,:)  = 0.0
     ioform(:,:,:)  = 0.0
+    iownd(:,:,:)  = 0.0
 
 end subroutine nullify_i2o_fluxes
 
@@ -67,6 +68,7 @@ subroutine tavg_i2o_fluxes
 !!!
     iomelt (:,:,:) = iomelt (:,:,:) + tiomelt (:,:,:)*coef_ic
     ioform (:,:,:) = ioform (:,:,:) + tioform (:,:,:)*coef_ic
+    iownd (:,:,:)  = iownd (:,:,:) + tiownd (:,:,:)*coef_ic
 
 return
 end subroutine tavg_i2o_fluxes
@@ -201,6 +203,7 @@ if ( file_exist(fname) ) then
 #endif
   call ice_open_nc(fname, ncid_i2o) 
   do jf = n_i2a + 1, jpfldout   !2:14
+    if(il_var_id_out(jf) == -1) cycle !RASF Aloow for fields no being passed like wind, BGC etc
     vwork(:, :, :) = 0.0
     call ice_read_nc(ncid_i2o, 1, cl_writ(jf) , vwork, dbug)
     if (jf == n_i2a+1 ) iostrsu = vwork
@@ -219,6 +222,7 @@ if ( file_exist(fname) ) then
     !!!
     if (jf == n_i2a+14) iomelt = vwork
     if (jf == n_i2a+15) ioform = vwork
+    if (jf == n_i2a+16) iownd = vwork
   enddo
   if (my_task == master_task) call ice_close_nc(ncid_i2o)
 #if defined(DEBUG)
@@ -379,6 +383,7 @@ do jf = n_i2a + 1, jpfldout   !2:13
   !!!
   if (jf == n_i2a+14 ) vwork = iomelt
   if (jf == n_i2a+15 ) vwork = ioform
+  if (jf == n_i2a+16 ) vwork = iownd
 
   call gather_global(gwork, vwork, master_task, distrb_info)
   if (my_task == 0) then 
@@ -739,6 +744,9 @@ tioswflx = swabs_ocn
   tiomelt(:,:,:) = max(0.0,fresh(:,:,:))
 !15) ice form waterflux:
   tioform(:,:,:) = min(0.0,fresh(:,:,:))
+!16 10m wind. To mask or not to mask?
+  tiownd(:,:,:) = sqrt(uatm(:,:,:)**2 + vatm(:,:,:)**2)
+ 
 
 return
 end subroutine get_i2o_fluxes
@@ -1161,6 +1169,8 @@ call gather_global(gwork, scale*iomelt,  master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'iomelt',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, scale*ioform,  master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'ioform',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, scale*iownd,  master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'iownd',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
 if (my_task == 0) call ncheck(nf_close(ncid), 'check_i2o_fields: nf_close')
 

@@ -6,28 +6,33 @@ use ice_kinds_mod
 
 implicit none
 
-        integer(kind=int_kind) :: nt_cells                   ! nx_global x ny_global 
+  integer(kind=int_kind) :: nt_cells                   ! nx_global x ny_global 
                                                      ! assigned in prism_init	
-        integer(kind=int_kind), parameter :: jpfldout = 16   ! total number of fields sent
-        integer(kind=int_kind), parameter :: jpfldin  = 17   ! total number of fields rcvd 
+!  integer(kind=int_kind), parameter :: jpfldout = 16   ! total number of fields sent
+  integer(kind=int_kind), parameter :: jpfldout = 17   !RASF total number of fields sent Now includes wnd but should not be param
+  integer(kind=int_kind), parameter :: jpfldin  = 17   ! total number of fields rcvd 
 
-        integer(kind=int_kind), parameter :: n_a2i = 10      ! number of a2i fields
-        integer(kind=int_kind), parameter :: n_o2i = 7       ! number of o2i fields
-        integer(kind=int_kind), parameter :: n_i2a = 1       ! number of i2a fields
-        integer(kind=int_kind), parameter :: n_i2o = 15      ! number of i2o fields
+  integer(kind=int_kind), parameter :: n_a2i = 10      ! number of a2i fields
+  integer(kind=int_kind), parameter :: n_o2i = 7       ! number of o2i fields
+  integer(kind=int_kind), parameter :: n_i2a = 1       ! number of i2a fields
+  integer(kind=int_kind), parameter :: n_i2o = 16      ! number of i2o fields
 
 !
-character(len=8), dimension(jpfldout) :: cl_writ ! Symb names fields sent
-character(len=8), dimension(jpfldin)  :: cl_read ! Symb names fields rcvd
-        integer(kind=int_kind) :: il_out                 ! format io unit(s) for coupling cpu(s)
+   character(len=8), dimension(jpfldout) :: cl_writ ! Symb names fields sent
+   character(len=8), dimension(jpfldin)  :: cl_read ! Symb names fields rcvd
+   integer(kind=int_kind) :: il_out                 ! format io unit(s) for coupling cpu(s)
 !
  
-        integer(kind=int_kind) :: num_cpl_ai    ! num of (a2i) cpl periods for this run
-        integer(kind=int_kind) :: num_cpl_io    ! num of (i2o) cpl periods each atm_ice_timestep
-        integer(kind=int_kind) :: num_ice_io    ! ice time loop iteration number per ice_ocean_timestep
+!RASF need to move these here to make available for  other modules
+   integer(kind=int_kind), dimension(jpfldout) :: il_var_id_out = -1 ! ID for fields sent
+   integer(kind=int_kind), dimension(jpfldin)  :: il_var_id_in = -1  ! ID for fields rcvd
 
-    real(kind=dbl_kind) :: meltlimit = 50.  !12/03/2008: set max melt
-    real(kind=dbl_kind) :: ocn_albedo = 0.06
+   integer(kind=int_kind) :: num_cpl_ai    ! num of (a2i) cpl periods for this run
+   integer(kind=int_kind) :: num_cpl_io    ! num of (i2o) cpl periods each atm_ice_timestep
+   integer(kind=int_kind) :: num_ice_io    ! ice time loop iteration number per ice_ocean_timestep
+
+   real(kind=dbl_kind) :: meltlimit = 50.  !12/03/2008: set max melt
+   real(kind=dbl_kind) :: ocn_albedo = 0.06
 logical :: &                         !pop_icediag is as that for ocn model, if true
    pop_icediag    = .false. , &      !    ice formation from ocn is via POP approach 
    use_ocnslope   = .false. , &      !if .t. use the sea srf tilt passed from ocn

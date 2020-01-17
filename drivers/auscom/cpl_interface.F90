@@ -68,9 +68,6 @@
   ! order according to ascending global_offset of segments.
   type(segment), dimension(:), allocatable :: part_def
 
-  integer(kind=int_kind), dimension(jpfldout) :: il_var_id_out ! ID for fields sent
-  integer(kind=int_kind), dimension(jpfldin)  :: il_var_id_in  ! ID for fields rcvd
-
   character(len=6), parameter :: cp_modnam='cicexx' ! Component model name
   integer, parameter :: ORANGE = 3
 
@@ -250,6 +247,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     cl_writ(n_i2a+14)='melt_io'
     cl_writ(n_i2a+15)='form_io'
 
+    cl_writ(n_i2a+16)='wnd10_io'
+
     do jf=1, jpfldout
         call oasis_def_var(il_var_id_out(jf),cl_writ(jf), part_id, &
                            il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
@@ -334,6 +333,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (iomelt (nx_block, ny_block, max_blocks)); iomelt(:,:,:) = 0
     allocate (ioform (nx_block, ny_block, max_blocks)); ioform(:,:,:) = 0
 
+    allocate (iownd (nx_block, ny_block, max_blocks)); iownd(:,:,:) = 0
+
     allocate (tiostrsu(nx_block, ny_block, max_blocks)); tiostrsu(:,:,:) = 0
     allocate (tiostrsv(nx_block, ny_block, max_blocks)); tiostrsv(:,:,:) = 0
     allocate (tiorain(nx_block, ny_block, max_blocks));  tiorain(:,:,:) = 0
@@ -350,6 +351,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     allocate (tiomelt(nx_block, ny_block, max_blocks));  tiomelt(:,:,:) = 0
     allocate (tioform(nx_block, ny_block, max_blocks));  tioform(:,:,:) = 0
+
+    allocate (tiownd (nx_block, ny_block, max_blocks)); tiownd(:,:,:) = 0
 
     allocate (vwork(nx_block, ny_block, max_blocks)); vwork(:,:,:) = 0
     allocate (gwork(nx_global, ny_global)); gwork(:,:) = 0
@@ -646,6 +649,12 @@ subroutine into_ocn(isteps, scale)
     call pack_coupling_array(ioform*scale, work)
     call oasis_put(il_var_id_out(16), isteps, work, ierror)
 
+! 10m winds are optional. 
+    if( il_var_id_out(17) /= -1 ) then
+       call pack_coupling_array(iownd*scale, work)
+       call oasis_put(il_var_id_out(17), isteps, work, ierror)
+    endif
+
     if (chk_i2o_fields) then
         call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
     endif
@@ -702,6 +711,7 @@ end subroutine update_halos_from_atm
   deallocate (tiostrsu, tiostrsv, tiorain, tiosnow, tiostflx, tiohtflx, tioswflx, &
               tioqflux, tiolwflx, tioshflx, tiorunof, tiopress) 
   deallocate (iomelt, ioform, tiomelt, tioform)
+  deallocate (iownd, tiownd)
   deallocate (gwork, vwork, sicemass)
   !  
   ! PSMILe termination 
@@ -751,6 +761,7 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] ioaice:', sum(ioaice(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iomelt:', sum(iomelt(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ioform:', sum(ioform(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iownd:', sum(iownd(isc:iec, jsc:jec, 1))
 
      print*,   '[ice chksum] ssto:', sum(ssto(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ssso:', sum(ssso(isc:iec, jsc:jec, 1))

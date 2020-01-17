@@ -62,7 +62,12 @@ module cpl_arrays_setup
 !(15) ice form waterflux				ioform
 !
 !
+! 10m wind speeds (optional?)
+!(16) 10m wind speeds                                   iownd10
 ! 17 in, 16 out => thus we set jpfldout=16, jpfldin=17 (in cpl_parameters)! 
+!RASF but there's a (SST?) field which gets sent to the atmospher for some reason and
+!this buggers up everything. Why is this being sent? Does YATM really need SST?
+!Should really have a block of arrays for each component.
 !
 !----------------------------------------------------------------------------
 !Note: 
@@ -98,11 +103,11 @@ real(kind=dbl_kind), dimension(:,:,:), allocatable :: vwork
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to ocn (time averaged)
     iostrsu, iostrsv, iorain, iosnow, iostflx, iohtflx, ioswflx &
    ,ioqflux, ioshflx, iolwflx, iorunof, iopress, ioaice &
-   ,iomelt, ioform
+   ,iomelt, ioform, iownd
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to ocn (temporary)
     tiostrsu, tiostrsv, tiorain, tiosnow, tiostflx, tiohtflx, tioswflx &
    ,tioqflux, tioshflx, tiolwflx, tiorunof, tiopress, tioaice &
-   ,tiomelt, tioform
+   ,tiomelt, tioform, tiownd
 
 ! other stuff 
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: & 
