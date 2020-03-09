@@ -249,6 +249,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     cl_writ(n_i2a+13)='aice_io'
     cl_writ(n_i2a+14)='melt_io'
     cl_writ(n_i2a+15)='form_io'
+    cl_writ(n_i2a+16)='licefw_io'
+    cl_writ(n_i2a+17)='licefh_io'
 
     do jf=1, jpfldout
         call oasis_def_var(il_var_id_out(jf),cl_writ(jf), part_id, &
@@ -269,6 +271,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     cl_read(8) ='qair_i'
     cl_read(9) ='uwnd_i'
     cl_read(10)='vwnd_i'
+    cl_read(11)='licalv_i'
     !ocn ==> ice
     cl_read(n_a2i+1)='sst_i'
     cl_read(n_a2i+2)='sss_i'
@@ -521,6 +524,9 @@ subroutine from_atm(isteps)
   call oasis_get(il_var_id_in(10), isteps, work, info)
   call unpack_coupling_array(work, vwnd0)
 
+  call oasis_get(il_var_id_in(11), isteps, work, info)
+  call unpack_coupling_array(work, calv0)
+
   ! need do t-grid to u-grid shift for vectors since all coupling occur on
   ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
   ! (see comment in code ice_flux.F)
@@ -646,6 +652,12 @@ subroutine into_ocn(isteps, scale)
     call pack_coupling_array(ioform*scale, work)
     call oasis_put(il_var_id_out(16), isteps, work, ierror)
 
+    call pack_coupling_array(iolicefw*scale, work)
+    call oasis_put(il_var_id_out(17), isteps, work, ierror)
+
+    call pack_coupling_array(iolicefh*scale, work)
+    call oasis_put(il_var_id_out(18), isteps, work, ierror)
+
     if (chk_i2o_fields) then
         call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
     endif
@@ -685,6 +697,7 @@ subroutine update_halos_from_atm(time)
   call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
   call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(calv0, halo_info, field_loc_center, field_type_vector)
   call ice_timer_stop(timer_from_atm_halos)
 
 end subroutine update_halos_from_atm
@@ -770,6 +783,7 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] qair0:',  sum(qair0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] uwnd0:',  sum(uwnd0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] vwnd0:',  sum(vwnd0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] vwnd0:',  sum(calv0(isc:iec, jsc:jec, 1))
 
      print*,   '[ice chksum] u_star0:', sum(u_star0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] rough_mom0:', sum(rough_mom0(isc:iec, jsc:jec, 1))

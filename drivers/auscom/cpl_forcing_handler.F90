@@ -45,6 +45,8 @@ subroutine nullify_i2o_fluxes()
     ioaice(:,:,:)  = 0.0
     iomelt(:,:,:)  = 0.0
     ioform(:,:,:)  = 0.0
+    iolicefw(:,:,:)  = 0.0
+    iolicefh(:,:,:)  = 0.0
 
 end subroutine nullify_i2o_fluxes
 
@@ -67,6 +69,8 @@ subroutine tavg_i2o_fluxes
 !!!
     iomelt (:,:,:) = iomelt (:,:,:) + tiomelt (:,:,:)*coef_ic
     ioform (:,:,:) = ioform (:,:,:) + tioform (:,:,:)*coef_ic
+    iolicefw (:,:,:) = iolicefw (:,:,:) + tiolicefw (:,:,:)*coef_ic
+    iolicefh (:,:,:) = iolicefh (:,:,:) + tiolicefh (:,:,:)*coef_ic
 
 return
 end subroutine tavg_i2o_fluxes
