@@ -325,6 +325,7 @@ frain(:,:,:) =  rain0(:,:,:)
 fsnow(:,:,:) =  snow0(:,:,:) 
 press(:,:,:) =  press0(:,:,:)
 runof(:,:,:) =  runof0(:,:,:)
+calv(:,:,:) =  calv0(:,:,:)
 
 ! --- from ocean:
 uocn(:,:,:) = ssuo(:,:,:)
@@ -385,6 +386,8 @@ do jf = n_i2a + 1, jpfldout   !2:13
   !!!
   if (jf == n_i2a+14 ) vwork = iomelt
   if (jf == n_i2a+15 ) vwork = ioform
+  if (jf == n_i2a+16) vwork = iolicefw
+  if (jf == n_i2a+17) vwork = iolicefh
 
   call gather_global(gwork, vwork, master_task, distrb_info)
   if (my_task == 0) then 
@@ -712,7 +715,9 @@ tioswflx = swabs_ocn
   tiolwflx(:,:,:) = tiolwflx(:,:,:) * (1. - aice(:,:,:))
 
 !11)runoff: relocated onto coastal grid points (pre-processed by Steve Phipps)
-  tiorunof(:,:,:) = runof(:,:,:)
+  tiorunof(:,:,:) = runof(:,:,:) + calv(:,:,:)
+  tiolicefw(:,:,:) = 0.0
+  tiolicefh(:,:,:) = 0.0
 
 !12)pressure
 !  if (my_task == 0)  write(il_out,*)'size of pice,     ',&
@@ -1101,6 +1106,8 @@ call gather_global(gwork, snow0, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'snow0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, runof0, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'runof0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, calv0, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'calv0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, press0, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'press0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 

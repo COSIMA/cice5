@@ -309,6 +309,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (press0(nx_block, ny_block, max_blocks)); press0(:,:,:) = 0
 
     allocate (runof(nx_block, ny_block, max_blocks)); runof(:,:,:) = 0
+    allocate (calv(nx_block, ny_block, max_blocks)); calv(:,:,:) = 0
     allocate (press(nx_block, ny_block, max_blocks)); press(:,:,:) = 0
 
     allocate (core_runoff(nx_block, ny_block, max_blocks));  core_runoff(:,:,:) = 0.
@@ -713,13 +714,13 @@ end subroutine update_halos_from_atm
 !-------------------------------!
 
   deallocate (tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0, runof0, press0)
-  deallocate (runof, press)
+  deallocate (runof, calv, press)
   deallocate (core_runoff)
   deallocate (ssto, ssso, ssuo, ssvo, sslx, ssly, pfmice)
   deallocate (iostrsu, iostrsv, iorain, iosnow, iostflx, iohtflx, ioswflx, &
-              ioqflux, iolwflx, ioshflx, iorunof, iopress)
+              ioqflux, iolwflx, ioshflx, iorunof, iolicefw, iolicefh, iopress)
   deallocate (tiostrsu, tiostrsv, tiorain, tiosnow, tiostflx, tiohtflx, tioswflx, &
-              tioqflux, tiolwflx, tioshflx, tiorunof, tiopress) 
+              tioqflux, tiolwflx, tioshflx, tiorunof, tiolicefw, tiolicefh, tiopress) 
   deallocate (iomelt, ioform, tiomelt, tioform)
   deallocate (gwork, vwork, sicemass)
   !  
@@ -770,6 +771,9 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] ioaice:', sum(ioaice(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iomelt:', sum(iomelt(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ioform:', sum(ioform(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iorunof:', sum(iorunof(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iolicefw:', sum(iolicefw(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iolicefh:', sum(iolicefh(isc:iec, jsc:jec, 1))
 
      print*,   '[ice chksum] ssto:', sum(ssto(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ssso:', sum(ssso(isc:iec, jsc:jec, 1))

@@ -85,14 +85,11 @@ real(kind=dbl_kind), dimension(:,:,:), allocatable :: &   !from atm
     tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0 & !(for ice)
    ,runof0, press0, calv0                                      !(for ocn)    
 
-real(kind=dbl_kind), dimension(:,:,:), allocatable :: runof, press
+real(kind=dbl_kind), dimension(:,:,:), allocatable :: runof, calv, press
 
 ! CORE runoff remapped onto the AusCOM grid
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: & 
     core_runoff
-real(kind=dbl_kind), dimension(:,:,:), allocatable :: & 
-    icecalve_runoff
-
 
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: &   !from ocn
     ssto,  ssso,   ssuo,   ssvo,   sslx,  ssly,  pfmice  
