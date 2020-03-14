@@ -223,6 +223,8 @@ if ( file_exist(fname) ) then
     !!!
     if (jf == n_i2a+14) iomelt = vwork
     if (jf == n_i2a+15) ioform = vwork
+    if (jf == n_i2a+16) iolicefw = vwork
+    if (jf == n_i2a+17) iolicefh = vwork
   enddo
   if (my_task == master_task) call ice_close_nc(ncid_i2o)
 #if defined(DEBUG)

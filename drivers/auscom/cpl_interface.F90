@@ -271,7 +271,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     cl_read(8) ='qair_i'
     cl_read(9) ='uwnd_i'
     cl_read(10)='vwnd_i'
-    cl_read(11)='licalv_i'
+    cl_read(11)='licalvf_i'
     !ocn ==> ice
     cl_read(n_a2i+1)='sst_i'
     cl_read(n_a2i+2)='sss_i'
@@ -301,6 +301,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (lwflx0(nx_block, ny_block, max_blocks)); lwflx0(:,:,:) = 0
     allocate (uwnd0(nx_block, ny_block, max_blocks));  uwnd0(:,:,:) = 0
     allocate (vwnd0(nx_block, ny_block, max_blocks));  vwnd0(:,:,:) = 0
+    allocate (calv0(nx_block, ny_block, max_blocks));  calv0(:,:,:) = 0
     allocate (qair0(nx_block, ny_block, max_blocks));  qair0(:,:,:) = 0
     allocate (rain0(nx_block, ny_block, max_blocks));  rain0(:,:,:) = 0
     allocate (snow0(nx_block, ny_block, max_blocks));  snow0(:,:,:) = 0
@@ -336,6 +337,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     allocate (iomelt (nx_block, ny_block, max_blocks)); iomelt(:,:,:) = 0
     allocate (ioform (nx_block, ny_block, max_blocks)); ioform(:,:,:) = 0
+    allocate (iolicefw (nx_block, ny_block, max_blocks)); iolicefw(:,:,:) = 0
+    allocate (iolicefh (nx_block, ny_block, max_blocks)); iolicefh(:,:,:) = 0
 
     allocate (tiostrsu(nx_block, ny_block, max_blocks)); tiostrsu(:,:,:) = 0
     allocate (tiostrsv(nx_block, ny_block, max_blocks)); tiostrsv(:,:,:) = 0
@@ -353,6 +356,9 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     allocate (tiomelt(nx_block, ny_block, max_blocks));  tiomelt(:,:,:) = 0
     allocate (tioform(nx_block, ny_block, max_blocks));  tioform(:,:,:) = 0
+
+    allocate (tiolicefw(nx_block, ny_block, max_blocks));  tiolicefw(:,:,:) = 0
+    allocate (tiolicefh(nx_block, ny_block, max_blocks));  tiolicefh(:,:,:) = 0
 
     allocate (vwork(nx_block, ny_block, max_blocks)); vwork(:,:,:) = 0
     allocate (gwork(nx_global, ny_global)); gwork(:,:) = 0
@@ -564,26 +570,26 @@ subroutine from_ocn(isteps)
     call ice_timer_start(timer_from_ocn)
     call ice_timer_start(timer_waiting_ocn)
 
-    call oasis_get(il_var_id_in(11), isteps, work, info)
+    call oasis_get(il_var_id_in(12), isteps, work, info)
     call unpack_coupling_array(work, ssto)
     call ice_timer_stop(timer_waiting_ocn)
 
-    call oasis_get(il_var_id_in(12), isteps, work, info)
+    call oasis_get(il_var_id_in(13), isteps, work, info)
     call unpack_coupling_array(work, ssso)
 
-    call oasis_get(il_var_id_in(13), isteps, work, info)
+    call oasis_get(il_var_id_in(14), isteps, work, info)
     call unpack_coupling_array(work, ssuo)
 
-    call oasis_get(il_var_id_in(14), isteps, work, info)
+    call oasis_get(il_var_id_in(15), isteps, work, info)
     call unpack_coupling_array(work, ssvo)
 
-    call oasis_get(il_var_id_in(15), isteps, work, info)
+    call oasis_get(il_var_id_in(16), isteps, work, info)
     call unpack_coupling_array(work, sslx)
 
-    call oasis_get(il_var_id_in(16), isteps, work, info)
+    call oasis_get(il_var_id_in(17), isteps, work, info)
     call unpack_coupling_array(work, ssly)
 
-    call oasis_get(il_var_id_in(17), isteps, work, info)
+    call oasis_get(il_var_id_in(18), isteps, work, info)
     call unpack_coupling_array(work, pfmice)
 
     if (chk_o2i_fields) then
@@ -783,7 +789,7 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] qair0:',  sum(qair0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] uwnd0:',  sum(uwnd0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] vwnd0:',  sum(vwnd0(isc:iec, jsc:jec, 1))
-     print*,   '[ice chksum] vwnd0:',  sum(calv0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] calv0:',  sum(calv0(isc:iec, jsc:jec, 1))
 
      print*,   '[ice chksum] u_star0:', sum(u_star0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] rough_mom0:', sum(rough_mom0(isc:iec, jsc:jec, 1))

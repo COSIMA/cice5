@@ -8,17 +8,17 @@ implicit none
 
         integer(kind=int_kind) :: nt_cells                   ! nx_global x ny_global 
                                                      ! assigned in prism_init	
-        integer(kind=int_kind), parameter :: jpfldout = 16   ! total number of fields sent
-        integer(kind=int_kind), parameter :: jpfldin  = 17   ! total number of fields rcvd 
+        integer(kind=int_kind), parameter :: jpfldout = 18   ! total number of fields sent
+        integer(kind=int_kind), parameter :: jpfldin  = 18   ! total number of fields rcvd 
 
-        integer(kind=int_kind), parameter :: n_a2i = 10      ! number of a2i fields
+        integer(kind=int_kind), parameter :: n_a2i = 11      ! number of a2i fields
         integer(kind=int_kind), parameter :: n_o2i = 7       ! number of o2i fields
         integer(kind=int_kind), parameter :: n_i2a = 1       ! number of i2a fields
-        integer(kind=int_kind), parameter :: n_i2o = 15      ! number of i2o fields
+        integer(kind=int_kind), parameter :: n_i2o = 17      ! number of i2o fields
 
 !
-character(len=8), dimension(jpfldout) :: cl_writ ! Symb names fields sent
-character(len=8), dimension(jpfldin)  :: cl_read ! Symb names fields rcvd
+character(len=16), dimension(jpfldout) :: cl_writ ! Symb names fields sent
+character(len=16), dimension(jpfldin)  :: cl_read ! Symb names fields rcvd
         integer(kind=int_kind) :: il_out                 ! format io unit(s) for coupling cpu(s)
 !
  
