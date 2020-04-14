@@ -203,7 +203,7 @@ implicit none
         if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) reading in i2o fields......'
 #endif
         call ice_open_nc(fname, ncid_i2o) 
-        do i=1, num_fields_from_ocn
+        do i=1, num_fields_to_ocn
             vwork(:, :, :) = 0.0
             call ice_read_nc(ncid_i2o, 1, trim(fields_to_ocn(i)) , vwork, .true.)
 
@@ -221,7 +221,7 @@ implicit none
                 iohtflx = vwork
             elseif (trim(fields_to_ocn(i)) == 'swflx_io') then
                 ioswflx = vwork
-            elseif (trim(fields_to_ocn(i)) == 'qflx_io') then
+            elseif (trim(fields_to_ocn(i)) == 'qflux_io') then
                 ioqflux = vwork
             elseif (trim(fields_to_ocn(i)) == 'shflx_io') then
                 ioshflx = vwork
@@ -242,7 +242,7 @@ implicit none
             elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
                 iolicefh = vwork
             else
-                call abort_ice('ice: bad initialization array name '//fields_to_ocn(i))
+                call abort_ice('ice: bad initialization array name '//trim(fields_to_ocn(i)))
             endif
       enddo
       if (my_task == master_task) call ice_close_nc(ncid_i2o)
@@ -388,7 +388,7 @@ implicit none
         call write_nc_1Dtime(real(nstep), 1, 'time', ncid)
     endif
 
-    do i=1, num_fields_from_ocn   !2:13	
+    do i=1, num_fields_to_ocn
         if (trim(fields_to_ocn(i)) == 'strsu_io') then
             vwork = iostrsu
         elseif (trim(fields_to_ocn(i)) == 'strsv_io') then
@@ -403,7 +403,7 @@ implicit none
             vwork = iohtflx
         elseif (trim(fields_to_ocn(i)) == 'swflx_io') then
             vwork = ioswflx
-        elseif (trim(fields_to_ocn(i)) == 'qflx_io') then
+        elseif (trim(fields_to_ocn(i)) == 'qflux_io') then
             vwork = ioqflux
         elseif (trim(fields_to_ocn(i)) == 'shflx_io') then
             vwork = ioshflx
@@ -424,7 +424,7 @@ implicit none
         elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
             vwork = iolicefh
         else
-            call abort_ice('ice: bad initialization array name '//fields_to_ocn(i))
+            call abort_ice('ice: bad save array name '//trim(fields_to_ocn(i)))
         endif
 
         call gather_global(gwork, vwork, master_task, distrb_info)
