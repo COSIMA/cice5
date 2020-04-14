@@ -4,4 +4,5 @@ build_auscom*
 tags
 drivers/auscom/version.F90
 ._*
+*.swp
 
