@@ -36,7 +36,8 @@
 !
 ! author Elizabeth C. Hunke, LANL
 
-      subroutine input_data(forcing_start_date, seconds_since_start_year, &
+      subroutine input_data(forcing_start_date, cur_exp_date, &
+                            seconds_since_start_year, &
                             total_runtime_in_seconds, timestep, calendar_type)
 
       use ice_age, only: restart_age
@@ -107,6 +108,7 @@
       use shr_file_mod, only: shr_file_setIO
 #endif
       integer, dimension(6), optional, intent(in) :: forcing_start_date
+      integer, dimension(6), optional, intent(in) :: cur_exp_date
       integer, optional, intent(in) :: seconds_since_start_year
       integer, optional, intent(in) :: total_runtime_in_seconds, timestep
       character(len=9), optional, intent(in) :: calendar_type
@@ -433,9 +435,23 @@
          if (nml_error == 0) close(nu_nml)
 
          ! Overwrite some run details passed in as arguments
-         if (present(forcing_start_date)) then
-            year_init = forcing_start_date(1)
+
+         if (use_restart_time) then
+             ! the initial year is set by the forcing start, the current
+             ! experiment date is calculated using this and values in the
+             ! restart file
+             if (present(forcing_start_date)) then
+                year_init = forcing_start_date(1)
+             endif
+         else
+             ! the initial year is set to the current experiment year,
+             ! the current experiment date is calculated using this and
+             ! istep0 and npt below
+             if (present(cur_exp_date)) then
+                year_init = cur_exp_date(1)
+             endif
          endif
+
          if (present(timestep)) then 
             dt = timestep
          endif
