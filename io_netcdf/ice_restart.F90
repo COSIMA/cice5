@@ -196,8 +196,8 @@
 
          status = nf90_create(trim(filename), &
                                ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid)
-         if (status /= nf90_noerr) call abort_ice( &
-            'ice: Error creating restart ncfile '//trim(filename))
+         call assert(status == NF90_NOERR, &
+            'in init_restart_write on nf90_create '//trim(filename), status)
 
          status = nf90_put_att(ncid,nf90_global,'istep1',istep1)
          call assert(status == NF90_NOERR, &
