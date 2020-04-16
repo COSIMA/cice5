@@ -68,8 +68,9 @@
   ! order according to ascending global_offset of segments.
   type(segment), dimension(:), allocatable :: part_def
 
-  integer(kind=int_kind), dimension(jpfldout) :: il_var_id_out ! ID for fields sent
-  integer(kind=int_kind), dimension(jpfldin)  :: il_var_id_in  ! ID for fields rcvd
+  integer(kind=int_kind), dimension(:), allocatable :: varid_fields_from_atm
+  integer(kind=int_kind), dimension(:), allocatable :: varid_fields_to_ocn
+  integer(kind=int_kind), dimension(:), allocatable  :: varid_fields_from_ocn
 
   character(len=6), parameter :: cp_modnam='cicexx' ! Component model name
   integer, parameter :: ORANGE = 3
@@ -231,57 +232,29 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     ! Define name (as in namcouple) and declare each field sent by ice
     !
 
-    !ice ==> atm
-    cl_writ(1)='isst_ia'
-    !ice ==> ocn
-    cl_writ(n_i2a+1 )='strsu_io'
-    cl_writ(n_i2a+2 )='strsv_io'
-    cl_writ(n_i2a+3 )='rain_io'
-    cl_writ(n_i2a+4 )='snow_io'
-    cl_writ(n_i2a+5 )='stflx_io'
-    cl_writ(n_i2a+6 )='htflx_io'
-    cl_writ(n_i2a+7 )='swflx_io'
-    cl_writ(n_i2a+8 )='qflux_io'
-    cl_writ(n_i2a+9 )='shflx_io'
-    cl_writ(n_i2a+10)='lwflx_io'
-    cl_writ(n_i2a+11)='runof_io'
-    cl_writ(n_i2a+12)='press_io'
-    cl_writ(n_i2a+13)='aice_io'
-    cl_writ(n_i2a+14)='melt_io'
-    cl_writ(n_i2a+15)='form_io'
-
-    do jf=1, jpfldout
-        call oasis_def_var(il_var_id_out(jf),cl_writ(jf), part_id, &
+    allocate(varid_fields_to_ocn(num_fields_to_ocn))
+    do i=1, num_fields_to_ocn
+        call oasis_def_var(varid_fields_to_ocn(i), trim(fields_to_ocn(i)), part_id, &
                            il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
     enddo
+
+
     !
     ! Define name (as in namcouple) and declare each field received by ice
     !
 
-    !atm ==> ice
-    cl_read(1) ='swfld_i'
-    cl_read(2) ='lwfld_i'
-    cl_read(3) ='rain_i'
-    cl_read(4) ='snow_i'
-    cl_read(5) ='press_i'
-    cl_read(6) ='runof_i'
-    cl_read(7) ='tair_i'
-    cl_read(8) ='qair_i'
-    cl_read(9) ='uwnd_i'
-    cl_read(10)='vwnd_i'
-    !ocn ==> ice
-    cl_read(n_a2i+1)='sst_i'
-    cl_read(n_a2i+2)='sss_i'
-    cl_read(n_a2i+3)='ssu_i'
-    cl_read(n_a2i+4)='ssv_i'
-    cl_read(n_a2i+5)='sslx_i'
-    cl_read(n_a2i+6)='ssly_i'
-    cl_read(n_a2i+7)='pfmice_i'
-
-    do jf=1, jpfldin
-      call oasis_def_var(il_var_id_in(jf), cl_read(jf), part_id, &
+    allocate(varid_fields_from_atm(num_fields_from_atm))
+    do i=1, num_fields_from_atm
+      call oasis_def_var(varid_fields_from_atm(i), trim(fields_from_atm(i)), part_id, &
                          il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
     enddo
+
+    allocate(varid_fields_from_ocn(num_fields_from_ocn))
+    do i=1, num_fields_from_ocn
+      call oasis_def_var(varid_fields_from_ocn(i), trim(fields_from_ocn(i)), part_id, &
+                         il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
+    enddo
+ 
     !
     ! 7- PSMILe end of declaration phase
     !
@@ -298,6 +271,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (lwflx0(nx_block, ny_block, max_blocks)); lwflx0(:,:,:) = 0
     allocate (uwnd0(nx_block, ny_block, max_blocks));  uwnd0(:,:,:) = 0
     allocate (vwnd0(nx_block, ny_block, max_blocks));  vwnd0(:,:,:) = 0
+    allocate (calv0(nx_block, ny_block, max_blocks));  calv0(:,:,:) = 0
     allocate (qair0(nx_block, ny_block, max_blocks));  qair0(:,:,:) = 0
     allocate (rain0(nx_block, ny_block, max_blocks));  rain0(:,:,:) = 0
     allocate (snow0(nx_block, ny_block, max_blocks));  snow0(:,:,:) = 0
@@ -305,6 +279,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (press0(nx_block, ny_block, max_blocks)); press0(:,:,:) = 0
 
     allocate (runof(nx_block, ny_block, max_blocks)); runof(:,:,:) = 0
+    allocate (calv(nx_block, ny_block, max_blocks)); calv(:,:,:) = 0
     allocate (press(nx_block, ny_block, max_blocks)); press(:,:,:) = 0
 
     allocate (core_runoff(nx_block, ny_block, max_blocks));  core_runoff(:,:,:) = 0.
@@ -333,6 +308,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     allocate (iomelt (nx_block, ny_block, max_blocks)); iomelt(:,:,:) = 0
     allocate (ioform (nx_block, ny_block, max_blocks)); ioform(:,:,:) = 0
+    allocate (iolicefw (nx_block, ny_block, max_blocks)); iolicefw(:,:,:) = 0
+    allocate (iolicefh (nx_block, ny_block, max_blocks)); iolicefh(:,:,:) = 0
 
     allocate (tiostrsu(nx_block, ny_block, max_blocks)); tiostrsu(:,:,:) = 0
     allocate (tiostrsv(nx_block, ny_block, max_blocks)); tiostrsv(:,:,:) = 0
@@ -350,6 +327,9 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     allocate (tiomelt(nx_block, ny_block, max_blocks));  tiomelt(:,:,:) = 0
     allocate (tioform(nx_block, ny_block, max_blocks));  tioform(:,:,:) = 0
+
+    allocate (tiolicefw(nx_block, ny_block, max_blocks));  tiolicefw(:,:,:) = 0
+    allocate (tiolicefh(nx_block, ny_block, max_blocks));  tiolicefh(:,:,:) = 0
 
     allocate (vwork(nx_block, ny_block, max_blocks)); vwork(:,:,:) = 0
     allocate (gwork(nx_global, ny_global)); gwork(:,:) = 0
@@ -477,77 +457,84 @@ subroutine pack_coupling_array(input, output)
 endsubroutine pack_coupling_array
 
 subroutine from_atm(isteps)
-  integer(kind=int_kind), intent(in) :: isteps
+    integer(kind=int_kind), intent(in) :: isteps
 
-  integer(kind=int_kind) :: tag, request, info
-  integer(kind=int_kind) :: buf(1)
-  real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
+    integer :: i
+    integer(kind=int_kind) :: tag, request, info
+    integer(kind=int_kind) :: buf(1)
+    real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
 #if defined(DEBUG)
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
 #endif
 
-  call ice_timer_start(timer_from_atm)
+    call ice_timer_start(timer_from_atm)
 
-  call ice_timer_start(timer_waiting_atm)
-  call oasis_get(il_var_id_in(1), isteps, work, info)
-  call unpack_coupling_array(work, swflx0)
-  call ice_timer_stop(timer_waiting_atm)
+    do i=1, num_fields_from_atm
 
-  call oasis_get(il_var_id_in(2), isteps, work, info)
-  call unpack_coupling_array(work, lwflx0)
+        if (i == 1) then
+            call ice_timer_start(timer_waiting_atm)
+            call oasis_get(varid_fields_from_atm(i), isteps, work, info)
+            call ice_timer_stop(timer_waiting_atm)
+        else
+            call oasis_get(varid_fields_from_atm(i), isteps, work, info)
+        endif
 
-  call oasis_get(il_var_id_in(3), isteps, work, info)
-  call unpack_coupling_array(work, rain0)
+        if (trim(fields_from_atm(i)) == 'swfld_i') then
+            call unpack_coupling_array(work, swflx0)
+        elseif (trim(fields_from_atm(i)) == 'lwfld_i') then
+            call unpack_coupling_array(work, lwflx0)
+        elseif (trim(fields_from_atm(i)) == 'rain_i') then
+            call unpack_coupling_array(work, rain0)
+        elseif (trim(fields_from_atm(i)) == 'snow_i') then
+            call unpack_coupling_array(work, snow0)
+        elseif (trim(fields_from_atm(i)) == 'press_i') then
+            call unpack_coupling_array(work, press0)
+        elseif (trim(fields_from_atm(i)) == 'runof_i') then
+            call unpack_coupling_array(work, runof0)
+        elseif (trim(fields_from_atm(i)) == 'tair_i') then
+            call unpack_coupling_array(work, tair0)
+        elseif (trim(fields_from_atm(i)) == 'qair_i') then
+            call unpack_coupling_array(work, qair0)
+        elseif (trim(fields_from_atm(i)) == 'uwnd_i') then
+            call unpack_coupling_array(work, uwnd0)
+        elseif (trim(fields_from_atm(i)) == 'vwnd_i') then
+            call unpack_coupling_array(work, vwnd0)
+        elseif (trim(fields_from_atm(i)) == 'licalvf_i') then
+            call unpack_coupling_array(work, calv0)
+        else
+            call abort_ice('ice: bad coupling array name '//fields_from_atm(i))
+        endif
+    enddo
 
-  call oasis_get(il_var_id_in(4), isteps, work, info)
-  call unpack_coupling_array(work, snow0)
+    ! need do t-grid to u-grid shift for vectors since all coupling occur on
+    ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
+    ! (see comment in code ice_flux.F)
+    !call t3ugrid(uwnd1)
+    !call t2ugrid(vwnd1)
+    ! ...and, as we use direct o-i communication and o-i share the same grid, 
+    ! no need for any t2u and/or u2t shift before/after i-o coupling!
 
-  call oasis_get(il_var_id_in(5), isteps, work, info)
-  call unpack_coupling_array(work, press0)
+    if ( chk_a2i_fields ) then
+      call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
+    endif
 
-  call oasis_get(il_var_id_in(6), isteps, work, info)
-  call unpack_coupling_array(work, runof0)
+    ! Allow atm to progress. It is waiting on a receive.
+    if (my_task == master_task) then
+      request = MPI_REQUEST_NULL
+      tag = 5793
+      call MPI_Isend(buf, 1, MPI_INTEGER, coupler%atm_root, tag, &
+                     MPI_COMM_WORLD, request, ierror)
+    endif
 
-  call oasis_get(il_var_id_in(7), isteps, work, info)
-  call unpack_coupling_array(work, tair0)
-
-  call oasis_get(il_var_id_in(8), isteps, work, info)
-  call unpack_coupling_array(work, qair0)
-
-  call oasis_get(il_var_id_in(9), isteps, work, info)
-  call unpack_coupling_array(work, uwnd0)
-
-  call oasis_get(il_var_id_in(10), isteps, work, info)
-  call unpack_coupling_array(work, vwnd0)
-
-  ! need do t-grid to u-grid shift for vectors since all coupling occur on
-  ! t-grid points: <==No! actually CICE requires the input wind on T grid! 
-  ! (see comment in code ice_flux.F)
-  !call t2ugrid(uwnd1)
-  !call t2ugrid(vwnd1)
-  ! ...and, as we use direct o-i communication and o-i share the same grid, 
-  ! no need for any t2u and/or u2t shift before/after i-o coupling!
-
-  if ( chk_a2i_fields ) then
-    call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
-  endif
-
-  ! Allow atm to progress. It is waiting on a receive.
-  if (my_task == master_task) then
-    request = MPI_REQUEST_NULL
-    tag = 5793
-    call MPI_Isend(buf, 1, MPI_INTEGER, coupler%atm_root, tag, &
-                   MPI_COMM_WORLD, request, ierror)
-  endif
-
-  call ice_timer_stop(timer_from_atm)
+    call ice_timer_stop(timer_from_atm)
 
 end subroutine from_atm
 
 subroutine from_ocn(isteps)
     integer(kind=int_kind), intent(in) :: isteps
 
+    integer :: i
     integer :: info
     real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
@@ -556,29 +543,34 @@ subroutine from_ocn(isteps)
 #endif
 
     call ice_timer_start(timer_from_ocn)
-    call ice_timer_start(timer_waiting_ocn)
 
-    call oasis_get(il_var_id_in(11), isteps, work, info)
-    call unpack_coupling_array(work, ssto)
-    call ice_timer_stop(timer_waiting_ocn)
+    do i=1, num_fields_from_ocn        
+        if (i == 1) then
+            call ice_timer_start(timer_waiting_ocn)
+            call oasis_get(varid_fields_from_ocn(i), isteps, work, info)
+            call ice_timer_stop(timer_waiting_ocn)
+        else
+            call oasis_get(varid_fields_from_ocn(i), isteps, work, info)
+        endif
 
-    call oasis_get(il_var_id_in(12), isteps, work, info)
-    call unpack_coupling_array(work, ssso)
-
-    call oasis_get(il_var_id_in(13), isteps, work, info)
-    call unpack_coupling_array(work, ssuo)
-
-    call oasis_get(il_var_id_in(14), isteps, work, info)
-    call unpack_coupling_array(work, ssvo)
-
-    call oasis_get(il_var_id_in(15), isteps, work, info)
-    call unpack_coupling_array(work, sslx)
-
-    call oasis_get(il_var_id_in(16), isteps, work, info)
-    call unpack_coupling_array(work, ssly)
-
-    call oasis_get(il_var_id_in(17), isteps, work, info)
-    call unpack_coupling_array(work, pfmice)
+        if (trim(fields_from_ocn(i)) == 'sst_i') then
+            call unpack_coupling_array(work, ssto)
+        elseif (trim(fields_from_ocn(i)) == 'sss_i') then
+            call unpack_coupling_array(work, ssso)
+        elseif (trim(fields_from_ocn(i)) == 'ssu_i') then
+            call unpack_coupling_array(work, ssuo)
+        elseif (trim(fields_from_ocn(i)) == 'ssv_i') then
+            call unpack_coupling_array(work, ssvo)
+        elseif (trim(fields_from_ocn(i)) == 'sslx_i') then
+            call unpack_coupling_array(work, sslx)
+        elseif (trim(fields_from_ocn(i)) == 'ssly_i') then
+            call unpack_coupling_array(work, ssly)
+        elseif (trim(fields_from_ocn(i)) == 'pfmice_i') then
+            call unpack_coupling_array(work, pfmice)
+        else
+            call abort_ice('ice: bad coupling array name '//fields_from_ocn(i))
+        endif
+    enddo
 
     if (chk_o2i_fields) then
       call check_o2i_fields('fields_o2i_in_ice.nc',isteps)
@@ -599,52 +591,52 @@ subroutine into_ocn(isteps, scale)
     integer(kind=int_kind), intent(in) :: isteps
     real, intent(in) :: scale             !only 1 or 1/coef_ic allowed! 
 
+    integer :: i
     real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
 
-    call pack_coupling_array(iostrsu*scale, work)
-    call oasis_put(il_var_id_out(2), isteps, work, ierror)
+    do i=1, num_fields_to_ocn        
 
-    call pack_coupling_array(iostrsv*scale, work)
-    call oasis_put(il_var_id_out(3), isteps, work, ierror)
+        if (trim(fields_to_ocn(i)) == 'strsu_io') then
+            call pack_coupling_array(iostrsu*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'strsv_io') then
+            call pack_coupling_array(iostrsv*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'rain_io') then
+            call pack_coupling_array(iorain*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'snow_io') then
+            call pack_coupling_array(iosnow*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'stflx_io') then
+            call pack_coupling_array(iostflx*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'htflx_io') then
+            call pack_coupling_array(iohtflx*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'swflx_io') then
+            call pack_coupling_array(ioswflx*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'qflux_io') then
+            call pack_coupling_array(ioqflux*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'shflx_io') then
+            call pack_coupling_array(ioshflx*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'lwflx_io') then
+            call pack_coupling_array(iolwflx*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'runof_io') then
+            call pack_coupling_array(iorunof*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'press_io') then
+            call pack_coupling_array(iopress*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'aice_io') then
+            call pack_coupling_array(ioaice*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'melt_io') then
+            call pack_coupling_array(iomelt*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'form_io') then
+            call pack_coupling_array(ioform*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'licefw_io') then
+            call pack_coupling_array(iolicefw*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
+            call pack_coupling_array(iolicefh*scale, work)
+        else
+            call abort_ice('ice: bad coupling array name '//fields_to_ocn(i))
+        endif
 
-    call pack_coupling_array(iorain*scale, work)
-    call oasis_put(il_var_id_out(4), isteps, work, ierror)
+        call oasis_put(varid_fields_to_ocn(i), isteps, work, ierror)
+    enddo
 
-    call pack_coupling_array(iosnow*scale, work)
-    call oasis_put(il_var_id_out(5), isteps, work, ierror)
-
-    call pack_coupling_array(iostflx*scale, work)
-    call oasis_put(il_var_id_out(6), isteps, work, ierror)
-
-    call pack_coupling_array(iohtflx*scale, work)
-    call oasis_put(il_var_id_out(7), isteps, work, ierror)
-
-    call pack_coupling_array(ioswflx*scale, work)
-    call oasis_put(il_var_id_out(8), isteps, work, ierror)
-
-    call pack_coupling_array(ioqflux*scale, work)
-    call oasis_put(il_var_id_out(9), isteps, work, ierror)
-
-    call pack_coupling_array(ioshflx*scale, work)
-    call oasis_put(il_var_id_out(10), isteps, work, ierror)
-
-    call pack_coupling_array(iolwflx*scale, work)
-    call oasis_put(il_var_id_out(11), isteps, work, ierror)
-
-    call pack_coupling_array(iorunof*scale, work)
-    call oasis_put(il_var_id_out(12), isteps, work, ierror)
-
-    call pack_coupling_array(iopress*scale, work)
-    call oasis_put(il_var_id_out(13), isteps, work, ierror)
-
-    call pack_coupling_array(ioaice*scale, work)
-    call oasis_put(il_var_id_out(14), isteps, work, ierror)
-
-    call pack_coupling_array(iomelt*scale, work)
-    call oasis_put(il_var_id_out(15), isteps, work, ierror)
-
-    call pack_coupling_array(ioform*scale, work)
-    call oasis_put(il_var_id_out(16), isteps, work, ierror)
 
     if (chk_i2o_fields) then
         call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
@@ -685,6 +677,7 @@ subroutine update_halos_from_atm(time)
   call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
   call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(calv0, halo_info, field_loc_center, field_type_vector)
   call ice_timer_stop(timer_from_atm_halos)
 
 end subroutine update_halos_from_atm
@@ -694,13 +687,13 @@ end subroutine update_halos_from_atm
 !-------------------------------!
 
   deallocate (tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0, runof0, press0)
-  deallocate (runof, press)
+  deallocate (runof, calv, press)
   deallocate (core_runoff)
   deallocate (ssto, ssso, ssuo, ssvo, sslx, ssly, pfmice)
   deallocate (iostrsu, iostrsv, iorain, iosnow, iostflx, iohtflx, ioswflx, &
-              ioqflux, iolwflx, ioshflx, iorunof, iopress)
+              ioqflux, iolwflx, ioshflx, iorunof, iolicefw, iolicefh, iopress)
   deallocate (tiostrsu, tiostrsv, tiorain, tiosnow, tiostflx, tiohtflx, tioswflx, &
-              tioqflux, tiolwflx, tioshflx, tiorunof, tiopress) 
+              tioqflux, tiolwflx, tioshflx, tiorunof, tiolicefw, tiolicefh, tiopress) 
   deallocate (iomelt, ioform, tiomelt, tioform)
   deallocate (gwork, vwork, sicemass)
   !  
@@ -751,6 +744,9 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] ioaice:', sum(ioaice(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iomelt:', sum(iomelt(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ioform:', sum(ioform(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iorunof:', sum(iorunof(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iolicefw:', sum(iolicefw(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iolicefh:', sum(iolicefh(isc:iec, jsc:jec, 1))
 
      print*,   '[ice chksum] ssto:', sum(ssto(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ssso:', sum(ssso(isc:iec, jsc:jec, 1))
@@ -770,6 +766,7 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] qair0:',  sum(qair0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] uwnd0:',  sum(uwnd0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] vwnd0:',  sum(vwnd0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] calv0:',  sum(calv0(isc:iec, jsc:jec, 1))
 
      print*,   '[ice chksum] u_star0:', sum(u_star0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] rough_mom0:', sum(rough_mom0(isc:iec, jsc:jec, 1))
