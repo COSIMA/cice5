@@ -11,12 +11,13 @@ module cpl_forcing_handler
     use ice_state,     only : aice, trcr   !ice concentration and tracers
     use ice_gather_scatter           !gather and scatter routines...
 !        use ice_constants, only : gravit, Tocnfrz
-        use ice_constants
+    use ice_constants
     use ice_grid,      only : tmask
     use ice_communicate, only : my_task, master_task
     use ice_ocean,     only : cprho
 !20091118
     use ice_shortwave, only : ocn_albedo2D
+    use ice_exit, only: abort_ice
 
     use cpl_parameters
     use cpl_netcdf_setup
@@ -45,6 +46,8 @@ subroutine nullify_i2o_fluxes()
     ioaice(:,:,:)  = 0.0
     iomelt(:,:,:)  = 0.0
     ioform(:,:,:)  = 0.0
+    iolicefw(:,:,:)  = 0.0
+    iolicefh(:,:,:)  = 0.0
 
 end subroutine nullify_i2o_fluxes
 
@@ -67,6 +70,8 @@ subroutine tavg_i2o_fluxes
 !!!
     iomelt (:,:,:) = iomelt (:,:,:) + tiomelt (:,:,:)*coef_ic
     ioform (:,:,:) = ioform (:,:,:) + tioform (:,:,:)*coef_ic
+    iolicefw (:,:,:) = iolicefw (:,:,:) + tiolicefw (:,:,:)*coef_ic
+    iolicefh (:,:,:) = iolicefh (:,:,:) + tiolicefh (:,:,:)*coef_ic
 
 return
 end subroutine tavg_i2o_fluxes
@@ -189,47 +194,67 @@ subroutine get_time0_i2o_fields(fname)
 
 implicit none
 
-character*(*), intent(in) :: fname
+    character*(*), intent(in) :: fname
 
-    integer(kind=int_kind) :: ncid_i2o, jf
-    logical :: dbug
+    integer(kind=int_kind) :: ncid_i2o, i
 
-dbug = .true.
-if ( file_exist(fname) ) then
+    if ( file_exist(fname) ) then
 #if defined(DEBUG)
-  if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) reading in i2o fields......'
+        if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) reading in i2o fields......'
 #endif
-  call ice_open_nc(fname, ncid_i2o) 
-  do jf = n_i2a + 1, jpfldout   !2:14
-    vwork(:, :, :) = 0.0
-    call ice_read_nc(ncid_i2o, 1, cl_writ(jf) , vwork, dbug)
-    if (jf == n_i2a+1 ) iostrsu = vwork
-    if (jf == n_i2a+2 ) iostrsv = vwork
-    if (jf == n_i2a+3 ) iorain = vwork
-    if (jf == n_i2a+4 ) iosnow = vwork
-    if (jf == n_i2a+5 ) iostflx = vwork
-    if (jf == n_i2a+6 ) iohtflx = vwork
-    if (jf == n_i2a+7 ) ioswflx = vwork
-    if (jf == n_i2a+8 ) ioqflux = vwork
-    if (jf == n_i2a+9 ) ioshflx = vwork
-    if (jf == n_i2a+10) iolwflx = vwork
-    if (jf == n_i2a+11) iorunof = vwork
-    if (jf == n_i2a+12) iopress = vwork
-    if (jf == n_i2a+13) ioaice  = vwork
-    !!!
-    if (jf == n_i2a+14) iomelt = vwork
-    if (jf == n_i2a+15) ioform = vwork
-  enddo
-  if (my_task == master_task) call ice_close_nc(ncid_i2o)
-#if defined(DEBUG)
-  if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) has read in 11 i2o fields.'
-#endif
-else
-  print *, 'CICE: (get_time0_i2o_fields_old) not found file *** ',fname
-  stop 'CICE stopped -- Need time0 i2o data file.'
-endif
+        call ice_open_nc(fname, ncid_i2o) 
+        do i=1, num_fields_to_ocn
+            vwork(:, :, :) = 0.0
+            call ice_read_nc(ncid_i2o, 1, trim(fields_to_ocn(i)) , vwork, .true.)
 
-return
+            if (trim(fields_to_ocn(i)) == 'strsu_io') then
+                iostrsu = vwork
+            elseif (trim(fields_to_ocn(i)) == 'strsv_io') then
+                iostrsv = vwork
+            elseif (trim(fields_to_ocn(i)) == 'rain_io') then
+                iorain = vwork
+            elseif (trim(fields_to_ocn(i)) == 'snow_io') then
+                iosnow = vwork
+            elseif (trim(fields_to_ocn(i)) == 'stflx_io') then
+                iostflx = vwork
+            elseif (trim(fields_to_ocn(i)) == 'htflx_io') then
+                iohtflx = vwork
+            elseif (trim(fields_to_ocn(i)) == 'swflx_io') then
+                ioswflx = vwork
+            elseif (trim(fields_to_ocn(i)) == 'qflux_io') then
+                ioqflux = vwork
+            elseif (trim(fields_to_ocn(i)) == 'shflx_io') then
+                ioshflx = vwork
+            elseif (trim(fields_to_ocn(i)) == 'lwflx_io') then
+                iolwflx = vwork
+            elseif (trim(fields_to_ocn(i)) == 'runof_io') then
+                iorunof = vwork
+            elseif (trim(fields_to_ocn(i)) == 'press_io') then
+                iopress = vwork
+            elseif (trim(fields_to_ocn(i)) == 'aice_io') then
+                ioaice = vwork
+            elseif (trim(fields_to_ocn(i)) == 'melt_io') then
+                iomelt = vwork
+            elseif (trim(fields_to_ocn(i)) == 'form_io') then
+                ioform = vwork
+            elseif (trim(fields_to_ocn(i)) == 'licefw_io') then
+                iolicefw = vwork
+            elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
+                iolicefh = vwork
+            else
+                call abort_ice('ice: bad initialization array name '//trim(fields_to_ocn(i)))
+            endif
+      enddo
+      if (my_task == master_task) call ice_close_nc(ncid_i2o)
+
+#if defined(DEBUG)
+      if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) has read in 11 i2o fields.'
+#endif
+    else
+        print *, 'CICE: (get_time0_i2o_fields_old) not found file *** ',fname
+        stop 'CICE stopped -- Need time0 i2o data file.'
+    endif
+
 end subroutine get_time0_i2o_fields
 
 !===============================================================================
@@ -319,6 +344,7 @@ frain(:,:,:) =  rain0(:,:,:)
 fsnow(:,:,:) =  snow0(:,:,:) 
 press(:,:,:) =  press0(:,:,:)
 runof(:,:,:) =  runof0(:,:,:)
+calv(:,:,:) =  calv0(:,:,:)
 
 ! --- from ocean:
 uocn(:,:,:) = ssuo(:,:,:)
@@ -345,53 +371,72 @@ endif
 end subroutine newt_forcing_raw
 
 !===============================================================================
-subroutine save_time0_i2o_fields(fname, nstep)
+! output the last i2o forcing data, to be read in at the beginning of next run 
+! by cice and sent to ocn immediately
 
-! --- output the last i2o forcing data, to be read in at the beginning of next run 
-!     by cice and sent to ocn immediately
+subroutine save_time0_i2o_fields(fname, nstep)
 
 implicit none
 
-character*(*), intent(in) :: fname
+    character*(*), intent(in) :: fname
     integer(kind=int_kind), intent(in) :: nstep
     integer(kind=int_kind) :: ncid
-    integer(kind=int_kind) :: jf, ll, ilout
+    integer(kind=int_kind) :: i, ll, ilout
 
-if (my_task == 0) then 
-  call create_ncfile(fname, ncid, nx_global, ny_global, ll=1, ilout=il_out)
-  call write_nc_1Dtime(real(nstep), 1, 'time', ncid)
-endif
+    if (my_task == 0) then 
+        call create_ncfile(fname, ncid, nx_global, ny_global, ll=1, ilout=il_out)
+        call write_nc_1Dtime(real(nstep), 1, 'time', ncid)
+    endif
 
-do jf = n_i2a + 1, jpfldout   !2:13	
-  if (jf == n_i2a+1 ) vwork = iostrsu
-  if (jf == n_i2a+2 ) vwork = iostrsv
-  if (jf == n_i2a+3 ) vwork = iorain
-  if (jf == n_i2a+4 ) vwork = iosnow
-  if (jf == n_i2a+5 ) vwork = iostflx
-  if (jf == n_i2a+6 ) vwork = iohtflx
-  if (jf == n_i2a+7 ) vwork = ioswflx
-  if (jf == n_i2a+8 ) vwork = ioqflux
-  if (jf == n_i2a+9 ) vwork = ioshflx
-  if (jf == n_i2a+10) vwork = iolwflx
-  if (jf == n_i2a+11) vwork = iorunof
-  if (jf == n_i2a+12) vwork = iopress
-  if (jf == n_i2a+13) vwork = ioaice
-  !!!
-  if (jf == n_i2a+14 ) vwork = iomelt
-  if (jf == n_i2a+15 ) vwork = ioform
+    do i=1, num_fields_to_ocn
+        if (trim(fields_to_ocn(i)) == 'strsu_io') then
+            vwork = iostrsu
+        elseif (trim(fields_to_ocn(i)) == 'strsv_io') then
+            vwork = iostrsv
+        elseif (trim(fields_to_ocn(i)) == 'rain_io') then
+            vwork = iorain
+        elseif (trim(fields_to_ocn(i)) == 'snow_io') then
+            vwork = iosnow
+        elseif (trim(fields_to_ocn(i)) == 'stflx_io') then
+            vwork = iostflx
+        elseif (trim(fields_to_ocn(i)) == 'htflx_io') then
+            vwork = iohtflx
+        elseif (trim(fields_to_ocn(i)) == 'swflx_io') then
+            vwork = ioswflx
+        elseif (trim(fields_to_ocn(i)) == 'qflux_io') then
+            vwork = ioqflux
+        elseif (trim(fields_to_ocn(i)) == 'shflx_io') then
+            vwork = ioshflx
+        elseif (trim(fields_to_ocn(i)) == 'lwflx_io') then
+            vwork = iolwflx
+        elseif (trim(fields_to_ocn(i)) == 'runof_io') then
+            vwork = iorunof
+        elseif (trim(fields_to_ocn(i)) == 'press_io') then
+            vwork = iopress
+        elseif (trim(fields_to_ocn(i)) == 'aice_io') then
+            vwork = ioaice
+        elseif (trim(fields_to_ocn(i)) == 'melt_io') then
+            vwork = iomelt
+        elseif (trim(fields_to_ocn(i)) == 'form_io') then
+            vwork = ioform
+        elseif (trim(fields_to_ocn(i)) == 'licefw_io') then
+            vwork = iolicefw
+        elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
+            vwork = iolicefh
+        else
+            call abort_ice('ice: bad save array name '//trim(fields_to_ocn(i)))
+        endif
 
-  call gather_global(gwork, vwork, master_task, distrb_info)
-  if (my_task == 0) then 
-    call write_nc2D(ncid, cl_writ(jf), gwork, 2, nx_global, ny_global, 1, ilout=il_out)
-  endif
- 
-enddo
+        call gather_global(gwork, vwork, master_task, distrb_info)
+        if (my_task == 0) then 
+          call write_nc2D(ncid, fields_to_ocn(i), gwork, 2, nx_global, ny_global, 1, ilout=il_out)
+        endif
+    enddo
 
-if (my_task == 0) then
-    call ncheck(nf_close(ncid), 'save_time0_i2o_fields: nf_close')
-endif
+    if (my_task == 0) then
+        call ncheck(nf_close(ncid), 'save_time0_i2o_fields: nf_close')
+    endif
 
-return
 end subroutine save_time0_i2o_fields
 
 !===============================================================================
@@ -706,7 +751,9 @@ tioswflx = swabs_ocn
   tiolwflx(:,:,:) = tiolwflx(:,:,:) * (1. - aice(:,:,:))
 
 !11)runoff: relocated onto coastal grid points (pre-processed by Steve Phipps)
-  tiorunof(:,:,:) = runof(:,:,:)
+  tiorunof(:,:,:) = runof(:,:,:) + calv(:,:,:)
+  tiolicefw(:,:,:) = 0.0
+  tiolicefh(:,:,:) = 0.0
 
 !12)pressure
 !  if (my_task == 0)  write(il_out,*)'size of pice,     ',&
@@ -1095,6 +1142,8 @@ call gather_global(gwork, snow0, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'snow0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, runof0, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'runof0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, calv0, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'calv0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, press0, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'press0', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 

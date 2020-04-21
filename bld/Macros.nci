@@ -1,7 +1,5 @@
 #==============================================================================
-# Makefile macros for xe.nci.org.au, an SGI ALTIX system running Linux
-# Note:  Use the -mp flag if precision is critical.   It slows down the 
-#        code by 25% (or more).
+# Makefile macros for gadi.nci.org.au
 #==============================================================================
 
 INCLDIR    := -I.
@@ -16,11 +14,15 @@ CFLAGS     := -c -O2
 FIXEDFLAGS := -132
 FREEFLAGS  :=
 
+NCI_INTEL_FLAGS := -r8 -i4 -traceback -w -fpe0 -ftz -convert big_endian -assume byterecl -check noarg_temp_created
+NCI_REPRO_FLAGS := -fp-model precise -fp-model source -align all
 ifeq ($(DEBUG), 1)
-    FFLAGS     := -r8 -i4 -O0 -traceback -g -debug all -check all -no-vec -align all -w -fpe0 -ftz -convert big_endian -assume byterecl -assume nobuffered_io -check noarg_temp_created
-    CPPDEFS    := $(CPPDEFS) -DDEBUG=$(DEBUG)
+    NCI_DEBUG_FLAGS := -g3 -O0 -debug all -check all -no-vec -assume nobuffered_io
+    FFLAGS          := $(NCI_INTEL_FLAGS) $(NCI_REPRO_FLAGS) $(NCI_DEBUG_FLAGS)
+    CPPDEFS         := $(CPPDEFS) -DDEBUG=$(DEBUG)
 else
-    FFLAGS     := -r8 -i4 -O2 -traceback -g -align all -xHost -fpe0 -w -ftz -convert big_endian -assume byterecl -assume buffered_io -check noarg_temp_created
+    NCI_OPTIM_FLAGS := -g3 -O2 -axCORE-AVX2 -debug all -check none -qopt-report=5 -qopt-report-annotate -assume buffered_io
+    FFLAGS          := $(NCI_INTEL_FLAGS) $(NCI_REPRO_FLAGS) $(NCI_OPTIM_FLAGS)
 endif
 
 MOD_SUFFIX := mod

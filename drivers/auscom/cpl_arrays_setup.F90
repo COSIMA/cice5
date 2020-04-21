@@ -60,9 +60,11 @@ module cpl_arrays_setup
 !
 !(14) ice melt waterflux				iomelt
 !(15) ice form waterflux				ioform
+!(16) land ice waterflux                iolicefw
+!(17) land ice heatflux                 iolicefh
 !
 !
-! 17 in, 16 out => thus we set jpfldout=16, jpfldin=17 (in cpl_parameters)! 
+! 18 in, 18 out => thus we set jpfldout=18, jpfldin=18 (in cpl_parameters)! 
 !
 !----------------------------------------------------------------------------
 !Note: 
@@ -81,14 +83,14 @@ implicit none
 ! Fields in
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: &   !from atm
     tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0 & !(for ice)
-   ,runof0, press0                                             !(for ocn)    
+   ,runof0, press0, calv0                                      !(for ocn)    
 
-real(kind=dbl_kind), dimension(:,:,:), allocatable :: runof, press
+real(kind=dbl_kind), dimension(:,:,:), allocatable :: runof, calv, press
 
 ! CORE runoff remapped onto the AusCOM grid
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: & 
     core_runoff
- 
+
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: &   !from ocn
     ssto,  ssso,   ssuo,   ssvo,   sslx,  ssly,  pfmice  
 real(kind=dbl_kind), dimension(:,:), allocatable :: gwork
@@ -98,11 +100,11 @@ real(kind=dbl_kind), dimension(:,:,:), allocatable :: vwork
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to ocn (time averaged)
     iostrsu, iostrsv, iorain, iosnow, iostflx, iohtflx, ioswflx &
    ,ioqflux, ioshflx, iolwflx, iorunof, iopress, ioaice &
-   ,iomelt, ioform
+   ,iomelt, ioform, iolicefw, iolicefh
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to ocn (temporary)
     tiostrsu, tiostrsv, tiorain, tiosnow, tiostflx, tiohtflx, tioswflx &
    ,tioqflux, tioshflx, tiolwflx, tiorunof, tiopress, tioaice &
-   ,tiomelt, tioform
+   ,tiomelt, tioform, tiolicefw, tiolicefh
 
 ! other stuff 
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: & 

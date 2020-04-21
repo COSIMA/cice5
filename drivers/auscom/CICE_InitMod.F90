@@ -125,15 +125,16 @@
       call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))
 
       ! Tell libaccessom2 about any global configs/state
-      call accessom2%set_cpl_field_counts(num_atm_to_ice_fields=n_a2i, &
-                                          num_ice_to_ocean_fields=n_i2o, &
-                                          num_ocean_to_ice_fields=n_o2i)
+      call accessom2%set_cpl_field_counts(num_atm_to_ice_fields=num_fields_from_atm, &
+                                          num_ice_to_ocean_fields=num_fields_to_ocn, &
+                                          num_ocean_to_ice_fields=num_fields_from_ocn)
 
       ! Synchronise accessom2 configuration between all models and PEs
       call accessom2%sync_config(coupler)
 
       ! Use accessom2 configuration
-      call input_data(accessom2%get_cur_exp_date_array(), &
+      call input_data(accessom2%get_forcing_start_date_array(), &
+                      accessom2%get_cur_exp_date_array(), &
                       accessom2%get_seconds_since_cur_exp_year(), &
                       accessom2%get_total_runtime_in_seconds(), &
                       accessom2%get_ice_ocean_timestep(), &
