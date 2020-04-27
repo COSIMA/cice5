@@ -247,7 +247,7 @@
       restart_ext  = .false. ! if true, read/write ghost cells
       use_restart_time = .true.     ! if true, use time info written in file
       pointer_file = 'ice.restart_file'
-      restart_format = 'nc'  ! file format ('bin'=binary or 'nc'=netcdf or 'pio')
+      restart_format = 'pio'  ! file format ('bin'=binary or 'nc'=netcdf or 'pio')
       ice_ic       = 'default'      ! latitude and sst-dependent
       grid_format  = 'bin'          ! file format ('bin'=binary or 'nc'=netcdf)
       grid_type    = 'rectangular'  ! define rectangular grid internally

@@ -45,10 +45,6 @@
 
         character(*),parameter :: subName = '(ice_pio_init) '
 
-        if (my_task == master_task) then
-            write(nu_diag,*) subname,' called'
-        end if
-
         if (pio_initialized) then
             return
         endif
@@ -61,16 +57,9 @@
 
         pio_iotype = pio_iotype_netcdf4p
 
-        num_iotasks = get_num_procs() / io_stride
+        num_iotasks = get_num_procs() / stride
 
-        if (my_task == master_task) then
-            write(nu_diag,*) subname,' calling pio_init'
-        end if
         call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_subset, ice_pio_subsystem)
-        if (my_task == master_task) then
-            write(nu_diag,*) subname,' finished pio_init'
-        end if
-
 
         pio_initialized = .true.
    end subroutine ice_pio_init
