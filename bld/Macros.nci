@@ -59,7 +59,7 @@ ifeq ($(IO_TYPE), pio)
    CPPDEFS :=  $(CPPDEFS) -Dncdf -DPIO
    INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
    SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
-   SLIBS   := $(SLIBS) -L$(SRCDIR)/pio-2.4.4/usr/lib/ -lpiof -lpioc
+   SLIBS   := $(SLIBS) -L$(SRCDIR)/pio-2.5.0/usr/lib/ -lpiof -lpioc -Wl,-rpath=$(SRCDIR)/pio-2.5.0/usr/lib/
 endif
 
 ifeq ($(USE_ESMF), yes)

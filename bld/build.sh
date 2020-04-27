@@ -37,7 +37,7 @@ source $CBLD/config.$platform.$driver.$resolution
 ### Specialty code
 setenv CAM_ICE  no        # set to yes for CAM runs (single column)
 setenv SHRDIR   csm_share # location of CCSM shared code
-setenv IO_TYPE  netcdf    # set to none if netcdf library is unavailable
+setenv IO_TYPE  pio       # set to none if netcdf library is unavailable
 setenv DITTO    no        # reproducible diagnostics
 setenv THRD     no        # set to yes for OpenMP threading
 if ( $THRD == 'yes') setenv OMP_NUM_THREADS 2 # positive integer 
@@ -58,7 +58,7 @@ if ( $AusCOM == 'yes' ) then
     setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
     setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
     setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
-    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/pio-2.4.3/usr/include/'
+    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/pio-2.5.0/usr/include/'
 endif
 
 ### Setup the version string, this is the git hash of the commit used to build
