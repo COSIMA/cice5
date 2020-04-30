@@ -634,6 +634,8 @@ subroutine into_ocn(isteps, scale)
             call pack_coupling_array(iolicefw*scale, work)
         elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
             call pack_coupling_array(iolicefh*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'wnd_io') then
+            call pack_coupling_array(iownd*scale, work)
         else
             call abort_ice('ice: bad coupling array name '//fields_to_ocn(i))
         endif
@@ -641,12 +643,6 @@ subroutine into_ocn(isteps, scale)
         call oasis_put(varid_fields_to_ocn(i), isteps, work, ierror)
     enddo
 
-
-! 10m winds are optional. 
-    if( il_var_id_out(17) /= -1 ) then
-       call pack_coupling_array(iownd*scale, work)
-       call oasis_put(il_var_id_out(17), isteps, work, ierror)
-    endif
 
     if (chk_i2o_fields) then
         call check_i2o_fields('fields_i2o_in_ice.nc',isteps, scale)
