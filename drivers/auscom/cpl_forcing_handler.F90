@@ -207,7 +207,7 @@ implicit none
         call ice_open_nc(fname, ncid_i2o) 
         do i=1, num_fields_to_ocn
             vwork(:, :, :) = 0.0
-      if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) reading', trim(fields_to_ocn(i)
+      if (my_task == master_task) write(il_out,*) '(get_time0_i2o_fields) reading', trim(fields_to_ocn(i))
             call ice_read_nc(ncid_i2o, 1, trim(fields_to_ocn(i)) , vwork, .true.)
 
             if (trim(fields_to_ocn(i)) == 'strsu_io') then
