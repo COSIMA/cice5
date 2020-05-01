@@ -13,7 +13,7 @@
   use ice_fileunits
   use ice_exit
   use pio
-  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_subset
+  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_box
 
   implicit none
   private
@@ -59,7 +59,7 @@
 
         num_iotasks = get_num_procs() / stride
 
-        call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_subset, ice_pio_subsystem)
+        call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_box, ice_pio_subsystem)
 
         pio_initialized = .true.
    end subroutine ice_pio_init
@@ -141,7 +141,7 @@
       integer (kind=int_kind) :: &
           iblk,ilo,ihi,jlo,jhi,lon,lat,i,j,n,k
 
-      type(block) :: this_block 
+      type(block) :: this_block
 
       integer(kind=int_kind), pointer :: dof2d(:)
 
@@ -149,12 +149,12 @@
 
       n=0
       do iblk = 1, nblocks
-         this_block = get_block(blocks_ice(iblk),iblk)         
+         this_block = get_block(blocks_ice(iblk),iblk)
          ilo = this_block%ilo
          ihi = this_block%ihi
          jlo = this_block%jlo
          jhi = this_block%jhi
-         
+
          do j=1,ny_block
          do i=1,nx_block
             n = n+1

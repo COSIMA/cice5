@@ -128,7 +128,7 @@
 
       ! Initialise ParallelIO
 #ifdef PIO
-      call ice_pio_init()
+      call ice_pio_init(1)
 #endif
 
       ! Initialise libaccessom2
