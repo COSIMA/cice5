@@ -634,7 +634,7 @@ subroutine into_ocn(isteps, scale)
             call pack_coupling_array(iolicefw*scale, work)
         elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
             call pack_coupling_array(iolicefh*scale, work)
-        elseif (trim(fields_to_ocn(i)) == 'wnd_io') then
+        elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
             call pack_coupling_array(iownd*scale, work)
         else
             call abort_ice('ice: bad coupling array name '//fields_to_ocn(i))

@@ -239,7 +239,7 @@ implicit none
                 iomelt = vwork
             elseif (trim(fields_to_ocn(i)) == 'form_io') then
                 ioform = vwork
-            elseif (trim(fields_to_ocn(i)) == 'wnd_io') then
+            elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
                 iownd = vwork
             elseif (trim(fields_to_ocn(i)) == 'licefw_io') then
                 iolicefw = vwork
