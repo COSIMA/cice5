@@ -16,7 +16,9 @@
   use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_box
 
   implicit none
+
   private
+  public :: ice_pio_subsystem
   save
 
   interface ice_pio_initdecomp

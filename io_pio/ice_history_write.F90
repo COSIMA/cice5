@@ -10,6 +10,7 @@
       module ice_history_write
 
       use ice_kinds_mod
+      use ice_pio, only: ice_pio_subsystem
 
       implicit none
       private
@@ -766,6 +767,7 @@
           END SELECT
           call pio_write_darray(File, varid, iodesc2d, &
                workr2, status, fillval=spval_dbl)
+          call pio_syncfile(File)
         enddo
 
         ! Extra dimensions (NCAT, VGRD*)
@@ -794,11 +796,13 @@
 !        status = pio_inq_varid(File, 'tmask', varid)
 !        call pio_write_darray(File, varid, iodesc2d, &
 !                              hm(:,:,1:nblocks), status, fillval=spval_dbl)
+!          call pio_syncfile(File)
 !      endif
 !      if (igrd(n_blkmask)) then
 !        status = pio_inq_varid(File, 'blkmask', varid)
 !        call pio_write_darray(File, varid, iodesc2d, &
 !                              bm(:,:,1:nblocks), status, fillval=spval_dbl)
+!        call pio_syncfile(File)
 !      endif
         
       do i = 1, nvar       ! note: n_tmask=1, n_blkmask=2
@@ -832,6 +836,7 @@
             status = pio_inq_varid(File, var(i)%req%short_name, varid)
             call pio_write_darray(File, varid, iodesc2d, &
                  workr2, status, fillval=spval_dbl)
+            call pio_syncfile(File)
          endif
       enddo
 
@@ -865,6 +870,7 @@
           status = pio_inq_varid(File, var_nverts(i)%short_name, varid)
           call pio_write_darray(File, varid, iodesc3dv, &
                                 workr3v, status, fillval=spval_dbl)
+          call pio_syncfile(File)
       enddo
       deallocate(workr3v)
       endif  ! f_bounds
@@ -884,6 +890,7 @@
             call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc2d,&
                                   workr2, status, fillval=spval_dbl)
+            call pio_syncfile(File)
          endif
       enddo ! num_avail_hist_fields_2D
 
@@ -905,6 +912,7 @@
             call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc3dc,&
                                   workr3, status, fillval=spval_dbl)
+            call pio_syncfile(File)
          endif
       enddo ! num_avail_hist_fields_3Dc
       deallocate(workr3)
@@ -925,6 +933,7 @@
             call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc3di,&
                                   workr3, status, fillval=spval_dbl)
+            call pio_syncfile(File)
          endif
       enddo ! num_avail_hist_fields_3Dz
       deallocate(workr3)
@@ -945,6 +954,7 @@
             call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc3db,&
                                   workr3, status, fillval=spval_dbl)
+            call pio_syncfile(File)
          endif
       enddo ! num_avail_hist_fields_3Db
       deallocate(workr3)
@@ -967,6 +977,7 @@
             call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc4di,&
                                   workr4, status, fillval=spval_dbl)
+            call pio_syncfile(File)
          endif
       enddo ! num_avail_hist_fields_4Di
       deallocate(workr4)
@@ -989,25 +1000,14 @@
             call pio_setframe(File, varid, FRAME_1)
             call pio_write_darray(File, varid, iodesc4ds,&
                                   workr4, status, fillval=spval_dbl)
+            call pio_syncfile(File)
          endif
       enddo ! num_avail_hist_fields_4Ds
       deallocate(workr4)
 
 !     similarly for num_avail_hist_fields_4Db (define workr4b, iodesc4db)
 
-
-      !-----------------------------------------------------------------
-      ! clean-up PIO descriptors
-      !-----------------------------------------------------------------
-
-      call pio_freedecomp(File,iodesc2d)
-      call pio_freedecomp(File,iodesc3dv)
-      call pio_freedecomp(File,iodesc3dc)
-      call pio_freedecomp(File,iodesc3di)
-      call pio_freedecomp(File,iodesc3db)
-      call pio_freedecomp(File,iodesc4di)
-
-      !-----------------------------------------------------------------
+     !-----------------------------------------------------------------
       ! close output dataset
       !-----------------------------------------------------------------
 
@@ -1016,6 +1016,17 @@
          write(nu_diag,*) ' '
          write(nu_diag,*) 'Finished writing ',trim(ncfile(ns))
       endif
+
+      !-----------------------------------------------------------------
+      ! clean-up PIO descriptors
+      !-----------------------------------------------------------------
+      call pio_freedecomp(ice_pio_subsystem, iodesc2d)
+      call pio_freedecomp(ice_pio_subsystem, iodesc3dv)
+      call pio_freedecomp(ice_pio_subsystem, iodesc3dc)
+      call pio_freedecomp(ice_pio_subsystem, iodesc3di)
+      call pio_freedecomp(ice_pio_subsystem, iodesc3db)
+      call pio_freedecomp(ice_pio_subsystem, iodesc4di)
+
 
 #endif
 
