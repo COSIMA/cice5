@@ -66,7 +66,7 @@
 
         ierr = pio_set_log_level(0)
 
-        call pio_set_buffer_size_limit(1024*1024*1024)
+        call pio_set_buffer_size_limit(512*1024*1024)
 
         pio_initialized = .true.
    end subroutine ice_pio_init
@@ -141,10 +141,12 @@
 
 !================================================================================
 
-   subroutine ice_pio_initdecomp_2d(iodesc)
+   subroutine ice_pio_initdecomp_2d(iodesc, restart)
 
       type(io_desc_t), intent(out) :: iodesc
+      logical, intent(in), optional :: restart
 
+      logical :: lrestart
       integer (kind=int_kind) :: &
           iblk,ilo,ihi,jlo,jhi,lon,lat,i,j,n,k
 
@@ -153,6 +155,11 @@
       integer(kind=int_kind), pointer :: dof2d(:)
 
       allocate(dof2d(nx_block*ny_block*nblocks))
+
+      lrestart = .false.
+      if (present(restart)) then
+          lrestart = .true.
+      endif
 
       n=0
       do iblk = 1, nblocks
@@ -178,8 +185,13 @@
          enddo !j
       end do
 
-      call pio_initdecomp(ice_pio_subsystem, pio_real, (/nx_global,ny_global/), &
-           dof2d, iodesc)
+      if (lrestart) then
+          call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global/), &
+               dof2d, iodesc)
+      else
+          call pio_initdecomp(ice_pio_subsystem, pio_real, (/nx_global,ny_global/), &
+               dof2d, iodesc)
+      endif
 
       deallocate(dof2d)
  
@@ -187,21 +199,31 @@
 
 !================================================================================
 
-   subroutine ice_pio_initdecomp_3d (ndim3, iodesc, remap)
+   subroutine ice_pio_initdecomp_3d (ndim3, iodesc, remap, restart)
 
       integer(kind=int_kind), intent(in) :: ndim3
       type(io_desc_t), intent(out) :: iodesc
       logical, optional :: remap
+      logical, intent(in), optional :: restart
       integer (kind=int_kind) :: &
           iblk,ilo,ihi,jlo,jhi,lon,lat,i,j,n,k 
 
       type(block) :: this_block 
-      logical :: lremap
+      logical :: lremap, lrestart
       integer(kind=int_kind), pointer :: dof3d(:)
 
       allocate(dof3d(nx_block*ny_block*nblocks*ndim3))
-      lremap=.false.
-      if(present(remap)) lremap=remap
+
+      lremap = .false.
+      if (present(remap)) then
+          lremap = remap
+      endif
+
+      lrestart = .false.
+      if (present(restart)) then
+          lrestart = restart
+      endif
+
       if(lremap) then
          ! Reorder the ndim3 and nblocks loops to avoid a temporary array in restart read/write
          n=0
@@ -255,8 +277,13 @@
          enddo !ndim3
       endif
 
-      call pio_initdecomp(ice_pio_subsystem, pio_real, (/nx_global,ny_global,ndim3/), &
-           dof3d, iodesc)
+      if (lrestart) then
+          call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global,ndim3/), &
+               dof3d, iodesc)
+      else
+          call pio_initdecomp(ice_pio_subsystem, pio_real, (/nx_global,ny_global,ndim3/), &
+               dof3d, iodesc)
+      endif
 
       deallocate(dof3d)
 
