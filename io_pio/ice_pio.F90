@@ -13,7 +13,8 @@
   use ice_fileunits
   use ice_exit
   use pio
-  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_box
+  use pio, only: pio_set_buffer_size_limit
+  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_subset
 
   implicit none
 
@@ -43,7 +44,7 @@
 
    subroutine ice_pio_init(io_stride)
         integer, intent(in), optional :: io_stride
-        integer :: num_iotasks, stride
+        integer :: num_iotasks, stride, ierr
 
         character(*),parameter :: subName = '(ice_pio_init) '
 
@@ -54,14 +55,18 @@
         if (present(io_stride)) then
             stride = io_stride
         else
-            stride = 8
+            stride = 4
         endif
 
         pio_iotype = pio_iotype_netcdf4p
 
         num_iotasks = get_num_procs() / stride
 
-        call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_box, ice_pio_subsystem)
+        call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_subset, ice_pio_subsystem)
+
+        ierr = pio_set_log_level(0)
+
+        call pio_set_buffer_size_limit(1024*1024*1024)
 
         pio_initialized = .true.
    end subroutine ice_pio_init
@@ -173,7 +178,7 @@
          enddo !j
       end do
 
-      call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global/), &
+      call pio_initdecomp(ice_pio_subsystem, pio_real, (/nx_global,ny_global/), &
            dof2d, iodesc)
 
       deallocate(dof2d)
@@ -250,7 +255,7 @@
          enddo !ndim3
       endif
 
-      call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global,ndim3/), &
+      call pio_initdecomp(ice_pio_subsystem, pio_real, (/nx_global,ny_global,ndim3/), &
            dof3d, iodesc)
 
       deallocate(dof3d)
@@ -300,7 +305,7 @@
          enddo  !j
       end do    !iblk
 
-      call pio_initdecomp(ice_pio_subsystem, pio_double, (/ndim3,nx_global,ny_global/), &
+      call pio_initdecomp(ice_pio_subsystem, pio_real, (/ndim3,nx_global,ny_global/), &
            dof3d, iodesc)
 
       deallocate(dof3d)
@@ -351,7 +356,7 @@
       enddo !ndim3
       enddo !ndim4
 
-      call pio_initdecomp(ice_pio_subsystem, pio_double, &
+      call pio_initdecomp(ice_pio_subsystem, pio_real, &
           (/nx_global,ny_global,ndim3,ndim4/), dof4d, iodesc)
 
       deallocate(dof4d)
