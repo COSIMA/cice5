@@ -996,16 +996,6 @@
 
 !     similarly for num_avail_hist_fields_4Db (define workr4b, iodesc4db)
 
-     !-----------------------------------------------------------------
-      ! close output dataset
-      !-----------------------------------------------------------------
-
-      call pio_closefile(File)
-      if (my_task == master_task) then
-         write(nu_diag,*) ' '
-         write(nu_diag,*) 'Finished writing ',trim(ncfile(ns))
-      endif
-
       !-----------------------------------------------------------------
       ! clean-up PIO descriptors
       !-----------------------------------------------------------------
@@ -1016,6 +1006,16 @@
       call pio_freedecomp(ice_pio_subsystem, iodesc3db)
       call pio_freedecomp(ice_pio_subsystem, iodesc4di)
 
+
+     !-----------------------------------------------------------------
+      ! close output dataset
+      !-----------------------------------------------------------------
+
+      call pio_closefile(File)
+      if (my_task == master_task) then
+         write(nu_diag,*) ' '
+         write(nu_diag,*) 'Finished writing ',trim(ncfile(ns))
+      endif
 
 #endif
 

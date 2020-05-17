@@ -14,7 +14,7 @@
   use ice_exit
   use pio
   use pio, only: pio_set_buffer_size_limit
-  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_subset
+  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_box
 
   implicit none
 
@@ -62,7 +62,7 @@
 
         num_iotasks = get_num_procs() / stride
 
-        call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_subset, ice_pio_subsystem)
+        call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_box, ice_pio_subsystem)
 
         call pio_set_buffer_size_limit(256*1024*1024)
 
