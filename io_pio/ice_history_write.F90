@@ -996,17 +996,6 @@
 
 !     similarly for num_avail_hist_fields_4Db (define workr4b, iodesc4db)
 
-      !-----------------------------------------------------------------
-      ! clean-up PIO descriptors
-      !-----------------------------------------------------------------
-      call pio_freedecomp(ice_pio_subsystem, iodesc2d)
-      call pio_freedecomp(ice_pio_subsystem, iodesc3dv)
-      call pio_freedecomp(ice_pio_subsystem, iodesc3dc)
-      call pio_freedecomp(ice_pio_subsystem, iodesc3di)
-      call pio_freedecomp(ice_pio_subsystem, iodesc3db)
-      call pio_freedecomp(ice_pio_subsystem, iodesc4di)
-
-
      !-----------------------------------------------------------------
       ! close output dataset
       !-----------------------------------------------------------------
@@ -1016,6 +1005,16 @@
          write(nu_diag,*) ' '
          write(nu_diag,*) 'Finished writing ',trim(ncfile(ns))
       endif
+
+      !-----------------------------------------------------------------
+      ! clean-up PIO descriptors
+      !-----------------------------------------------------------------
+      call pio_freedecomp(ice_pio_subsystem, iodesc2d)
+      call pio_freedecomp(ice_pio_subsystem, iodesc3dv)
+      call pio_freedecomp(ice_pio_subsystem, iodesc3dc)
+      call pio_freedecomp(ice_pio_subsystem, iodesc3di)
+      call pio_freedecomp(ice_pio_subsystem, iodesc3db)
+      call pio_freedecomp(ice_pio_subsystem, iodesc4di)
 
 #endif
 
