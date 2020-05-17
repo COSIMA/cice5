@@ -76,9 +76,9 @@
          File%fh=-1
          call ice_pio_initfile(mode='read', filename=trim(filename), File=File)
       
-         call ice_pio_initdecomp(iodesc=iodesc2d, restart=.true.)
+         call ice_pio_initdecomp(iodesc=iodesc2d, use_double=.true.)
          call ice_pio_initdecomp(ndim3=ncat, iodesc=iodesc3d_ncat, &
-                                 remap=.true., restart=.true.)
+                                 remap=.true., use_double=.true.)
 
          if (use_restart_time) then
          status = pio_get_att(File, pio_global, 'istep1', istep0)
@@ -374,9 +374,9 @@
          deallocate(dims)
          status = pio_enddef(File)
 
-         call ice_pio_initdecomp(iodesc=iodesc2d, restart=.true.)
+         call ice_pio_initdecomp(iodesc=iodesc2d, use_double=.true.)
          call ice_pio_initdecomp(ndim3=ncat, iodesc=iodesc3d_ncat, &
-                                 remap=.true., restart=.true.)
+                                 remap=.true., use_double=.true.)
 
       endif
 

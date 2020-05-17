@@ -139,12 +139,12 @@
 
 !================================================================================
 
-   subroutine ice_pio_initdecomp_2d(iodesc, restart)
+   subroutine ice_pio_initdecomp_2d(iodesc, use_double)
 
       type(io_desc_t), intent(out) :: iodesc
-      logical, intent(in), optional :: restart
+      logical, intent(in), optional :: use_double
 
-      logical :: lrestart
+      logical :: luse_double
       integer (kind=int_kind) :: &
           iblk,ilo,ihi,jlo,jhi,lon,lat,i,j,n,k
 
@@ -154,9 +154,9 @@
 
       allocate(dof2d(nx_block*ny_block*nblocks))
 
-      lrestart = .false.
-      if (present(restart)) then
-          lrestart = .true.
+      luse_double = .false.
+      if (present(use_double)) then
+          luse_double = .true.
       endif
 
       n=0
@@ -183,7 +183,7 @@
          enddo !j
       end do
 
-      if (lrestart) then
+      if (luse_double) then
           call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global/), &
                dof2d, iodesc)
       else
@@ -197,17 +197,17 @@
 
 !================================================================================
 
-   subroutine ice_pio_initdecomp_3d (ndim3, iodesc, remap, restart)
+   subroutine ice_pio_initdecomp_3d (ndim3, iodesc, remap, use_double)
 
       integer(kind=int_kind), intent(in) :: ndim3
       type(io_desc_t), intent(out) :: iodesc
       logical, optional :: remap
-      logical, intent(in), optional :: restart
+      logical, intent(in), optional :: use_double
       integer (kind=int_kind) :: &
           iblk,ilo,ihi,jlo,jhi,lon,lat,i,j,n,k 
 
       type(block) :: this_block 
-      logical :: lremap, lrestart
+      logical :: lremap, luse_double
       integer(kind=int_kind), pointer :: dof3d(:)
 
       allocate(dof3d(nx_block*ny_block*nblocks*ndim3))
@@ -217,9 +217,9 @@
           lremap = remap
       endif
 
-      lrestart = .false.
-      if (present(restart)) then
-          lrestart = restart
+      luse_double = .true.
+      if (present(use_double)) then
+          luse_double = use_double
       endif
 
       if(lremap) then
@@ -275,7 +275,7 @@
          enddo !ndim3
       endif
 
-      if (lrestart) then
+      if (luse_double) then
           call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global,ndim3/), &
                dof3d, iodesc)
       else

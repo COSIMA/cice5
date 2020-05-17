@@ -37,7 +37,7 @@
       use ice_calendar, only: time, sec, idate, idate0, write_ic, &
           histfreq, histfreq_n, dayyr, days_per_year, use_leap_years
       use ice_communicate, only: my_task, master_task
-      use ice_constants, only: c0, c360, secday, spval, spval, rad_to_deg
+      use ice_constants, only: c0, c360, secday, spval, spval_dbl, rad_to_deg
       use ice_domain, only: distrb_info, nblocks
       use ice_domain_size, only: nx_global, ny_global, max_blocks, max_nstrm
       use ice_exit, only: abort_ice
