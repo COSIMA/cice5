@@ -55,7 +55,7 @@
         if (present(io_stride)) then
             stride = io_stride
         else
-            stride = 4
+            stride = 1
         endif
 
         pio_iotype = pio_iotype_netcdf4p
@@ -64,9 +64,7 @@
 
         call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_subset, ice_pio_subsystem)
 
-        ierr = pio_set_log_level(0)
-
-        call pio_set_buffer_size_limit(512*1024*1024)
+        call pio_set_buffer_size_limit(256*1024*1024)
 
         pio_initialized = .true.
    end subroutine ice_pio_init
