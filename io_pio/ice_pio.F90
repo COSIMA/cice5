@@ -217,7 +217,7 @@
           lremap = remap
       endif
 
-      luse_double = .true.
+      luse_double = .false.
       if (present(use_double)) then
           luse_double = use_double
       endif

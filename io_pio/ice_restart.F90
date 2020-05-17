@@ -75,7 +75,7 @@
       if (restart_format == 'pio') then
          File%fh=-1
          call ice_pio_initfile(mode='read', filename=trim(filename), File=File)
-      
+
          call ice_pio_initdecomp(iodesc=iodesc2d, use_double=.true.)
          call ice_pio_initdecomp(ndim3=ncat, iodesc=iodesc3d_ncat, &
                                  remap=.true., use_double=.true.)
