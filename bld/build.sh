@@ -53,6 +53,15 @@ setenv NICELYR    4       # number of vertical layers in the ice
 setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
 
+if ( $IO_TYPE == 'pio' ) then
+    # Build PIO
+    cd pio-2.5.0
+    ./configure --enable-fortran --disable-pnetcdf --prefix=$ACCESS_OM_DIR/src/cice5/pio-2.5.0/usr
+    make
+    make install
+    cd -
+endif
+
 if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
     setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
