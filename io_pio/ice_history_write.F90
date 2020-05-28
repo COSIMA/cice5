@@ -128,6 +128,21 @@
 
       integer (kind=PIO_OFFSET_KIND) :: FRAME_1 = 1
 
+      integer (kind=int_kind) :: shuffle, deflate, deflate_level
+
+      ! We leave shuffle at 0, this is only useful for integer data.
+      shuffle = 0
+
+      ! If history_deflate_level < 0 then don't do deflation,
+      ! otherwise it sets the deflate level
+      if (history_deflate_level < 0) then
+        deflate = 0
+        deflate_level = 0
+      else
+        deflate = 1
+        deflate_level = history_deflate_level
+      endif
+
       if (my_task == master_task) then
         call construct_filename(ncfile(ns),'nc',ns)
 
@@ -145,7 +160,7 @@
 
       File%fh=-1
       call ice_pio_initfile(mode='write', filename=trim(filename), File=File, &
-	clobber=.true., cdf64=lcdf64)
+                            clobber=.true., cdf64=lcdf64)
 
       call ice_pio_initdecomp(iodesc=iodesc2d)
       call ice_pio_initdecomp(ndim3=ncat_hist, iodesc=iodesc3dc)
@@ -180,6 +195,8 @@
       !-----------------------------------------------------------------
 
         status = pio_def_var(File,'time',pio_real,(/timid/),varid)
+        status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                     deflate_level)
         status = pio_put_att(File,varid,'long_name','model time')
 
         write(cdate,'(i8.8)') idate0
@@ -206,6 +223,8 @@
           dimid2(1) = boundid
           dimid2(2) = timid
           status = pio_def_var(File,'time_bounds',pio_real,dimid2,varid)
+          status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                       deflate_level)
           status = pio_put_att(File,varid,'long_name', &
                                 'boundaries for time-averaging interval')
           write(cdate,'(i8.8)') idate0
@@ -306,7 +325,7 @@
         dimid2(2) = jmtid
 
         do i = 1, ncoord
-          status = pio_def_var(File, trim(coord_var(i)%short_name), pio_real, &
+          status = pio_def_var_deflate(File, trim(coord_var(i)%short_name), pio_real, &
                                 dimid2, varid)
           status = pio_put_att(File,varid,'long_name',trim(coord_var(i)%long_name))
           status = pio_put_att(File, varid, 'units', trim(coord_var(i)%units))
@@ -327,10 +346,12 @@
           dimidex(3)=kmtids
           dimidex(4)=kmtidb
 
-	do i = 1, nvarz
+        do i = 1, nvarz
            if (igrdz(i)) then
               status = pio_def_var(File, trim(var_nz(i)%short_name), pio_real, &
                                    (/dimidex(i)/), varid)
+              status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                           deflate_level)
               status = pio_put_att(File, varid, 'long_name', var_nz(i)%long_name)
               status = pio_put_att(File, varid, 'units'    , var_nz(i)%units)
            endif
@@ -339,6 +360,8 @@
         ! Attributes for tmask defined separately, since it has no units
         if (igrd(n_tmask)) then
            status = pio_def_var(File, 'tmask', pio_real, dimid2, varid)
+           status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                        deflate_level)
            status = pio_put_att(File,varid, 'long_name', 'ocean grid mask') 
            status = pio_put_att(File, varid, 'coordinates', 'TLON TLAT')
            status = pio_put_att(File, varid, 'missing_value', spval)
@@ -347,6 +370,8 @@
         endif
         if (igrd(n_blkmask)) then
            status = pio_def_var(File, 'blkmask', pio_real, dimid2, varid)
+           status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                        deflate_level)
            status = pio_put_att(File,varid, 'long_name', 'ice grid block mask') 
            status = pio_put_att(File, varid, 'coordinates', 'TLON TLAT')
            status = pio_put_att(File,varid,'comment', 'mytask + iblk/100')
@@ -358,6 +383,8 @@
           if (igrd(i)) then
              status = pio_def_var(File, trim(var(i)%req%short_name), &
                                    pio_real, dimid2, varid)
+             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                        deflate_level)
              status = pio_put_att(File,varid, 'long_name', trim(var(i)%req%long_name))
              status = pio_put_att(File, varid, 'units', trim(var(i)%req%units))
              status = pio_put_att(File, varid, 'coordinates', trim(var(i)%coordinates))
@@ -374,6 +401,8 @@
           if (f_bounds) then
              status = pio_def_var(File, trim(var_nverts(i)%short_name), &
                                    pio_real,dimid_nverts, varid)
+             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                        deflate_level)
              status = & 
              pio_put_att(File,varid, 'long_name', trim(var_nverts(i)%long_name))
              status = &
@@ -399,6 +428,8 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                          pio_real, dimid3, varid)
+            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                         deflate_level)
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -444,6 +475,8 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                          pio_real, dimidz, varid)
+            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                         deflate_level)
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -481,6 +514,8 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                          pio_real, dimidz, varid)
+            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                         deflate_level)
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -518,6 +553,8 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                          pio_real, dimidz, varid)
+            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                         deflate_level)
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -561,6 +598,8 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                              pio_real, dimidcz, varid)
+            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                         deflate_level)
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -599,6 +638,8 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                              pio_real, dimidcz, varid)
+            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                         deflate_level)
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -637,6 +678,8 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                              pio_real, dimidcz, varid)
+            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                         deflate_level)
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
