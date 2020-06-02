@@ -5,68 +5,71 @@ module cpl_arrays_setup
 ! It's designed to include the following 'possible' coupling fields at the 
 ! air-ice-sea surface:
 !
+! Further fields may be handled here. As of June 2020 the maximum number of fields passed from 1 component to another is 32 and is
+! set in module cpl_parameters. The actual number passed is now determined at run time via namelists.
+!
 ! A> atm==>ice 
 !                                       
-! (1) 2m air temp (K)                      		tair0 
-! (2) 10m 'zonal' wind speed (m/s)         		uwnd0 
-! (3) 10m 'meridional' wind speed (m/s)     		vwnd0 
-! (4) shortwave radiation (down, J/m^2)     		swflx0
-! (5) longwave radiation  (down, J/m^2)     		lwflx0
-! (6) 2m air specific humidity (kg/kg)      		qair0 
-! (7) rainfall rate     (kg/m^2/s)        		rain0 
+! (1) 2m air temp (K)                                   tair0 
+! (2) 10m 'zonal' wind speed (m/s)                      uwnd0 
+! (3) 10m 'meridional' wind speed (m/s)                 vwnd0 
+! (4) shortwave radiation (down, J/m^2)                 swflx0
+! (5) longwave radiation  (down, J/m^2)                 lwflx0
+! (6) 2m air specific humidity (kg/kg)                  qair0 
+! (7) rainfall rate     (kg/m^2/s)                      rain0 
 ! (8) snowfall rate     (kg/m^2/s)                      snow0
-! (9) pressure            (Pa)                		press0
-! (10)runof               (kg/m^2/s)          		runof0 
+! (9) pressure            (Pa)                          press0
+! (10)runof               (kg/m^2/s)                    runof0 
+! (11)calving               (kg/m^2/s)                  calv0 
 !
 ! B> ocn==>ice 
 !                          
-! (1) sea surface temperature  (K)              	ssto 
-! (2) sea surface salinity   (psu)             	 	ssso
-! (3) zonal water speed      (m/s)              	ssuo
-! (4) meridional water speed (m/s)              	ssvo
-! (5) sea surface gradient (zonal)     (m/m)   	 	sslx
-! (6) sea surface gradient (meridional)(m/m)    	ssly
-! (7) potential ice frm/mlt heatflux (W/m^2)    	pfmice
+! (1) sea surface temperature  (K)                      ssto 
+! (2) sea surface salinity   (psu)                      ssso
+! (3) zonal water speed      (m/s)                      ssuo
+! (4) meridional water speed (m/s)                      ssvo
+! (5) sea surface gradient (zonal)     (m/m)            sslx
+! (6) sea surface gradient (meridional)(m/m)            ssly
+! (7) potential ice frm/mlt heatflux (W/m^2)            pfmice
 !
 ! D> ice==>ocn
 !             
-! (1) ice-ocean stress, x-direction (kg/m s^2)    	iostrsu
-! (2) ice-ocean stress, y-direction (kg/m s^2)    	iostrsv
-! (3) fresh water flux to ocean--rain (kg/m^2/s)      	iorain
-! (4) fresh water flux to ocean--snow (kg/m^2/s)	iosnow
-! (5) salt flux to ocean (kg/m^2/s)               	iostflx
-! (6) 'net' heat flux to ocean (W/m^2)            	iohtflx
+! (1) ice-ocean stress, x-direction (kg/m s^2)          iostrsu
+! (2) ice-ocean stress, y-direction (kg/m s^2)          iostrsv
+! (3) fresh water flux to ocean--rain (kg/m^2/s)        iorain
+! (4) fresh water flux to ocean--snow (kg/m^2/s)        iosnow
+! (5) salt flux to ocean (kg/m^2/s)                     iostflx
+! (6) 'net' heat flux to ocean (W/m^2)                  iohtflx
 !     *(note word 'net' is misleading!) it is actually ice
 !     *'melt' heatflux into ocean. (ref: ice_coupling.F, 
 !     *it says:
 !     *'buffs(n,index_i2c_Fioi_melth) = fhnet(i,j) 
 !     *                          ! hf from melting'
-! (7) shortwave penetrating to ocean (W/m^2)      	ioswflx
+! (7) shortwave penetrating to ocean (W/m^2)            ioswflx
 !     Also, we let the following 'atmospheric fluxes' 
 !     (some maybe calculated in cice) be passed into ocean:
 ! (8) latent heat flux (W/m^2, positive out of ocean)   ioqflux
-! (9) sensible heat flux (W/m^2, postive out of ocean  	ioshflx
+! (9) sensible heat flux (W/m^2, postive out of ocean   ioshflx
 !--- note sensible/latent heatfluxes are calculated in cice being 
 !    positive into ocean! they must change sign before sent to 
 !    mom4 (which requires these 2 item as positive out of ocean!) 
 !    this is done in routine" get_i2o_fluxes"
 !
-!(10) long wave radiation                         	iolwflx
-!(11) runoff                                      	iorunof
-!(12) pressure                                    	iopress
-!(13) ice concentration (fraction)			ioaice
+!(10) long wave radiation                               iolwflx
+!(11) runoff                                            iorunof
+!(12) pressure                                          iopress
+!(13) ice concentration (fraction)                      ioaice
 !
 ! Seperate ice melting/forcation associated water fluxes from the rainfall field:
 !
-!(14) ice melt waterflux				iomelt
-!(15) ice form waterflux				ioform
-!(16) land ice waterflux                iolicefw
-!(17) land ice heatflux                 iolicefh
+!(14) ice melt waterflux                                iomelt
+!(15) ice form waterflux                                ioform
+!(16) land ice waterflux                                iolicefw
+!(17) land ice heatflux                                 iolicefh
 !(18) 10m wind speeds                                   iownd10
 !
 !
 
-! 18 in, 18 out => thus we set jpfldout=18, jpfldin=18 (in cpl_parameters)! RASF Check this statement.
 !
 !----------------------------------------------------------------------------
 !Note: 
