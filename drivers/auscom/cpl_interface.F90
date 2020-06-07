@@ -311,6 +311,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (iolicefw (nx_block, ny_block, max_blocks)); iolicefw(:,:,:) = 0
     allocate (iolicefh (nx_block, ny_block, max_blocks)); iolicefh(:,:,:) = 0
 
+    allocate (iownd (nx_block, ny_block, max_blocks)); iownd(:,:,:) = 0
+
     allocate (tiostrsu(nx_block, ny_block, max_blocks)); tiostrsu(:,:,:) = 0
     allocate (tiostrsv(nx_block, ny_block, max_blocks)); tiostrsv(:,:,:) = 0
     allocate (tiorain(nx_block, ny_block, max_blocks));  tiorain(:,:,:) = 0
@@ -327,6 +329,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
     allocate (tiomelt(nx_block, ny_block, max_blocks));  tiomelt(:,:,:) = 0
     allocate (tioform(nx_block, ny_block, max_blocks));  tioform(:,:,:) = 0
+
+    allocate (tiownd (nx_block, ny_block, max_blocks)); tiownd(:,:,:) = 0
 
     allocate (tiolicefw(nx_block, ny_block, max_blocks));  tiolicefw(:,:,:) = 0
     allocate (tiolicefh(nx_block, ny_block, max_blocks));  tiolicefh(:,:,:) = 0
@@ -630,6 +634,8 @@ subroutine into_ocn(isteps, scale)
             call pack_coupling_array(iolicefw*scale, work)
         elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
             call pack_coupling_array(iolicefh*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
+            call pack_coupling_array(iownd*scale, work)
         else
             call abort_ice('ice: bad coupling array name '//fields_to_ocn(i))
         endif
@@ -695,6 +701,7 @@ end subroutine update_halos_from_atm
   deallocate (tiostrsu, tiostrsv, tiorain, tiosnow, tiostflx, tiohtflx, tioswflx, &
               tioqflux, tiolwflx, tioshflx, tiorunof, tiolicefw, tiolicefh, tiopress) 
   deallocate (iomelt, ioform, tiomelt, tioform)
+  deallocate (iownd, tiownd)
   deallocate (gwork, vwork, sicemass)
   !  
   ! PSMILe termination 
@@ -744,6 +751,7 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] ioaice:', sum(ioaice(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iomelt:', sum(iomelt(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ioform:', sum(ioform(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] iownd:', sum(iownd(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iorunof:', sum(iorunof(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iolicefw:', sum(iolicefw(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iolicefh:', sum(iolicefh(isc:iec, jsc:jec, 1))

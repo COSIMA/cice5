@@ -129,7 +129,7 @@ call ncheck(nf_def_dim(ncid, "nx", ii,  pLonDimId), &
             'create_ncfile: nf_def_dim nx')
 
 !end of the definition phase
-call ncheck(nf_enddef(ncid), 'create_ncfile: nf_enddef')
+call ncheck(nf__enddef(ncid,1028,512,512,512), 'create_ncfile: nf__enddef')
 
 !close NetCDF file
 !call ncheck(nf_close(ncid))
