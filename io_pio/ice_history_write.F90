@@ -11,12 +11,13 @@
 
       use ice_kinds_mod
       use ice_pio, only: ice_pio_subsystem
+      use netcdf
 
       implicit none
       private
       public :: ice_write_hist
       save
-      
+
       logical (kind=log_kind), public :: lcdf64
 
 !=======================================================================
@@ -31,7 +32,6 @@
 
       subroutine ice_write_hist (ns)
 
-#ifdef ncdf
       use ice_blocks, only: nx_block, ny_block
       use ice_broadcast, only: broadcast_scalar
       use ice_calendar, only: time, sec, idate, idate0, write_ic, &
@@ -40,6 +40,7 @@
       use ice_constants, only: c0, c360, secday, spval, spval_dbl, rad_to_deg
       use ice_domain, only: distrb_info, nblocks
       use ice_domain_size, only: nx_global, ny_global, max_blocks, max_nstrm
+      use ice_domain_size, only: block_size_x, block_size_y
       use ice_exit, only: abort_ice
       use ice_fileunits, only: nu_diag
       use ice_gather_scatter, only: gather_global
@@ -49,15 +50,16 @@
       use ice_history_shared
       use ice_itd, only: hin_max
       use ice_restart_shared, only: runid
-#endif
-      use ice_pio	
+
+      use ice_pio
       use pio
+      use pio_nf
+      use ifport, only: IEEE_FLAGS
 
       integer (kind=int_kind), intent(in) :: ns
 
       ! local variables
 
-#ifdef ncdf
       integer (kind=int_kind) :: i,j,k,ic,n,nn, &
          ncid,status,imtid,jmtid,kmtidi,kmtids,kmtidb, cmtid,timid, &
          length,nvertexid,ivertex
@@ -127,8 +129,14 @@
          bnd_start,bnd_length          ! dimension quantities for netCDF
 
       integer (kind=PIO_OFFSET_KIND) :: FRAME_1 = 1
+      integer, dimension(2) :: chunksizes
 
       integer (kind=int_kind) :: shuffle, deflate, deflate_level
+      character (len=9) :: ret_str
+      integer :: ierr
+
+      !ierr = IEEE_FLAGS('CLEAR', 'exception', 'division', ret_str)
+      !ierr = IEEE_FLAGS('CLEAR', 'exception', 'invalid', ret_str)
 
       ! We leave shuffle at 0, this is only useful for integer data.
       shuffle = 0
@@ -182,21 +190,45 @@
         endif
 
         status = pio_def_dim(File,'ni',nx_global,imtid)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error defining dim ni')
+
         status = pio_def_dim(File,'nj',ny_global,jmtid)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error defining dim nj')
+
         status = pio_def_dim(File,'nc',ncat_hist,cmtid)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error defining dim nc')
+
         status = pio_def_dim(File,'nkice',nzilyr,kmtidi)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error defining dim nkice')
+
         status = pio_def_dim(File,'nksnow',nzslyr,kmtids)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error defining dim nksnow')
+
         status = pio_def_dim(File,'nkbio',nzblyr,kmtidb)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error defining dim nkbio')
+
         status = pio_def_dim(File,'time',PIO_UNLIMITED,timid)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error defining dim time')
+
         status = pio_def_dim(File,'nvertices',nverts,nvertexid)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error defining dim nvertices')
 
       !-----------------------------------------------------------------
       ! define coordinate variables:  time, time_bounds
       !-----------------------------------------------------------------
 
         status = pio_def_var(File,'time',pio_real,(/timid/),varid)
-        status = pio_def_var_deflate(File, varid, shuffle, deflate, &
-                                     deflate_level)
+        if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error def var time')
+
         status = pio_put_att(File,varid,'long_name','model time')
 
         write(cdate,'(i8.8)') idate0
@@ -223,8 +255,7 @@
           dimid2(1) = boundid
           dimid2(2) = timid
           status = pio_def_var(File,'time_bounds',pio_real,dimid2,varid)
-          status = pio_def_var_deflate(File, varid, shuffle, deflate, &
-                                       deflate_level)
+
           status = pio_put_att(File,varid,'long_name', &
                                 'boundaries for time-averaging interval')
           write(cdate,'(i8.8)') idate0
@@ -325,8 +356,20 @@
         dimid2(2) = jmtid
 
         do i = 1, ncoord
-          status = pio_def_var_deflate(File, trim(coord_var(i)%short_name), pio_real, &
+          status = pio_def_var(File, trim(coord_var(i)%short_name), pio_real, &
                                 dimid2, varid)
+          if (status /= nf90_noerr) call abort_ice( &
+                        'ice: Error def var '//trim(coord_var(i)%short_name))
+          status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+                                       deflate_level)
+          if (status /= nf90_noerr) call abort_ice( &
+                        'ice: Error deflating var '//trim(coord_var(i)%short_name))
+          print*, '0a: ',  (/ block_size_x, block_size_y /), dimid2, nx_global, ny_global
+          status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                 (/ block_size_x, block_size_y /))
+          if (status /= nf90_noerr) call abort_ice( &
+                 'ice: Error chunking var '//trim(coord_var(i)%short_name))
+
           status = pio_put_att(File,varid,'long_name',trim(coord_var(i)%long_name))
           status = pio_put_att(File, varid, 'units', trim(coord_var(i)%units))
           status = pio_put_att(File, varid, 'missing_value', spval)
@@ -350,8 +393,19 @@
            if (igrdz(i)) then
               status = pio_def_var(File, trim(var_nz(i)%short_name), pio_real, &
                                    (/dimidex(i)/), varid)
-              status = pio_def_var_deflate(File, varid, shuffle, deflate, &
-                                           deflate_level)
+              if (status /= nf90_noerr) call abort_ice( &
+                'ice: Error def var '//trim(var_nz(i)%short_name))
+              !status = pio_def_var_deflate(File, varid, shuffle, deflate, &
+              !                             deflate_level)
+              !if (status /= nf90_noerr) call abort_ice( &
+              !  'ice: Error deflating var '//trim(var_nz(i)%short_name))
+
+              !print*, '0b: ',  (/ 1 /)
+              !status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+              !            (/ 1 /))
+              !if (status /= nf90_noerr) call abort_ice( &
+              !      'ice: Error chunking var '//trim(var_nz(i)%short_name))
+
               status = pio_put_att(File, varid, 'long_name', var_nz(i)%long_name)
               status = pio_put_att(File, varid, 'units'    , var_nz(i)%units)
            endif
@@ -360,18 +414,41 @@
         ! Attributes for tmask defined separately, since it has no units
         if (igrd(n_tmask)) then
            status = pio_def_var(File, 'tmask', pio_real, dimid2, varid)
+           if (status /= nf90_noerr) call abort_ice('ice: Error defining var tmask')
            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                         deflate_level)
+           if (status /= nf90_noerr) call abort_ice('ice: Error deflating var tmask')
+           print*, '1: ',  (/ block_size_x, block_size_y /)
+           status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                        (/ block_size_x, block_size_y /))
+           if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error def var chunking tmask')
+
+
            status = pio_put_att(File,varid, 'long_name', 'ocean grid mask') 
+           if (status /= nf90_noerr) call abort_ice('ice: Error put_att')
            status = pio_put_att(File, varid, 'coordinates', 'TLON TLAT')
+           if (status /= nf90_noerr) call abort_ice('ice: Error put_att')
            status = pio_put_att(File, varid, 'missing_value', spval)
+           if (status /= nf90_noerr) call abort_ice('ice: Error put_att')
            status = pio_put_att(File, varid,'_FillValue',spval)
+           if (status /= nf90_noerr) call abort_ice('ice: Error put_att')
            status = pio_put_att(File,varid,'comment', '0 = land, 1 = ocean')
+           if (status /= nf90_noerr) call abort_ice('ice: Error put_att')
+
         endif
+
         if (igrd(n_blkmask)) then
            status = pio_def_var(File, 'blkmask', pio_real, dimid2, varid)
            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                         deflate_level)
+           if (status /= nf90_noerr) call abort_ice('ice: Error deflating var blkmask')
+           print*, '2: ',  (/ block_size_x, block_size_y /)
+           status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                        (/ block_size_x, block_size_y /))
+           if (status /= nf90_noerr) call abort_ice( &
+                      'ice: Error def var chunking blkmask')
+
            status = pio_put_att(File,varid, 'long_name', 'ice grid block mask') 
            status = pio_put_att(File, varid, 'coordinates', 'TLON TLAT')
            status = pio_put_att(File,varid,'comment', 'mytask + iblk/100')
@@ -383,8 +460,18 @@
           if (igrd(i)) then
              status = pio_def_var(File, trim(var(i)%req%short_name), &
                                    pio_real, dimid2, varid)
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def var '//trim(var(i)%req%short_name))
              status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                         deflate_level)
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(var(i)%req%short_name))
+             print*, '3: ',  (/ block_size_x, block_size_y /)
+             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ block_size_x, block_size_y /))
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error chunking var '//trim(var(i)%req%short_name))
+
              status = pio_put_att(File,varid, 'long_name', trim(var(i)%req%long_name))
              status = pio_put_att(File, varid, 'units', trim(var(i)%req%units))
              status = pio_put_att(File, varid, 'coordinates', trim(var(i)%coordinates))
@@ -401,8 +488,18 @@
           if (f_bounds) then
              status = pio_def_var(File, trim(var_nverts(i)%short_name), &
                                    pio_real,dimid_nverts, varid)
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def  var '//trim(var_nverts(i)%short_name))
              status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                         deflate_level)
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(var_nverts(i)%short_name))
+             print*, '4: ',  (/ 1, block_size_x, block_size_y /)
+             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ 1, block_size_x, block_size_y /))
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error chunking var '//trim(var_nverts(i)%short_name))
+
              status = & 
              pio_put_att(File,varid, 'long_name', trim(var_nverts(i)%long_name))
              status = &
@@ -428,8 +525,17 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                          pio_real, dimid3, varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def var '//trim(avail_hist_fields(n)%vname))
             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                          deflate_level)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
+             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ block_size_x, block_size_y, 1 /))
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
+
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -475,8 +581,19 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                          pio_real, dimidz, varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def var '//trim(avail_hist_fields(n)%vname))
             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                          deflate_level)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
+             print*, '6: ',  (/ nx_block, ny_block, 1, 1 /)
+             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ block_size_x, block_size_y, 1, 1 /))
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
+
+
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -514,8 +631,17 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                          pio_real, dimidz, varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def var '//trim(avail_hist_fields(n)%vname))
             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                          deflate_level)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
+             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ block_size_x, block_size_y, 1, 1 /))
+             if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
+
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -553,8 +679,18 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                          pio_real, dimidz, varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def var '//trim(avail_hist_fields(n)%vname))
             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                          deflate_level)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
+             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ block_size_x, block_size_y, 1, 1 /))
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
+
+
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -598,8 +734,17 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                              pio_real, dimidcz, varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def var '//trim(avail_hist_fields(n)%vname))
             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                          deflate_level)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
+            status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ block_size_x, block_size_y, 1, 1, 1 /))
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
+
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -638,8 +783,18 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                              pio_real, dimidcz, varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def var '//trim(avail_hist_fields(n)%vname))
             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                          deflate_level)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
+            print*, '10: ',  (/ block_size_x, block_size_y, 1, 1, 1 /)
+            status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ block_size_x, block_size_y, 1, 1, 1 /))
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
+
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -678,8 +833,18 @@
           if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
             status  = pio_def_var(File, trim(avail_hist_fields(n)%vname), &
                              pio_real, dimidcz, varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error def var '//trim(avail_hist_fields(n)%vname))
             status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                          deflate_level)
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
+            print*, '11: ',  (/ block_size_x, block_size_y, 1, 1, 1 /)
+            status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
+                     (/ block_size_x, block_size_y, 1, 1, 1 /))
+            if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
+
             status = pio_put_att(File,varid,'units', &
                         trim(avail_hist_fields(n)%vunit))
             status = pio_put_att(File,varid, 'long_name', &
@@ -1059,7 +1224,8 @@
       call pio_freedecomp(ice_pio_subsystem, iodesc3db)
       call pio_freedecomp(ice_pio_subsystem, iodesc4di)
 
-#endif
+      !ierr = IEEE_FLAGS('SET', 'exception', 'division', ret_str)
+      !ierr = IEEE_FLAGS('SET', 'exception', 'invalid', ret_str)
 
       end subroutine ice_write_hist
 

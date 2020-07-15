@@ -13,7 +13,7 @@
   use ice_fileunits
   use ice_exit
   use pio
-  use pio, only: pio_set_buffer_size_limit
+  use pio, only: pio_set_buffer_size_limit, pio_set_log_level
   use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_box
 
   implicit none
@@ -42,54 +42,58 @@
 
 !===============================================================================
 
-   subroutine ice_pio_init(io_stride)
-        integer, intent(in), optional :: io_stride
-        integer :: num_iotasks, stride, ierr
+subroutine ice_pio_init(io_stride)
+    integer, intent(in), optional :: io_stride
+    integer :: num_iotasks, stride, ierr, base, num_agg
 
-        character(*),parameter :: subName = '(ice_pio_init) '
+    character(*),parameter :: subName = '(ice_pio_init) '
 
-        if (pio_initialized) then
-            return
-        endif
+    if (pio_initialized) then
+        return
+    endif
 
-        if (present(io_stride)) then
-            stride = io_stride
-        else
-            stride = 1
-        endif
+    if (present(io_stride)) then
+        stride = io_stride
+    else
+        stride = 1
+    endif
 
-        pio_iotype = pio_iotype_netcdf4p
+    pio_iotype = pio_iotype_netcdf4p
 
-        num_iotasks = get_num_procs() / stride
+    num_iotasks = get_num_procs() / stride
+    num_agg = 0
 
-        call pio_init(my_task, MPI_COMM_ICE, num_iotasks, 0, stride, PIO_rearr_box, ice_pio_subsystem)
+    call pio_init(my_task, MPI_COMM_ICE, num_iotasks, num_agg, stride, PIO_rearr_box, ice_pio_subsystem)
 
-        call pio_set_buffer_size_limit(256*1024*1024)
+    call pio_set_buffer_size_limit(256*1024*1024)
 
-        pio_initialized = .true.
-   end subroutine ice_pio_init
+    ! PIO needs to be compiled with --enable-debug
+    ierr = pio_set_log_level(0)
 
-   subroutine ice_pio_initfile(mode, filename, File, clobber, cdf64)
+    pio_initialized = .true.
+end subroutine ice_pio_init
 
 
-   implicit none
-   character(len=*)     , intent(in),    optional :: mode
-   character(len=*)     , intent(in),    optional :: filename
-   type(file_desc_t)    , intent(inout), optional :: File
-   logical              , intent(in),    optional :: clobber
-   logical              , intent(in),    optional :: cdf64
+subroutine ice_pio_initfile(mode, filename, File, clobber, cdf64)
 
-   ! local variables
+    implicit none
+    character(len=*)     , intent(in),    optional :: mode
+    character(len=*)     , intent(in),    optional :: filename
+    type(file_desc_t)    , intent(inout), optional :: File
+    logical              , intent(in),    optional :: clobber
+    logical              , intent(in),    optional :: cdf64
 
-   integer (int_kind) :: &
+    ! local variables
+
+    integer (int_kind) :: &
       nml_error          ! namelist read error flag
 
-   logical :: exists
-   logical :: lclobber
-   integer :: status
-   character(*),parameter :: subName = '(ice_pio_wopen) '
+    logical :: exists
+    logical :: lclobber
+    integer :: status
+    character(*),parameter :: subName = '(ice_pio_wopen) '
 
-   if (present(mode) .and. present(filename) .and. present(File)) then
+    if (present(mode) .and. present(filename) .and. present(File)) then
 
       if (trim(mode) == 'write') then
          lclobber = .false.
@@ -133,9 +137,9 @@
          endif
       end if
 
-   end if
+    end if
 
-   end subroutine ice_pio_initfile
+end subroutine ice_pio_initfile
 
 !================================================================================
 
