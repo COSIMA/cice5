@@ -171,15 +171,15 @@
 
         status = nf90_def_dim(ncid,'nkice',nzilyr,kmtidi)
         if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nki')
+                      'ice: Error defining dim nkice')
 
         status = nf90_def_dim(ncid,'nksnow',nzslyr,kmtids)
         if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nks')
+                      'ice: Error defining dim nksnow')
 
         status = nf90_def_dim(ncid,'nkbio',nzblyr,kmtidb)
         if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nkb')
+                      'ice: Error defining dim nkbio')
 
         status = nf90_def_dim(ncid,'time',NF90_UNLIMITED,timid)
         if (status /= nf90_noerr) call abort_ice( &
