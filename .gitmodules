@@ -1,0 +1,3 @@
+[submodule "ParallelIO"]
+	path = ParallelIO
+	url = git@github.com:COSIMA/ParallelIO.git
