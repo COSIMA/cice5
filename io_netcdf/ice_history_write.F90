@@ -20,14 +20,47 @@
 module ice_history_write
 
     use netcdf
+
+    use ice_kinds_mod
+    use ice_constants, only: c0, c360, secday, spval, rad_to_deg
+    use ice_blocks, only: nx_block, ny_block, block, get_block
     use ice_exit, only: abort_ice
+    use ice_domain, only: distrb_info, nblocks, blocks_ice
+    use ice_communicate, only: my_task, master_task
+    use ice_broadcast, only: broadcast_scalar
+    use ice_gather_scatter, only: gather_global
+    use ice_domain_size, only: nx_global, ny_global, max_nstrm, max_blocks
+    use ice_grid, only: TLON, TLAT, ULON, ULAT, hm, bm, tarea, uarea, &
+        dxu, dxt, dyu, dyt, HTN, HTE, ANGLE, ANGLET, &
+        lont_bounds, latt_bounds, lonu_bounds, latu_bounds
+    use ice_history_shared
+    use ice_itd, only: hin_max
 
     implicit none
     private
     public :: ice_write_hist
     save
 
-!=======================================================================
+    type coord_attributes         ! netcdf coordinate attributes
+      character (len=11)   :: short_name
+      character (len=45)   :: long_name
+      character (len=20)   :: units
+    end type coord_attributes
+
+    type req_attributes         ! req'd netcdf attributes
+      type (coord_attributes) :: req
+      character (len=20)   :: coordinates
+    end type req_attributes
+
+    ! 4 coordinate variables: TLON, TLAT, ULON, ULAT
+    INTEGER (kind=int_kind), PARAMETER :: ncoord = 4
+
+    ! 4 vertices in each grid cell
+    INTEGER (kind=int_kind), PARAMETER :: nverts = 4
+
+    ! 4 variables describe T, U grid boundaries:
+    ! lont_bounds, latt_bounds, lonu_bounds, latu_bounds
+    INTEGER (kind=int_kind), PARAMETER :: nvar_verts = 4
 
     contains
 
@@ -39,23 +72,10 @@ module ice_history_write
 
 subroutine ice_write_hist (ns)
 
-    use ice_kinds_mod
 #ifdef ncdf
-    use ice_blocks, only: nx_block, ny_block
-    use ice_broadcast, only: broadcast_scalar
     use ice_calendar, only: time, sec, idate, idate0, write_ic, &
         histfreq, dayyr, days_per_year, use_leap_years
-    use ice_communicate, only: my_task, master_task
-    use ice_constants, only: c0, c360, secday, spval, rad_to_deg
-    use ice_domain, only: distrb_info
-    use ice_domain_size, only: nx_global, ny_global, max_nstrm, max_blocks
     use ice_fileunits, only: nu_diag
-    use ice_gather_scatter, only: gather_global
-    use ice_grid, only: TLON, TLAT, ULON, ULAT, hm, bm, tarea, uarea, &
-        dxu, dxt, dyu, dyt, HTN, HTE, ANGLE, ANGLET, &
-        lont_bounds, latt_bounds, lonu_bounds, latu_bounds
-    use ice_history_shared
-    use ice_itd, only: hin_max
     use ice_restart_shared, only: runid
 #endif
 
@@ -89,32 +109,15 @@ subroutine ice_write_hist (ns)
     character (char_len) :: start_time,current_date,current_time
     character (len=8) :: cdate
 
-    ! 4 coordinate variables: TLON, TLAT, ULON, ULAT
-    INTEGER (kind=int_kind), PARAMETER :: ncoord = 4
-
-    ! 4 vertices in each grid cell
-    INTEGER (kind=int_kind), PARAMETER :: nverts = 4
-
-    ! 4 variables describe T, U grid boundaries:
-    ! lont_bounds, latt_bounds, lonu_bounds, latu_bounds
-    INTEGER (kind=int_kind), PARAMETER :: nvar_verts = 4
-
-    TYPE coord_attributes         ! netcdf coordinate attributes
-      character (len=11)   :: short_name
-      character (len=45)   :: long_name
-      character (len=20)   :: units
-    END TYPE coord_attributes
-
-    TYPE req_attributes         ! req'd netcdf attributes
-      type (coord_attributes) :: req
-      character (len=20)   :: coordinates
-    END TYPE req_attributes
-
     TYPE(req_attributes), dimension(nvar) :: var
     TYPE(coord_attributes), dimension(ncoord) :: coord_var
     TYPE(coord_attributes), dimension(nvar_verts) :: var_nverts
     TYPE(coord_attributes), dimension(nvarz) :: var_nz
     CHARACTER (char_len), dimension(ncoord) :: coord_bounds
+
+    logical :: do_parallel_io
+
+    do_parallel_io = .false.
 
     ! We leave shuffle at 0, this is only useful for integer data.
     shuffle = 0
@@ -129,7 +132,7 @@ subroutine ice_write_hist (ns)
         deflate_level = history_deflate_level
     endif
 
-    if (my_task == master_task) then
+    if (my_task == master_task .or. do_parallel_io) then
 
         ltime=time/int(secday)
 
@@ -143,8 +146,13 @@ subroutine ice_write_hist (ns)
         endif
 
         ! create file
-        call check(nf90_create(ncfile(ns), ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid), &
-                    'create history ncfile '//ncfile(ns))
+        if (do_parallel_io) then
+            call check(nf90_create(ncfile(ns), ior(NF90_NETCDF4, NF90_MPIIO), ncid), &
+                        'create history ncfile '//ncfile(ns))
+        else
+            call check(nf90_create(ncfile(ns), ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid), &
+                        'create history ncfile '//ncfile(ns))
+        endif
 
         !-----------------------------------------------------------------
         ! define dimensions
@@ -979,77 +987,29 @@ subroutine ice_write_hist (ns)
             if (status /= nf90_noerr) call abort_ice( &
                           'ice: Error writing time_end')
         endif
-    endif                     ! master_task
+    endif                     ! master_task or do_parallel_io
 
-    if (my_task==master_task) then
-        allocate(work_g1(nx_global,ny_global))
-        allocate(work_gr(nx_global,ny_global))
-    else
-        allocate(work_gr(1,1))   ! to save memory
-        allocate(work_g1(1,1))
+    if (.not. do_parallel_io) then
+        if (my_task == master_task) then
+            allocate(work_g1(nx_global,ny_global))
+            allocate(work_gr(nx_global,ny_global))
+        else
+            allocate(work_gr(1,1))   ! to save memory
+            allocate(work_g1(1,1))
+        endif
+
+        work_g1(:,:) = c0
     endif
-
-    work_g1(:,:) = c0
 
     !-----------------------------------------------------------------
     ! write coordinate variables
     !-----------------------------------------------------------------
 
-    do i = 1,ncoord
-        call broadcast_scalar(coord_var(i)%short_name,master_task)
-        SELECT CASE (coord_var(i)%short_name)
-        CASE ('TLON')
-            ! Convert T grid longitude from -180 -> 180 to 0 to 360
-            work1 = TLON*rad_to_deg + c360
-            where (work1 > c360) work1 = work1 - c360
-            where (work1 < c0 )  work1 = work1 + c360
-            call gather_global(work_g1,work1,master_task,distrb_info)
-        CASE ('TLAT')
-            work1 = TLAT*rad_to_deg
-            call gather_global(work_g1,work1,master_task,distrb_info)
-        CASE ('ULON')
-            work1 = ULON*rad_to_deg
-            call gather_global(work_g1,work1,master_task,distrb_info)
-        CASE ('ULAT')
-            work1 = ULAT*rad_to_deg
-            call gather_global(work_g1,work1,master_task,distrb_info)
-        END SELECT
-
-        if (my_task == master_task) then
-            work_gr = work_g1
-            status = nf90_inq_varid(ncid, coord_var(i)%short_name, varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                 'ice: Error getting varid for '//coord_var(i)%short_name)
-            status = nf90_put_var(ncid,varid,work_gr)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error writing'//coord_var(i)%short_name)
-        endif
-    enddo
-
-    ! Extra dimensions (NCAT, VGRD*)
-
-    do i = 1, nvarz
-        if (igrdz(i)) then
-            call broadcast_scalar(var_nz(i)%short_name,master_task)
-            if (my_task == master_task) then
-                status = nf90_inq_varid(ncid, var_nz(i)%short_name, varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'ice: Error getting varid for '//var_nz(i)%short_name)
-                SELECT CASE (var_nz(i)%short_name)
-                CASE ('NCAT')
-                    status = nf90_put_var(ncid,varid,hin_max(1:ncat_hist))
-                CASE ('VGRDi') ! index - needed for Met Office analysis code
-                    status = nf90_put_var(ncid,varid,(/(k, k=1,nzilyr)/))
-                CASE ('VGRDs') ! index - needed for Met Office analysis code
-                    status = nf90_put_var(ncid,varid,(/(k, k=1,nzslyr)/))
-                CASE ('VGRDb')
-                    status = nf90_put_var(ncid,varid,(/(k, k=1,nzblyr)/))
-                END SELECT
-                if (status /= nf90_noerr) call abort_ice( &
-                              'ice: Error writing'//var_nz(i)%short_name)
-            endif
-        endif
-    enddo
+    if (do_parallel_io) then
+        call write_coordinate_variables_parallel(ncid, coord_var, var_nz)
+    else
+        call write_coordinate_variables(ncid, coord_var, var_nz)
+    endif
 
     !-----------------------------------------------------------------
     ! write grid masks, area and rotation angle
@@ -1401,8 +1361,160 @@ subroutine check(status, msg)
 end subroutine check
 
 
-!=======================================================================
+subroutine write_coordinate_variables(ncid, coord_var, var_nz)
+
+    integer, intent(in) :: ncid
+    type(coord_attributes), dimension(ncoord), intent(in) :: coord_var
+    type(coord_attributes), dimension(nvarz) :: var_nz
+
+    real (kind=dbl_kind),  dimension(:,:),   allocatable :: work_g1
+    real (kind=real_kind), dimension(:,:),   allocatable :: work_gr
+    real (kind=dbl_kind),  dimension(nx_block,ny_block,max_blocks) :: work1
+
+    integer :: i, k, status
+    integer :: varid
+    character (len=len(coord_var(1)%short_name)) :: coord_var_name
+
+    if (my_task==master_task) then
+        allocate(work_g1(nx_global,ny_global))
+        allocate(work_gr(nx_global,ny_global))
+    else
+        allocate(work_g1(1,1))
+        allocate(work_gr(1,1))   ! to save memory
+    endif
+
+    work_g1(:,:) = c0
+
+    do i = 1,ncoord
+        coord_var_name = coord_var(i)%short_name
+
+        call broadcast_scalar(coord_var_name, master_task)
+        SELECT CASE (coord_var_name)
+        CASE ('TLON')
+            ! Convert T grid longitude from -180 -> 180 to 0 to 360
+            work1 = TLON*rad_to_deg + c360
+            where (work1 > c360) work1 = work1 - c360
+            where (work1 < c0 )  work1 = work1 + c360
+            call gather_global(work_g1,work1,master_task,distrb_info)
+        CASE ('TLAT')
+            work1 = TLAT*rad_to_deg
+            call gather_global(work_g1,work1,master_task,distrb_info)
+        CASE ('ULON')
+            work1 = ULON*rad_to_deg
+            call gather_global(work_g1,work1,master_task,distrb_info)
+        CASE ('ULAT')
+            work1 = ULAT*rad_to_deg
+            call gather_global(work_g1,work1,master_task,distrb_info)
+        END SELECT
+
+        if (my_task == master_task) then
+            work_gr = work_g1
+            status = nf90_inq_varid(ncid, coord_var_name, varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                 'ice: Error getting varid for '//coord_var_name)
+            status = nf90_put_var(ncid,varid,work_gr)
+            if (status /= nf90_noerr) call abort_ice( &
+                          'ice: Error writing'//coord_var_name)
+        endif
+    enddo
+
+    ! Extra dimensions (NCAT, VGRD*)
+
+    do i = 1, nvarz
+        if (igrdz(i)) then
+            call broadcast_scalar(var_nz(i)%short_name,master_task)
+            if (my_task == master_task) then
+                status = nf90_inq_varid(ncid, var_nz(i)%short_name, varid)
+                if (status /= nf90_noerr) call abort_ice( &
+                     'ice: Error getting varid for '//var_nz(i)%short_name)
+                SELECT CASE (var_nz(i)%short_name)
+                CASE ('NCAT')
+                    status = nf90_put_var(ncid,varid,hin_max(1:ncat_hist))
+                CASE ('VGRDi') ! index - needed for Met Office analysis code
+                    status = nf90_put_var(ncid,varid,(/(k, k=1,nzilyr)/))
+                CASE ('VGRDs') ! index - needed for Met Office analysis code
+                    status = nf90_put_var(ncid,varid,(/(k, k=1,nzslyr)/))
+                CASE ('VGRDb')
+                    status = nf90_put_var(ncid,varid,(/(k, k=1,nzblyr)/))
+                END SELECT
+                if (status /= nf90_noerr) call abort_ice( &
+                              'ice: Error writing'//var_nz(i)%short_name)
+            endif
+        endif
+    enddo
+
+    deallocate(work_g1)
+    deallocate(work_gr)
+
+end subroutine write_coordinate_variables
+
+subroutine write_coordinate_variables_parallel(ncid, coord_var, var_nz)
+
+    integer, intent(in) :: ncid
+    type(coord_attributes), dimension(ncoord), intent(in) :: coord_var
+    type(coord_attributes), dimension(nvarz) :: var_nz
+
+    integer :: varid
+    integer :: iblk, i, k, ilo, jlo
+    integer, dimension(2) :: start, count
+    real(kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: work1
+
+    integer(kind=int_kind), dimension(:), pointer :: i_glob, j_glob
+    type(block) :: the_block
+
+    do i = 1,ncoord
+        SELECT CASE (coord_var(i)%short_name)
+        CASE ('TLON')
+            ! Convert T grid longitude from -180 -> 180 to 0 to 360
+            work1 = TLON*rad_to_deg + c360
+            where (work1 > c360) work1 = work1 - c360
+            where (work1 < c0 )  work1 = work1 + c360
+        CASE ('TLAT')
+            work1 = TLAT*rad_to_deg
+        CASE ('ULON')
+            work1 = ULON*rad_to_deg
+        CASE ('ULAT')
+            work1 = ULAT*rad_to_deg
+        END SELECT
+
+        call check(nf90_inq_varid(ncid, coord_var(i)%short_name, varid), &
+                    'inq varid '//coord_var(i)%short_name)
+
+        do iblk=1, nblocks
+            the_block = get_block(blocks_ice(iblk), iblk)
+            ilo = the_block%i_glob(the_block%ilo)
+            jlo = the_block%j_glob(the_block%jlo)
+
+            start = (/ ilo, jlo /) 
+            count = (/ nx_block, ny_block /)
+            call check(nf90_put_var(ncid, varid, work1(:, :, iblk), &
+                                    start=start, count=count), &
+                       'put '//coord_var(i)%short_name)
+        enddo
+    enddo
+
+    ! Extra dimensions (NCAT, VGRD*)
+    do i = 1, nvarz
+        if (igrdz(i)) then
+            call check(nf90_inq_varid(ncid, var_nz(i)%short_name, varid), &
+                        'inq_varid '//var_nz(i)%short_name)
+            SELECT CASE (var_nz(i)%short_name)
+            CASE ('NCAT')
+                call check(nf90_put_var(ncid, varid, hin_max(1:ncat_hist)), &
+                            'put var NCAT')
+            CASE ('VGRDi') ! index - needed for Met Office analysis code
+                call check(nf90_put_var(ncid, varid, (/(k, k=1, nzilyr)/)), &
+                            'put var VGRDi')
+            CASE ('VGRDs') ! index - needed for Met Office analysis code
+                call check(nf90_put_var(ncid, varid, (/(k, k=1, nzslyr)/)), &
+                            'put var VGRDs')
+            CASE ('VGRDb')
+                call check(nf90_put_var(ncid, varid, (/(k, k=1, nzblyr)/)), &
+                            'put var VGRDb')
+            END SELECT
+        endif
+    enddo
+
+end subroutine write_coordinate_variables_parallel
 
 end module ice_history_write
-
-!=======================================================================
