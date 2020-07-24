@@ -19,6 +19,9 @@
 
 module ice_history_write
 
+    use netcdf
+    use ice_exit, only: abort_ice
+
     implicit none
     private
     public :: ice_write_hist
@@ -46,7 +49,6 @@ subroutine ice_write_hist (ns)
     use ice_constants, only: c0, c360, secday, spval, rad_to_deg
     use ice_domain, only: distrb_info
     use ice_domain_size, only: nx_global, ny_global, max_nstrm, max_blocks
-    use ice_exit, only: abort_ice
     use ice_fileunits, only: nu_diag
     use ice_gather_scatter, only: gather_global
     use ice_grid, only: TLON, TLAT, ULON, ULAT, hm, bm, tarea, uarea, &
@@ -55,7 +57,6 @@ subroutine ice_write_hist (ns)
     use ice_history_shared
     use ice_itd, only: hin_max
     use ice_restart_shared, only: runid
-    use netcdf
 #endif
 
     integer (kind=int_kind), intent(in) :: ns
@@ -142,75 +143,52 @@ subroutine ice_write_hist (ns)
         endif
 
         ! create file
-        status = nf90_create(ncfile(ns), &
-                    ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid)
-        if (status /= nf90_noerr) call abort_ice( &
-           'ice: Error creating history ncfile '//ncfile(ns))
+        call check(nf90_create(ncfile(ns), ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid), &
+                    'create history ncfile '//ncfile(ns))
 
         !-----------------------------------------------------------------
         ! define dimensions
         !-----------------------------------------------------------------
 
         if (hist_avg) then
-            status = nf90_def_dim(ncid,'d2',2,boundid)
-            if (status /= nf90_noerr) call abort_ice( &
-                        'ice: Error defining dim d2')
+            call check(nf90_def_dim(ncid,'d2',2,boundid), 'def dim d2')
         endif
 
-        status = nf90_def_dim(ncid,'ni',nx_global,imtid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim ni')
-
-        status = nf90_def_dim(ncid,'nj',ny_global,jmtid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nj')
-
-        status = nf90_def_dim(ncid,'nc',ncat_hist,cmtid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nc')
-
-        status = nf90_def_dim(ncid,'nkice',nzilyr,kmtidi)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nkice')
-
-        status = nf90_def_dim(ncid,'nksnow',nzslyr,kmtids)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nksnow')
-
-        status = nf90_def_dim(ncid,'nkbio',nzblyr,kmtidb)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nkbio')
-
-        status = nf90_def_dim(ncid,'time',NF90_UNLIMITED,timid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim time')
-
-        status = nf90_def_dim(ncid,'nvertices',nverts,nvertexid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining dim nverts')
+        call check(nf90_def_dim(ncid, 'ni', nx_global, imtid), &
+                    'def dim ni')
+        call check(nf90_def_dim(ncid, 'nj', ny_global, jmtid), &
+                    'def dim nj')
+        call check(nf90_def_dim(ncid, 'nc', ncat_hist, cmtid), &
+                    'def dim nc')
+        call check(nf90_def_dim(ncid, 'nkice', nzilyr, kmtidi), &
+                    'def dim nkice')
+        call check(nf90_def_dim(ncid, 'nksnow', nzslyr, kmtids), &
+                    'def dim nksnow')
+        call check(nf90_def_dim(ncid, 'nkbio', nzblyr, kmtidb), &
+                    'def dim nkbio')
+        call check(nf90_def_dim(ncid, 'time', NF90_UNLIMITED, timid), &
+                    'def dim time')
+        call check(nf90_def_dim(ncid, 'nvertices', nverts, nvertexid), &
+                    'def dim nverts')
 
         !-----------------------------------------------------------------
         ! define coordinate variables
         !-----------------------------------------------------------------
 
-        status = nf90_def_var(ncid,'time',nf90_float,timid,varid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error defining var time')
-        status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                      deflate_level)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error deflating var time')
+        call check(nf90_def_var(ncid,'time',nf90_float,timid,varid), &
+                      'def var time')
+        call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                        deflate_level), &
+                    'deflate var time')
 
-        status = nf90_put_att(ncid,varid,'long_name','model time')
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: time long_name')
+        call check(nf90_put_att(ncid,varid,'long_name','model time'), &
+                    'put_att long_name')
 
         write(cdate,'(i8.8)') idate0
         write(title,'(a,a,a,a,a,a,a,a)') 'days since ', &
               cdate(1:4),'-',cdate(5:6),'-',cdate(7:8),' 00:00:00'
-        status = nf90_put_att(ncid,varid,'units',title)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: time units')
+        call check(nf90_put_att(ncid,varid,'units',title), &
+                    'put_att time units')
 
         if (days_per_year == 360) then
             status = nf90_put_att(ncid,varid,'calendar','360_day')
@@ -1078,22 +1056,15 @@ subroutine ice_write_hist (ns)
     !-----------------------------------------------------------------
 
     if (igrd(n_tmask)) then
-        status = nf90_inq_varid(ncid, 'tmask', varid)
-        if (status /= nf90_noerr) call abort_ice( &
-                            'ice: Error getting varid for tmask')
-
-        if (do_parallel_io) then
-            do nb=1, nblocks
-                status = nf90_put_vara_float(ncid, varid, start, count, hm)
-            enddo
-        else
-            call gather_global(work_g1, hm, master_task, distrb_info)
-            if (my_task == master_task) then
-                work_gr = work_g1
-                status = nf90_put_var(ncid,varid,work_gr)
-                if (status /= nf90_noerr) call abort_ice( &
-                            'ice: Error writing variable tmask')
-            endif
+        call gather_global(work_g1, hm, master_task, distrb_info)
+        if (my_task == master_task) then
+            work_gr = work_g1
+            status = nf90_inq_varid(ncid, 'tmask', varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                                'ice: Error getting varid for tmask')
+            status = nf90_put_var(ncid,varid,work_gr)
+            if (status /= nf90_noerr) call abort_ice( &
+                        'ice: Error writing variable tmask')
         endif
     endif
 
@@ -1419,6 +1390,16 @@ subroutine ice_write_hist (ns)
 #endif
 
 end subroutine ice_write_hist
+
+subroutine check(status, msg)
+    integer, intent (in) :: status
+    character(len=*), intent (in) :: msg
+
+    if(status /= nf90_noerr) then
+        call abort_ice('ice: NetCDF error '//trim(nf90_strerror(status)//' '//trim(msg)))
+    end if
+end subroutine check
+
 
 !=======================================================================
 
