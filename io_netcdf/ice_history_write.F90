@@ -20,13 +20,14 @@
 module ice_history_write
 
     use netcdf
+    use mpi, only: MPI_INFO_NULL, MPI_COMM_WORLD
 
     use ice_kinds_mod
     use ice_constants, only: c0, c360, secday, spval, rad_to_deg
     use ice_blocks, only: nx_block, ny_block, block, get_block
     use ice_exit, only: abort_ice
     use ice_domain, only: distrb_info, nblocks, blocks_ice
-    use ice_communicate, only: my_task, master_task
+    use ice_communicate, only: my_task, master_task, MPI_COMM_ICE
     use ice_broadcast, only: broadcast_scalar
     use ice_gather_scatter, only: gather_global
     use ice_domain_size, only: nx_global, ny_global, max_nstrm, max_blocks
@@ -35,6 +36,8 @@ module ice_history_write
         lont_bounds, latt_bounds, lonu_bounds, latu_bounds
     use ice_history_shared
     use ice_itd, only: hin_max
+    use ice_calendar, only: write_ic, histfreq
+
 
     implicit none
     private
@@ -73,8 +76,8 @@ module ice_history_write
 subroutine ice_write_hist (ns)
 
 #ifdef ncdf
-    use ice_calendar, only: time, sec, idate, idate0, write_ic, &
-        histfreq, dayyr, days_per_year, use_leap_years
+    use ice_calendar, only: time, sec, idate, idate0, &
+        dayyr, days_per_year, use_leap_years
     use ice_fileunits, only: nu_diag
     use ice_restart_shared, only: runid
 #endif
@@ -117,7 +120,7 @@ subroutine ice_write_hist (ns)
 
     logical :: do_parallel_io
 
-    do_parallel_io = .false.
+    do_parallel_io = .true.
 
     ! We leave shuffle at 0, this is only useful for integer data.
     shuffle = 0
@@ -147,7 +150,8 @@ subroutine ice_write_hist (ns)
 
         ! create file
         if (do_parallel_io) then
-            call check(nf90_create(ncfile(ns), ior(NF90_NETCDF4, NF90_MPIIO), ncid), &
+            call check(nf90_create(ncfile(ns), ior(NF90_NETCDF4, NF90_MPIIO), ncid, &
+                                   comm=MPI_COMM_ICE, info=MPI_INFO_NULL), &
                         'create history ncfile '//ncfile(ns))
         else
             call check(nf90_create(ncfile(ns), ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid), &
@@ -174,7 +178,7 @@ subroutine ice_write_hist (ns)
                     'def dim nksnow')
         call check(nf90_def_dim(ncid, 'nkbio', nzblyr, kmtidb), &
                     'def dim nkbio')
-        call check(nf90_def_dim(ncid, 'time', NF90_UNLIMITED, timid), &
+        call check(nf90_def_dim(ncid, 'time', 1, timid), &
                     'def dim time')
         call check(nf90_def_dim(ncid, 'nvertices', nverts, nvertexid), &
                     'def dim nverts')
@@ -185,10 +189,6 @@ subroutine ice_write_hist (ns)
 
         call check(nf90_def_var(ncid,'time',nf90_float,timid,varid), &
                       'def var time')
-        call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                        deflate_level), &
-                    'deflate var time')
-
         call check(nf90_put_att(ncid,varid,'long_name','model time'), &
                     'put_att long_name')
 
@@ -232,11 +232,6 @@ subroutine ice_write_hist (ns)
             if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error defining var time_bounds')
 
-            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                        deflate_level)
-            if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error deflating var time_bounds')
-
             status = nf90_put_att(ncid,varid,'long_name', &
                                 'boundaries for time-averaging interval')
             if (status /= nf90_noerr) call abort_ice( &
@@ -249,84 +244,84 @@ subroutine ice_write_hist (ns)
                         'ice Error: time_bounds units')
         endif
 
-      !-----------------------------------------------------------------
-      ! define information for required time-invariant variables
-      !-----------------------------------------------------------------
+        !-----------------------------------------------------------------
+        ! define information for required time-invariant variables
+        !-----------------------------------------------------------------
 
-      ind = 0
-      ind = ind + 1
-      coord_var(ind) = coord_attributes('TLON', &
-                       'T grid center longitude', 'degrees_east')
-      coord_bounds(ind) = 'lont_bounds'
-      ind = ind + 1
-      coord_var(ind) = coord_attributes('TLAT', &
-                       'T grid center latitude',  'degrees_north')
-      coord_bounds(ind) = 'latt_bounds'
-      ind = ind + 1
-      coord_var(ind) = coord_attributes('ULON', &
-                       'U grid center longitude', 'degrees_east')
-      coord_bounds(ind) = 'lonu_bounds'
-      ind = ind + 1
-      coord_var(ind) = coord_attributes('ULAT', &
-                       'U grid center latitude',  'degrees_north')
-      coord_bounds(ind) = 'latu_bounds'
+        ind = 0
+        ind = ind + 1
+        coord_var(ind) = coord_attributes('TLON', &
+                         'T grid center longitude', 'degrees_east')
+        coord_bounds(ind) = 'lont_bounds'
+        ind = ind + 1
+        coord_var(ind) = coord_attributes('TLAT', &
+                         'T grid center latitude',  'degrees_north')
+        coord_bounds(ind) = 'latt_bounds'
+        ind = ind + 1
+        coord_var(ind) = coord_attributes('ULON', &
+                         'U grid center longitude', 'degrees_east')
+        coord_bounds(ind) = 'lonu_bounds'
+        ind = ind + 1
+        coord_var(ind) = coord_attributes('ULAT', &
+                         'U grid center latitude',  'degrees_north')
+        coord_bounds(ind) = 'latu_bounds'
 
-      var_nz(1) = coord_attributes('NCAT', 'category maximum thickness', 'm')
-      var_nz(2) = coord_attributes('VGRDi', 'vertical ice levels', '1')
-      var_nz(3) = coord_attributes('VGRDs', 'vertical snow levels', '1')
-      var_nz(4) = coord_attributes('VGRDb', 'vertical ice-bio levels', '1')
+        var_nz(1) = coord_attributes('NCAT', 'category maximum thickness', 'm')
+        var_nz(2) = coord_attributes('VGRDi', 'vertical ice levels', '1')
+        var_nz(3) = coord_attributes('VGRDs', 'vertical snow levels', '1')
+        var_nz(4) = coord_attributes('VGRDb', 'vertical ice-bio levels', '1')
 
-      !-----------------------------------------------------------------
-      ! define information for optional time-invariant variables
-      !-----------------------------------------------------------------
+        !-----------------------------------------------------------------
+        ! define information for optional time-invariant variables
+        !-----------------------------------------------------------------
 
-      var(n_tarea)%req = coord_attributes('tarea', &
-                  'area of T grid cells', 'm^2')
-      var(n_tarea)%coordinates = 'TLON TLAT'
-      var(n_uarea)%req = coord_attributes('uarea', &
-                  'area of U grid cells', 'm^2')
-      var(n_uarea)%coordinates = 'ULON ULAT'
-      var(n_dxt)%req = coord_attributes('dxt', &
-                  'T cell width through middle', 'm')
-      var(n_dxt)%coordinates = 'TLON TLAT'
-      var(n_dyt)%req = coord_attributes('dyt', &
-                  'T cell height through middle', 'm')
-      var(n_dyt)%coordinates = 'TLON TLAT'
-      var(n_dxu)%req = coord_attributes('dxu', &
-                  'U cell width through middle', 'm')
-      var(n_dxu)%coordinates = 'ULON ULAT'
-      var(n_dyu)%req = coord_attributes('dyu', &
-                  'U cell height through middle', 'm')
-      var(n_dyu)%coordinates = 'ULON ULAT'
-      var(n_HTN)%req = coord_attributes('HTN', &
-                  'T cell width on North side','m')
-      var(n_HTN)%coordinates = 'TLON TLAT'
-      var(n_HTE)%req = coord_attributes('HTE', &
-                  'T cell width on East side', 'm')
-      var(n_HTE)%coordinates = 'TLON TLAT'
-      var(n_ANGLE)%req = coord_attributes('ANGLE', &
-                  'angle grid makes with latitude line on U grid', &
-                  'radians')
-      var(n_ANGLE)%coordinates = 'ULON ULAT'
-      var(n_ANGLET)%req = coord_attributes('ANGLET', &
-                  'angle grid makes with latitude line on T grid', &
-                  'radians')
-      var(n_ANGLET)%coordinates = 'TLON TLAT'
+        var(n_tarea)%req = coord_attributes('tarea', &
+                    'area of T grid cells', 'm^2')
+        var(n_tarea)%coordinates = 'TLON TLAT'
+        var(n_uarea)%req = coord_attributes('uarea', &
+                    'area of U grid cells', 'm^2')
+        var(n_uarea)%coordinates = 'ULON ULAT'
+        var(n_dxt)%req = coord_attributes('dxt', &
+                    'T cell width through middle', 'm')
+        var(n_dxt)%coordinates = 'TLON TLAT'
+        var(n_dyt)%req = coord_attributes('dyt', &
+                    'T cell height through middle', 'm')
+        var(n_dyt)%coordinates = 'TLON TLAT'
+        var(n_dxu)%req = coord_attributes('dxu', &
+                    'U cell width through middle', 'm')
+        var(n_dxu)%coordinates = 'ULON ULAT'
+        var(n_dyu)%req = coord_attributes('dyu', &
+                    'U cell height through middle', 'm')
+        var(n_dyu)%coordinates = 'ULON ULAT'
+        var(n_HTN)%req = coord_attributes('HTN', &
+                    'T cell width on North side','m')
+        var(n_HTN)%coordinates = 'TLON TLAT'
+        var(n_HTE)%req = coord_attributes('HTE', &
+                    'T cell width on East side', 'm')
+        var(n_HTE)%coordinates = 'TLON TLAT'
+        var(n_ANGLE)%req = coord_attributes('ANGLE', &
+                    'angle grid makes with latitude line on U grid', &
+                    'radians')
+        var(n_ANGLE)%coordinates = 'ULON ULAT'
+        var(n_ANGLET)%req = coord_attributes('ANGLET', &
+                    'angle grid makes with latitude line on T grid', &
+                    'radians')
+        var(n_ANGLET)%coordinates = 'TLON TLAT'
 
-      ! These fields are required for CF compliance
-      ! dimensions (nx,ny,nverts)
-      var_nverts(n_lont_bnds) = coord_attributes('lont_bounds', &
-                  'longitude boundaries of T cells', 'degrees_east')
-      var_nverts(n_latt_bnds) = coord_attributes('latt_bounds', &
-                  'latitude boundaries of T cells', 'degrees_north')
-      var_nverts(n_lonu_bnds) = coord_attributes('lonu_bounds', &
-                  'longitude boundaries of U cells', 'degrees_east')
-      var_nverts(n_latu_bnds) = coord_attributes('latu_bounds', &
-                  'latitude boundaries of U cells', 'degrees_north')
+        ! These fields are required for CF compliance
+        ! dimensions (nx,ny,nverts)
+        var_nverts(n_lont_bnds) = coord_attributes('lont_bounds', &
+                    'longitude boundaries of T cells', 'degrees_east')
+        var_nverts(n_latt_bnds) = coord_attributes('latt_bounds', &
+                    'latitude boundaries of T cells', 'degrees_north')
+        var_nverts(n_lonu_bnds) = coord_attributes('lonu_bounds', &
+                    'longitude boundaries of U cells', 'degrees_east')
+        var_nverts(n_latu_bnds) = coord_attributes('latu_bounds', &
+                    'latitude boundaries of U cells', 'degrees_north')
 
-      !-----------------------------------------------------------------
-      ! define attributes for time-invariant variables
-      !-----------------------------------------------------------------
+        !-----------------------------------------------------------------
+        ! define attributes for time-invariant variables
+        !-----------------------------------------------------------------
 
         dimid(1) = imtid
         dimid(2) = jmtid
@@ -352,9 +347,10 @@ subroutine ice_write_hist (ns)
           status = nf90_put_att(ncid,varid,'missing_value',spval)
           if (status /= nf90_noerr) call abort_ice( &
              'Error defining missing_value for '//coord_var(i)%short_name)
-          status = nf90_put_att(ncid,varid,'_FillValue',spval)
-          if (status /= nf90_noerr) call abort_ice( &
-             'Error defining _FillValue for '//coord_var(i)%short_name)
+
+          call check(nf90_put_att(ncid, varid, '_FillValue', spval), &
+                        'put att _FillValue for '//coord_var(i)%short_name)
+
           if (coord_var(i)%short_name == 'ULAT') then
              status = nf90_put_att(ncid,varid,'comment', &
                   'Latitude of NE corner of T grid cell')
@@ -366,7 +362,9 @@ subroutine ice_write_hist (ns)
               if (status /= nf90_noerr) call abort_ice( &
                   'Error defining bounds for '//coord_var(i)%short_name)
           endif
+
         enddo
+
 
         ! Extra dimensions (NCAT, NZILYR, NZSLYR, NZBLYR)
         dimidex(1)=cmtid
@@ -955,11 +953,7 @@ subroutine ice_write_hist (ns)
         ! end define mode
         !-----------------------------------------------------------------
 
-        status = nf90_enddef(ncid)
-        if (status /= nf90_noerr) then
-            call abort_ice('ice: Error in nf90_enddef: '// &
-                            trim(nf90_strerror(status)))
-        endif
+        call check(nf90_enddef(ncid), 'enddef')
 
         !-----------------------------------------------------------------
         ! write time variable
@@ -989,18 +983,6 @@ subroutine ice_write_hist (ns)
         endif
     endif                     ! master_task or do_parallel_io
 
-    if (.not. do_parallel_io) then
-        if (my_task == master_task) then
-            allocate(work_g1(nx_global,ny_global))
-            allocate(work_gr(nx_global,ny_global))
-        else
-            allocate(work_gr(1,1))   ! to save memory
-            allocate(work_g1(1,1))
-        endif
-
-        work_g1(:,:) = c0
-    endif
-
     !-----------------------------------------------------------------
     ! write coordinate variables
     !-----------------------------------------------------------------
@@ -1015,155 +997,30 @@ subroutine ice_write_hist (ns)
     ! write grid masks, area and rotation angle
     !-----------------------------------------------------------------
 
-    if (igrd(n_tmask)) then
-        call gather_global(work_g1, hm, master_task, distrb_info)
-        if (my_task == master_task) then
-            work_gr = work_g1
-            status = nf90_inq_varid(ncid, 'tmask', varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                                'ice: Error getting varid for tmask')
-            status = nf90_put_var(ncid,varid,work_gr)
-            if (status /= nf90_noerr) call abort_ice( &
-                        'ice: Error writing variable tmask')
-        endif
+    if (do_parallel_io) then
+        call write_grid_variables_parallel(ncid, var, var_nverts)
+    else
+        call write_grid_variables(ncid, var, var_nverts)
     endif
 
-    if (igrd(n_blkmask)) then
-        call gather_global(work_g1, bm, master_task, distrb_info)
-        if (my_task == master_task) then
-            work_gr=work_g1
-            status = nf90_inq_varid(ncid, 'blkmask', varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error getting varid for blkmask')
-            status = nf90_put_var(ncid,varid,work_gr)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error writing variable blkmask')
-        endif
-    endif
-
-    do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
-        if (igrd(i)) then
-            call broadcast_scalar(var(i)%req%short_name,master_task)
-            SELECT CASE (var(i)%req%short_name)
-            CASE ('tarea')
-                call gather_global(work_g1, tarea, master_task, distrb_info)
-            CASE ('uarea')
-                call gather_global(work_g1, uarea, master_task, distrb_info)
-            CASE ('dxu')
-                call gather_global(work_g1,   dxu, master_task, distrb_info)
-            CASE ('dyu')
-              call gather_global(work_g1,   dyu, master_task, distrb_info)
-            CASE ('dxt')
-              call gather_global(work_g1,   dxt, master_task, distrb_info)
-            CASE ('dyt')
-              call gather_global(work_g1,   dyt, master_task, distrb_info)
-            CASE ('HTN')
-              call gather_global(work_g1,   HTN, master_task, distrb_info)
-            CASE ('HTE')
-              call gather_global(work_g1,   HTE, master_task, distrb_info)
-            CASE ('ANGLE')
-              call gather_global(work_g1, ANGLE, master_task, distrb_info)
-            CASE ('ANGLET')
-              call gather_global(work_g1, ANGLET,master_task, distrb_info)
-            END SELECT
-
-            if (my_task == master_task) then
-              work_gr=work_g1
-              status = nf90_inq_varid(ncid, var(i)%req%short_name, varid)
-              if (status /= nf90_noerr) call abort_ice( &
-                            'ice: Error getting varid for '//var(i)%req%short_name)
-              status = nf90_put_var(ncid,varid,work_gr)
-              if (status /= nf90_noerr) call abort_ice( &
-                            'ice: Error writing variable '//var(i)%req%short_name)
-            endif
-        endif
-    enddo
-
-    deallocate(work_gr)
-
-    !----------------------------------------------------------------
-    ! Write coordinates of grid box vertices
-    !----------------------------------------------------------------
-
-    if (f_bounds) then
-        if (my_task==master_task) then
-           allocate(work_gr3(nverts,nx_global,ny_global))
-        else
-           allocate(work_gr3(1,1,1))   ! to save memory
-        endif
-
-        work_gr3(:,:,:) = c0
-        work1   (:,:,:) = c0
-
-        do i = 1, nvar_verts
-            call broadcast_scalar(var_nverts(i)%short_name,master_task)
-            SELECT CASE (var_nverts(i)%short_name)
-            CASE ('lont_bounds')
-                do ivertex = 1, nverts
-                    work1(:,:,:) = lont_bounds(ivertex,:,:,:)
-                    call gather_global(work_g1, work1, master_task, distrb_info)
-                    if (my_task == master_task) work_gr3(ivertex,:,:) = work_g1(:,:)
-                enddo
-            CASE ('latt_bounds')
-                do ivertex = 1, nverts
-                    work1(:,:,:) = latt_bounds(ivertex,:,:,:)
-                    call gather_global(work_g1, work1, master_task, distrb_info)
-                    if (my_task == master_task) work_gr3(ivertex,:,:) = work_g1(:,:)
-                enddo
-            CASE ('lonu_bounds')
-                do ivertex = 1, nverts
-                    work1(:,:,:) = lonu_bounds(ivertex,:,:,:)
-                    call gather_global(work_g1, work1, master_task, distrb_info)
-                    if (my_task == master_task) work_gr3(ivertex,:,:) = work_g1(:,:)
-                enddo
-            CASE ('latu_bounds')
-                do ivertex = 1, nverts
-                    work1(:,:,:) = latu_bounds(ivertex,:,:,:)
-                    call gather_global(work_g1, work1, master_task, distrb_info)
-                    if (my_task == master_task) work_gr3(ivertex,:,:) = work_g1(:,:)
-                enddo
-            END SELECT
-
-            if (my_task == master_task) then
-                status = nf90_inq_varid(ncid, var_nverts(i)%short_name, varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'ice: Error getting varid for '//var_nverts(i)%short_name)
-                status = nf90_put_var(ncid,varid,work_gr3)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'ice: Error writing variable '//var_nverts(i)%short_name)
-            endif
-        enddo
-        deallocate(work_gr3)
-    endif
 
     !-----------------------------------------------------------------
-    ! write variable data
+    ! write 2d variable data
     !-----------------------------------------------------------------
 
-    if (my_task==master_task) then
+    if (do_parallel_io) then
+        call write_2d_variables_parallel(ns, ncid)
+    else
+        call write_2d_variables(ns, ncid)
+    endif
+
+    if (my_task == master_task) then
+       allocate(work_g1(nx_global,ny_global))
        allocate(work_gr(nx_global,ny_global))
     else
+       allocate(work_g1(1,1))
        allocate(work_gr(1,1))     ! to save memory
     endif
-    work_gr(:,:) = c0
-    work_g1(:,:) = c0
-
-    do n=1,num_avail_hist_fields_2D
-        if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-            call gather_global(work_g1, a2D(:,:,n,:), &
-                               master_task, distrb_info)
-            if (my_task == master_task) then
-                work_gr(:,:) = work_g1(:,:)
-                status  = nf90_inq_varid(ncid,avail_hist_fields(n)%vname,varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'ice: Error getting varid for '//avail_hist_fields(n)%vname)
-                status  = nf90_put_var(ncid,varid,work_gr(:,:), &
-                                       count=(/nx_global,ny_global/))
-                if (status /= nf90_noerr) call abort_ice( &
-                   'ice: Error writing variable '//avail_hist_fields(n)%vname)
-            endif
-        endif
-    enddo ! num_avail_hist_fields_2D
 
     work_gr(:,:) = c0
     work_g1(:,:) = c0
@@ -1340,7 +1197,7 @@ subroutine ice_write_hist (ns)
     ! close output dataset
     !-----------------------------------------------------------------
 
-    if (my_task == master_task) then
+    if (my_task == master_task .or. do_parallel_io) then
         status = nf90_close(ncid)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error closing netCDF history file')
@@ -1455,12 +1312,8 @@ subroutine write_coordinate_variables_parallel(ncid, coord_var, var_nz)
     type(coord_attributes), dimension(nvarz) :: var_nz
 
     integer :: varid
-    integer :: iblk, i, k, ilo, jlo
-    integer, dimension(2) :: start, count
+    integer :: iblk, i, k
     real(kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: work1
-
-    integer(kind=int_kind), dimension(:), pointer :: i_glob, j_glob
-    type(block) :: the_block
 
     do i = 1,ncoord
         SELECT CASE (coord_var(i)%short_name)
@@ -1479,18 +1332,7 @@ subroutine write_coordinate_variables_parallel(ncid, coord_var, var_nz)
 
         call check(nf90_inq_varid(ncid, coord_var(i)%short_name, varid), &
                     'inq varid '//coord_var(i)%short_name)
-
-        do iblk=1, nblocks
-            the_block = get_block(blocks_ice(iblk), iblk)
-            ilo = the_block%i_glob(the_block%ilo)
-            jlo = the_block%j_glob(the_block%jlo)
-
-            start = (/ ilo, jlo /) 
-            count = (/ nx_block, ny_block /)
-            call check(nf90_put_var(ncid, varid, work1(:, :, iblk), &
-                                    start=start, count=count), &
-                       'put '//coord_var(i)%short_name)
-        enddo
+        call put_2d_with_blocks(ncid, varid, coord_var(i)%short_name, work1)
     enddo
 
     ! Extra dimensions (NCAT, VGRD*)
@@ -1516,5 +1358,319 @@ subroutine write_coordinate_variables_parallel(ncid, coord_var, var_nz)
     enddo
 
 end subroutine write_coordinate_variables_parallel
+
+
+subroutine write_grid_variables(ncid, var, var_nverts)
+
+    integer, intent(in) :: ncid
+    type(req_attributes), dimension(nvar), intent(in) :: var
+    type(coord_attributes), dimension(nvar_verts), intent(in) :: var_nverts
+
+    real (kind=dbl_kind),  dimension(:,:), allocatable :: work_g1
+    real (kind=real_kind), dimension(:,:), allocatable :: work_gr
+    real (kind=real_kind), dimension(:,:, :), allocatable :: work_gr3
+    real (kind=dbl_kind),  dimension(nx_block,ny_block,max_blocks) :: work1
+
+    integer :: ivertex, i, status
+    integer :: varid
+    character (len=len(var(1)%req%short_name)) :: var_name
+    character (len=len(var_nverts(1)%short_name)) :: var_nverts_name
+
+    if (my_task == master_task) then
+        allocate(work_g1(nx_global,ny_global))
+        allocate(work_gr(nx_global,ny_global))
+        allocate(work_gr3(nverts,nx_global,ny_global))
+    else
+        allocate(work_g1(1,1))
+        allocate(work_gr(1,1))   ! to save memory
+        allocate(work_gr3(1,1,1))
+    endif
+
+    work_g1(:,:) = c0
+    work_gr(:,:) = c0
+    work_gr3(:,:,:) = c0
+
+    if (igrd(n_tmask)) then
+        call gather_global(work_g1, hm, master_task, distrb_info)
+        if (my_task == master_task) then
+            work_gr = work_g1
+            status = nf90_inq_varid(ncid, 'tmask', varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                                'ice: Error getting varid for tmask')
+            status = nf90_put_var(ncid,varid,work_gr)
+            if (status /= nf90_noerr) call abort_ice( &
+                        'ice: Error writing variable tmask')
+        endif
+    endif
+
+    if (igrd(n_blkmask)) then
+        call gather_global(work_g1, bm, master_task, distrb_info)
+        if (my_task == master_task) then
+            work_gr=work_g1
+            status = nf90_inq_varid(ncid, 'blkmask', varid)
+            if (status /= nf90_noerr) call abort_ice( &
+                          'ice: Error getting varid for blkmask')
+            status = nf90_put_var(ncid,varid,work_gr)
+            if (status /= nf90_noerr) call abort_ice( &
+                          'ice: Error writing variable blkmask')
+        endif
+    endif
+
+    do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
+        if (igrd(i)) then
+            var_name = var(i)%req%short_name
+
+            call broadcast_scalar(var_name,master_task)
+            SELECT CASE (var_name)
+            CASE ('tarea')
+                call gather_global(work_g1, tarea, master_task, distrb_info)
+            CASE ('uarea')
+                call gather_global(work_g1, uarea, master_task, distrb_info)
+            CASE ('dxu')
+                call gather_global(work_g1,   dxu, master_task, distrb_info)
+            CASE ('dyu')
+              call gather_global(work_g1,   dyu, master_task, distrb_info)
+            CASE ('dxt')
+              call gather_global(work_g1,   dxt, master_task, distrb_info)
+            CASE ('dyt')
+              call gather_global(work_g1,   dyt, master_task, distrb_info)
+            CASE ('HTN')
+              call gather_global(work_g1,   HTN, master_task, distrb_info)
+            CASE ('HTE')
+              call gather_global(work_g1,   HTE, master_task, distrb_info)
+            CASE ('ANGLE')
+              call gather_global(work_g1, ANGLE, master_task, distrb_info)
+            CASE ('ANGLET')
+              call gather_global(work_g1, ANGLET,master_task, distrb_info)
+            END SELECT
+
+            if (my_task == master_task) then
+              work_gr=work_g1
+              status = nf90_inq_varid(ncid, var_name, varid)
+              if (status /= nf90_noerr) call abort_ice( &
+                            'ice: Error getting varid for '//var_name)
+              status = nf90_put_var(ncid,varid,work_gr)
+              if (status /= nf90_noerr) call abort_ice( &
+                            'ice: Error writing variable '//var_name)
+            endif
+        endif
+    enddo
+
+    !----------------------------------------------------------------
+    ! Write coordinates of grid box vertices
+    !----------------------------------------------------------------
+
+    if (f_bounds) then
+        if (my_task==master_task) then
+           allocate(work_gr3(nverts,nx_global,ny_global))
+        else
+           allocate(work_gr3(1,1,1))   ! to save memory
+        endif
+
+        work_gr3(:,:,:) = c0
+        work1   (:,:,:) = c0
+
+        do i = 1, nvar_verts
+            var_nverts_name = var_nverts(i)%short_name
+            call broadcast_scalar(var_nverts_name,master_task)
+            SELECT CASE (var_nverts_name)
+            CASE ('lont_bounds')
+                do ivertex = 1, nverts
+                    work1(:,:,:) = lont_bounds(ivertex,:,:,:)
+                    call gather_global(work_g1, work1, master_task, distrb_info)
+                    if (my_task == master_task) work_gr3(ivertex,:,:) = work_g1(:,:)
+                enddo
+            CASE ('latt_bounds')
+                do ivertex = 1, nverts
+                    work1(:,:,:) = latt_bounds(ivertex,:,:,:)
+                    call gather_global(work_g1, work1, master_task, distrb_info)
+                    if (my_task == master_task) work_gr3(ivertex,:,:) = work_g1(:,:)
+                enddo
+            CASE ('lonu_bounds')
+                do ivertex = 1, nverts
+                    work1(:,:,:) = lonu_bounds(ivertex,:,:,:)
+                    call gather_global(work_g1, work1, master_task, distrb_info)
+                    if (my_task == master_task) work_gr3(ivertex,:,:) = work_g1(:,:)
+                enddo
+            CASE ('latu_bounds')
+                do ivertex = 1, nverts
+                    work1(:,:,:) = latu_bounds(ivertex,:,:,:)
+                    call gather_global(work_g1, work1, master_task, distrb_info)
+                    if (my_task == master_task) work_gr3(ivertex,:,:) = work_g1(:,:)
+                enddo
+            END SELECT
+
+            if (my_task == master_task) then
+                status = nf90_inq_varid(ncid, var_nverts_name, varid)
+                if (status /= nf90_noerr) call abort_ice( &
+                   'ice: Error getting varid for '//var_nverts_name)
+                status = nf90_put_var(ncid,varid,work_gr3)
+                if (status /= nf90_noerr) call abort_ice( &
+                   'ice: Error writing variable '//var_nverts_name)
+            endif
+        enddo
+        deallocate(work_gr3)
+    endif
+
+    deallocate(work_g1)
+    deallocate(work_gr)
+    deallocate(work_gr3)
+
+end subroutine write_grid_variables
+
+
+subroutine write_grid_variables_parallel(ncid, var, var_nverts)
+
+    integer, intent(in) :: ncid
+    type(req_attributes), dimension(nvar), intent(in) :: var
+    type(coord_attributes), dimension(nvar_verts), intent(in) :: var_nverts
+
+    real (kind=dbl_kind),  dimension(nx_block,ny_block,max_blocks) :: work1
+
+    integer :: ivertex, i
+    integer :: varid
+
+    if (igrd(n_tmask)) then
+        call check(nf90_inq_varid(ncid, 'tmask', varid), 'inq var for tmask')
+        call put_2d_with_blocks(ncid, varid, 'tmask', hm)
+    endif
+
+    if (igrd(n_blkmask)) then
+        call check(nf90_inq_varid(ncid, 'blkmask', varid), 'inq var for blkmask')
+        call put_2d_with_blocks(ncid, varid, 'blkmask', bm)
+    endif
+
+    do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
+        if (igrd(i)) then
+            SELECT CASE (var(i)%req%short_name)
+            CASE ('tarea')
+                work1 = tarea
+            CASE ('uarea')
+                work1 = uarea
+            CASE ('dxu')
+                work1 = dxu
+            CASE ('dyu')
+                work1 = dyu
+            CASE ('dxt')
+                work1 = dxt
+            CASE ('dyt')
+                work1 = dyt
+            CASE ('HTN')
+                work1 = HTN
+            CASE ('HTE')
+                work1 = HTE
+            CASE ('ANGLE')
+                work1 = ANGLE
+            CASE ('ANGLET')
+                work1 = ANGLET
+            END SELECT
+
+            call check(nf90_inq_varid(ncid, var(i)%req%short_name, varid), &
+                        'inq var '//var(i)%req%short_name)
+            call put_2d_with_blocks(ncid, varid, var(i)%req%short_name, work1)
+        endif
+    enddo
+
+    !----------------------------------------------------------------
+    ! Write coordinates of grid box vertices
+    ! FIXME: do this
+    !----------------------------------------------------------------
+
+end subroutine write_grid_variables_parallel
+
+subroutine write_2d_variables(ns, ncid)
+
+    integer, intent(in) :: ns
+    integer, intent(in) :: ncid
+
+    real (kind=dbl_kind),  dimension(:,:), allocatable :: work_g1
+    real (kind=real_kind), dimension(:,:), allocatable :: work_gr
+
+    integer :: n, status
+    integer :: varid
+
+    if (my_task == master_task) then
+       allocate(work_g1(nx_global,ny_global))
+       allocate(work_gr(nx_global,ny_global))
+    else
+       allocate(work_g1(1,1))
+       allocate(work_gr(1,1))     ! to save memory
+    endif
+
+    work_gr(:,:) = c0
+    work_g1(:,:) = c0
+
+    do n=1, num_avail_hist_fields_2D
+        if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            call gather_global(work_g1, a2D(:,:,n,:), &
+                               master_task, distrb_info)
+            if (my_task == master_task) then
+                work_gr(:,:) = work_g1(:,:)
+                status  = nf90_inq_varid(ncid,avail_hist_fields(n)%vname,varid)
+                if (status /= nf90_noerr) call abort_ice( &
+                   'ice: Error getting varid for '//avail_hist_fields(n)%vname)
+                status  = nf90_put_var(ncid,varid,work_gr(:,:), &
+                                       count=(/nx_global,ny_global/))
+                if (status /= nf90_noerr) call abort_ice( &
+                   'ice: Error writing variable '//avail_hist_fields(n)%vname)
+            endif
+        endif
+    enddo ! num_avail_hist_fields_2D
+
+    deallocate(work_g1)
+    deallocate(work_gr)
+
+end subroutine write_2d_variables
+
+subroutine write_2d_variables_parallel(ns, ncid)
+
+    integer, intent(in) :: ns
+    integer, intent(in) :: ncid
+
+    integer :: varid
+    integer :: n
+
+    do n=1, num_avail_hist_fields_2D
+        if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
+            call check(nf90_inq_varid(ncid, avail_hist_fields(n)%vname, varid), &
+                            'inq varid '//avail_hist_fields(n)%vname)
+            call put_2d_with_blocks(ncid, varid, avail_hist_fields(n)%vname, &
+                                    a2D(:, :, n, :))
+        endif
+    enddo ! num_avail_hist_fields_2D
+
+end subroutine write_2d_variables_parallel
+
+subroutine put_2d_with_blocks(ncid, varid, var_name, data)
+
+    integer, intent(in) :: ncid, varid
+    character(len=*), intent(in) :: var_name
+    real(kind=dbl_kind), dimension(nx_block, ny_block, nblocks), intent(in) :: data
+
+    integer :: iblk
+    integer :: ilo, jlo, ihi, jhi, gilo, gjlo, gihi, gjhi
+    integer, dimension(2) :: start, count
+    type(block) :: the_block
+
+    do iblk=1, nblocks
+        the_block = get_block(blocks_ice(iblk), iblk)
+        ilo = the_block%ilo
+        jlo = the_block%jlo
+        ihi = the_block%ihi
+        jhi = the_block%jhi
+
+        gilo = the_block%i_glob(ilo)
+        gjlo = the_block%j_glob(jlo)
+        gihi = the_block%i_glob(ihi)
+        gjhi = the_block%j_glob(jhi)
+
+        start = (/ gilo, gjlo /)
+        count = (/ gihi - gilo + 1, gjhi - gjlo + 1 /)
+        call check(nf90_put_var(ncid, varid, data(ilo:ihi, jlo:jhi, iblk), &
+                                start=start, count=count), &
+                    'put '//trim(var_name))
+    enddo
+
+end subroutine put_2d_with_blocks
 
 end module ice_history_write
