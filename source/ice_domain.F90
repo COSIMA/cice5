@@ -270,7 +270,7 @@
       max_work_unit=10    ! quantize the work into values from 1,max
 
    integer (int_kind) :: &
-      i,j,n              ,&! dummy loop indices
+      i,j,n,p            ,&! dummy loop indices
       ig,jg              ,&! global indices
       work_unit          ,&! size of quantized work unit
       tblocks_tmp        ,&! total number of blocks
@@ -283,6 +283,10 @@
 
    type (block) :: &
       this_block           ! block information for current block
+
+    ! The number of extra blocks that need to be added so that each PE
+    ! has an equal number.
+    integer (int_kind) :: num_padding_blocks, num_work_blocks
 
 !----------------------------------------------------------------------
 !
@@ -431,6 +435,29 @@
      work_per_block = 0
    end where
    deallocate(nocn)
+
+  ! Make sure that each PE has the same number of blocks. This is for the
+  ! collective writes needed for parallel, compressed netcdf output.
+  ! Calculate the number of padding blocks needed.
+  num_work_blocks = count(work_per_block /= 0)
+  num_padding_blocks = ceiling(real(num_work_blocks) / real(nprocs))*nprocs - num_work_blocks
+
+  ! Add padding blocks
+  p = 0
+  do n=1, nblocks_tot
+    if (p >= num_padding_blocks) then
+        exit
+    elseif (work_per_block(n) == 0) then
+        work_per_block(n) = 1
+        p = p + 1
+    endif
+  enddo
+
+  if (p /= num_padding_blocks) then
+    call abort_ice("ice: can't assign work to pad blocks")
+  endif
+
+  ! FIXME: use collective below to make sure that all PEs have the same number of blocks
 
 !----------------------------------------------------------------------
 !

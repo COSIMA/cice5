@@ -153,6 +153,7 @@ subroutine ice_write_hist (ns)
             call check(nf90_create(ncfile(ns), ior(NF90_NETCDF4, NF90_MPIIO), ncid, &
                                    comm=MPI_COMM_ICE, info=MPI_INFO_NULL), &
                         'create history ncfile '//ncfile(ns))
+            ! FIXME: put in a check that each PE has the same number of blocks
         else
             call check(nf90_create(ncfile(ns), ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid), &
                         'create history ncfile '//ncfile(ns))
