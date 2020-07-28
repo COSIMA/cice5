@@ -1517,7 +1517,7 @@ subroutine write_coordinate_variables_parallel(ncid, coord_var, var_nz)
 
     integer :: varid
     integer :: iblk, i, k
-    real(kind=dbl_kind), dimension(nx_block,ny_block, nblocks) :: work1
+    real(kind=dbl_kind), dimension(nx_block,ny_block, max_blocks) :: work1
 
     do i = 1,ncoord
         SELECT CASE (coord_var(i)%short_name)
@@ -1570,8 +1570,8 @@ subroutine write_grid_variables_parallel(ncid, var, var_nverts)
     type(req_attributes), dimension(nvar), intent(in) :: var
     type(coord_attributes), dimension(nvar_verts), intent(in) :: var_nverts
 
-    real (kind=dbl_kind),  dimension(nx_block, ny_block, nblocks) :: work1
-    real (kind=dbl_kind),  dimension(nverts, nx_block, ny_block, nblocks) :: work2
+    real (kind=dbl_kind),  dimension(nx_block, ny_block, max_blocks) :: work1
+    real (kind=dbl_kind),  dimension(nverts, nx_block, ny_block, max_blocks) :: work2
 
     integer :: iblk
     integer :: ilo, jlo, ihi, jhi, gilo, gjlo, gihi, gjhi
@@ -1771,7 +1771,7 @@ subroutine put_2d_with_blocks(ncid, varid, var_name, data)
 
     integer, intent(in) :: ncid, varid
     character(len=*), intent(in) :: var_name
-    real(kind=dbl_kind), dimension(nx_block, ny_block, nblocks), intent(in) :: data
+    real(kind=dbl_kind), dimension(nx_block, ny_block, max_blocks), intent(in) :: data
 
     integer :: iblk
     integer :: ilo, jlo, ihi, jhi, gilo, gjlo, gihi, gjhi
@@ -1803,7 +1803,7 @@ subroutine put_3d_with_blocks(ncid, varid, var_name, len_3dim, data)
 
     integer, intent(in) :: ncid, varid, len_3dim
     character(len=*), intent(in) :: var_name
-    real(kind=dbl_kind), dimension(nx_block, ny_block, len_3dim, nblocks), intent(in) :: data
+    real(kind=dbl_kind), dimension(nx_block, ny_block, len_3dim, max_blocks), intent(in) :: data
 
     integer :: iblk
     integer :: ilo, jlo, ihi, jhi, gilo, gjlo, gihi, gjhi
@@ -1838,7 +1838,7 @@ subroutine put_4d_with_blocks(ncid, varid, var_name, len_3dim, len_4dim, data)
     integer, intent(in) :: ncid, varid, len_3dim, len_4dim
     character(len=*), intent(in) :: var_name
     real(kind=dbl_kind), dimension(nx_block, ny_block, len_3dim, &
-                                   len_4dim, nblocks), intent(in) :: data
+                                   len_4dim, max_blocks), intent(in) :: data
 
     integer :: iblk
     integer :: ilo, jlo, ihi, jhi, gilo, gjlo, gihi, gjhi
