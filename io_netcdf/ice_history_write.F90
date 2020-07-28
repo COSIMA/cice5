@@ -1792,7 +1792,7 @@ subroutine put_2d_with_blocks(ncid, varid, var_name, data)
 
         start = (/ gilo, gjlo /)
         count = (/ gihi - gilo + 1, gjhi - gjlo + 1 /)
-        call check(nf90_put_var(ncid, varid, data(ilo:ihi, jlo:jhi, iblk), &
+        call check(nf90_put_var(ncid, varid, real(data(ilo:ihi, jlo:jhi, iblk)), &
                                 start=start, count=count), &
                     'put_2d_with_blocks put '//trim(var_name))
     enddo
@@ -1825,7 +1825,7 @@ subroutine put_3d_with_blocks(ncid, varid, var_name, len_3dim, data)
         start = (/ gilo, gjlo, 1 /)
         count = (/ gihi - gilo + 1, gjhi - gjlo + 1, len_3dim /)
         call check(nf90_put_var(ncid, varid, &
-                                data(ilo:ihi, jlo:jhi, 1:len_3dim, iblk), &
+                                real(data(ilo:ihi, jlo:jhi, 1:len_3dim, iblk)), &
                                 start=start, count=count), &
                     'put_3d_with_blocks put '//trim(var_name))
     enddo
@@ -1860,7 +1860,7 @@ subroutine put_4d_with_blocks(ncid, varid, var_name, len_3dim, len_4dim, data)
         start = (/ gilo, gjlo, 1, 1 /)
         count = (/ gihi - gilo + 1, gjhi - gjlo + 1, len_3dim, len_4dim /)
         call check(nf90_put_var(ncid, varid, &
-                                data(ilo:ihi, jlo:jhi, 1:len_3dim, 1:len_4dim, iblk), &
+                                real(data(ilo:ihi, jlo:jhi, 1:len_3dim, 1:len_4dim, iblk)), &
                                 start=start, count=count), &
                     'put_4d_with_blocks put '//trim(var_name))
     enddo
