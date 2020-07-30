@@ -240,7 +240,7 @@ subroutine ice_write_hist (ns)
             dimid(1) = boundid
             dimid(2) = timid
             status = nf90_def_var(ncid, 'time_bounds', &
-                        nf90_float,dimid(1:2),varid)
+                                  nf90_float,dimid(1:2),varid)
             if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error defining var time_bounds')
 
@@ -341,7 +341,8 @@ subroutine ice_write_hist (ns)
 
         do i = 1, ncoord
           status = nf90_def_var(ncid, coord_var(i)%short_name, nf90_float, &
-                                dimid(1:2), varid)
+                                dimid(1:2), varid, &
+                                chunksizes=(/ 180, 150 /))
           if (status /= nf90_noerr) call abort_ice( &
                'Error defining short_name for '//coord_var(i)%short_name)
 
@@ -387,7 +388,7 @@ subroutine ice_write_hist (ns)
         do i = 1, nvarz
             if (igrdz(i)) then
                 status = nf90_def_var(ncid, var_nz(i)%short_name, &
-                                   nf90_float, dimidex(i), varid)
+                                      nf90_float, dimidex(i), varid)
             if (status /= nf90_noerr) call abort_ice( &
                 'Error defining short_name for '//var_nz(i)%short_name)
 
@@ -407,7 +408,8 @@ subroutine ice_write_hist (ns)
 
         ! Attributes for tmask, blkmask defined separately, since they have no units
         if (igrd(n_tmask)) then
-            status = nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid)
+            status = nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid, &
+                                  chunksizes=(/ 180, 150 /))
             if (status /= nf90_noerr) call abort_ice( &
                           'ice: Error defining var tmask')
 
@@ -429,7 +431,8 @@ subroutine ice_write_hist (ns)
         endif
 
         if (igrd(n_blkmask)) then
-            status = nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid)
+            status = nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid, &
+                                  chunksizes=(/ 180, 150 /))
             if (status /= nf90_noerr) call abort_ice( &
                           'ice: Error defining var blkmask')
 
@@ -453,7 +456,8 @@ subroutine ice_write_hist (ns)
         do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
             if (igrd(i)) then
                 status = nf90_def_var(ncid, var(i)%req%short_name, &
-                                      nf90_float, dimid(1:2), varid)
+                                      nf90_float, dimid(1:2), varid, &
+                                      chunksizes=(/ 180, 150 /))
                 if (status /= nf90_noerr) call abort_ice( &
                      'Error defining variable '//var(i)%req%short_name)
 
@@ -487,7 +491,8 @@ subroutine ice_write_hist (ns)
         do i = 1, nvar_verts
             if (f_bounds) then
                 status = nf90_def_var(ncid, var_nverts(i)%short_name, &
-                                      nf90_float,dimid_nverts, varid)
+                                      nf90_float,dimid_nverts, varid, &
+                                      chunksizes=(/ 1, 180, 150 /))
                 if (status /= nf90_noerr) call abort_ice( &
                      'Error defining variable '//var_nverts(i)%short_name)
 
@@ -515,7 +520,8 @@ subroutine ice_write_hist (ns)
         do n=1,num_avail_hist_fields_2D
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                             nf90_float, dimid, varid)
+                                       nf90_float, dimid, varid, &
+                                       chunksizes=(/ 180, 150, 1 /))
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
 
@@ -581,7 +587,8 @@ subroutine ice_write_hist (ns)
         do n = n2D + 1, n3Dccum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                             nf90_float, dimidz, varid)
+                                       nf90_float, dimidz, varid, &
+                                       chunksizes=(/ 180, 150, 1, 1 /))
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
 
@@ -638,7 +645,8 @@ subroutine ice_write_hist (ns)
         do n = n3Dccum + 1, n3Dzcum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                             nf90_float, dimidz, varid)
+                                       nf90_float, dimidz, varid, &
+                                       chunksizes=(/ 180, 150, 1, 1 /))
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
 
@@ -681,7 +689,8 @@ subroutine ice_write_hist (ns)
         do n = n3Dzcum + 1, n3Dbcum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                             nf90_float, dimidz, varid)
+                                       nf90_float, dimidz, varid, &
+                                       chunksizes=(/ 180, 150, 1, 1 /))
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
 
@@ -724,8 +733,9 @@ subroutine ice_write_hist (ns)
         do n = n3Dbcum + 1, n4Dicum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                                 !nf90_float, dimidcz, varid)
-                                 nf90_float, dimidcz(1:4), varid) ! ferret
+                                       !nf90_float, dimidcz, varid)  ! ferret
+                                       nf90_float, dimidcz(1:4), varid, &
+                                       chunksizes=(/ 180, 150, 1, 1 /))
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
 
@@ -783,8 +793,9 @@ subroutine ice_write_hist (ns)
         do n = n4Dicum + 1, n4Dscum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                                 !nf90_float, dimidcz, varid)
-                                 nf90_float, dimidcz(1:4), varid) ! ferret
+                                       !nf90_float, dimidcz, varid) ! ferret
+                                       nf90_float, dimidcz(1:4), varid, &
+                                       chunksizes=(/ 180, 150, 1, 1 /))
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
 
@@ -842,8 +853,9 @@ subroutine ice_write_hist (ns)
         do n = n4Dscum + 1, n4Dbcum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                                 !nf90_float, dimidcz, varid)
-                                 nf90_float, dimidcz(1:4), varid) ! ferret
+                                       !nf90_float, dimidcz, varid) ! ferret
+                                       nf90_float, dimidcz(1:4), varid, &
+                                       chunksizes=(/ 180, 150, 1, 1 /))
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
 
@@ -1341,7 +1353,7 @@ subroutine write_3d_and_4d_variables(ns, ncid)
 
     integer :: varid
     integer :: status, n, nn, k, ic
-    
+
     if (my_task == master_task) then
        allocate(work_g1(nx_global,ny_global))
        allocate(work_gr(nx_global,ny_global))
@@ -1534,9 +1546,7 @@ subroutine write_coordinate_variables_parallel(ncid, coord_var, var_nz)
             work1 = ULAT*rad_to_deg
         END SELECT
 
-        call check(nf90_inq_varid(ncid, coord_var(i)%short_name, varid), &
-                    'inq varid '//coord_var(i)%short_name)
-        call put_2d_with_blocks(ncid, varid, coord_var(i)%short_name, work1)
+        call put_2d_with_blocks(ncid, coord_var(i)%short_name, work1)
     enddo
 
     ! Extra dimensions (NCAT, VGRD*)
@@ -1582,13 +1592,11 @@ subroutine write_grid_variables_parallel(ncid, var, var_nverts)
     integer :: varid
 
     if (igrd(n_tmask)) then
-        call check(nf90_inq_varid(ncid, 'tmask', varid), 'inq var for tmask')
-        call put_2d_with_blocks(ncid, varid, 'tmask', hm)
+        call put_2d_with_blocks(ncid, 'tmask', hm)
     endif
 
     if (igrd(n_blkmask)) then
-        call check(nf90_inq_varid(ncid, 'blkmask', varid), 'inq var for blkmask')
-        call put_2d_with_blocks(ncid, varid, 'blkmask', bm)
+        call put_2d_with_blocks(ncid, 'blkmask', bm)
     endif
 
     do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
@@ -1616,9 +1624,7 @@ subroutine write_grid_variables_parallel(ncid, var, var_nverts)
                 work1 = ANGLET
             END SELECT
 
-            call check(nf90_inq_varid(ncid, var(i)%req%short_name, varid), &
-                        'inq var '//var(i)%req%short_name)
-            call put_2d_with_blocks(ncid, varid, var(i)%req%short_name, work1)
+            call put_2d_with_blocks(ncid, var(i)%req%short_name, work1)
         endif
     enddo
 
@@ -1677,9 +1683,7 @@ subroutine write_2d_variables_parallel(ns, ncid)
 
     do n=1, num_avail_hist_fields_2D
         if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-            call check(nf90_inq_varid(ncid, avail_hist_fields(n)%vname, varid), &
-                            'inq varid '//avail_hist_fields(n)%vname)
-            call put_2d_with_blocks(ncid, varid, avail_hist_fields(n)%vname, &
+            call put_2d_with_blocks(ncid, avail_hist_fields(n)%vname, &
                                     a2D(:, :, n, :))
         endif
     enddo ! num_avail_hist_fields_2D
@@ -1699,10 +1703,7 @@ subroutine write_3d_and_4d_variables_parallel(ns, ncid)
     do n = n2D + 1, n3Dccum
         nn = n - n2D
         if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-
-            call check(nf90_inq_varid(ncid,avail_hist_fields(n)%vname,varid), &
-                        'inq varid '//avail_hist_fields(n)%vname)
-            call put_3d_with_blocks(ncid, varid, avail_hist_fields(n)%vname, &
+            call put_3d_with_blocks(ncid, avail_hist_fields(n)%vname, &
                                     ncat_hist, a3Dc(:, :, :, nn, :))
         endif
     enddo ! num_avail_hist_fields_3Dc
@@ -1711,10 +1712,7 @@ subroutine write_3d_and_4d_variables_parallel(ns, ncid)
     do n = n3Dccum+1, n3Dzcum
         nn = n - n3Dccum
         if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-
-            call check(nf90_inq_varid(ncid, avail_hist_fields(n)%vname, varid), &
-                       'inq varid '//avail_hist_fields(n)%vname)
-            call put_3d_with_blocks(ncid, varid, avail_hist_fields(n)%vname, &
+            call put_3d_with_blocks(ncid, avail_hist_fields(n)%vname, &
                                     nzilyr, a3Dz(:, :, :, nn, :))
         endif
     enddo ! num_avail_hist_fields_3Dz
@@ -1723,9 +1721,7 @@ subroutine write_3d_and_4d_variables_parallel(ns, ncid)
     do n = n3Dzcum+1, n3Dbcum
         nn = n - n3Dzcum
         if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-            call check(nf90_inq_varid(ncid, avail_hist_fields(n)%vname, varid), &
-                       'inq varid '//avail_hist_fields(n)%vname)
-            call put_3d_with_blocks(ncid, varid, avail_hist_fields(n)%vname, &
+            call put_3d_with_blocks(ncid, avail_hist_fields(n)%vname, &
                                     nzblyr, a3Db(:, :, :, nn, :))
         endif
     enddo ! num_avail_hist_fields_3Db
@@ -1734,10 +1730,7 @@ subroutine write_3d_and_4d_variables_parallel(ns, ncid)
     do n = n3Dbcum+1, n4Dicum
         nn = n - n3Dbcum
         if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-
-            call check(nf90_inq_varid(ncid, avail_hist_fields(n)%vname, varid), &
-                       'inq varid for '//avail_hist_fields(n)%vname)
-            call put_4d_with_blocks(ncid, varid, avail_hist_fields(n)%vname, &
+            call put_4d_with_blocks(ncid, avail_hist_fields(n)%vname, &
                                     nzilyr, ncat_hist, a4Di(:, :, :, :, nn, :))
         endif
     enddo ! num_avail_hist_fields_4Di
@@ -1746,9 +1739,7 @@ subroutine write_3d_and_4d_variables_parallel(ns, ncid)
     do n = n4Dicum+1, n4Dscum
         nn = n - n4Dicum
         if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-            call check(nf90_inq_varid(ncid ,avail_hist_fields(n)%vname, varid), &
-                       'inq varid for '//avail_hist_fields(n)%vname)
-            call put_4d_with_blocks(ncid, varid, avail_hist_fields(n)%vname, &
+            call put_4d_with_blocks(ncid, avail_hist_fields(n)%vname, &
                                     nzslyr, ncat_hist, a4Ds(:, :, :, :, nn, :))
         endif
     enddo ! num_avail_hist_fields_4Ds
@@ -1756,10 +1747,7 @@ subroutine write_3d_and_4d_variables_parallel(ns, ncid)
     do n = n4Dscum+1, n4Dbcum
         nn = n - n4Dscum
         if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-            call check(nf90_inq_varid(ncid, avail_hist_fields(n)%vname, varid), &
-                       'inq varid '//avail_hist_fields(n)%vname)
-
-            call put_4d_with_blocks(ncid, varid, avail_hist_fields(n)%vname, &
+            call put_4d_with_blocks(ncid, avail_hist_fields(n)%vname, &
                                     nzblyr, ncat_hist, a4Db(:, :, :, :, nn, :))
         endif
     enddo ! num_avail_hist_fields_4Db
@@ -1767,16 +1755,20 @@ subroutine write_3d_and_4d_variables_parallel(ns, ncid)
 end subroutine write_3d_and_4d_variables_parallel
 
 
-subroutine put_2d_with_blocks(ncid, varid, var_name, data)
+subroutine put_2d_with_blocks(ncid, var_name, data)
 
-    integer, intent(in) :: ncid, varid
+    integer, intent(in) :: ncid
     character(len=*), intent(in) :: var_name
     real(kind=dbl_kind), dimension(nx_block, ny_block, max_blocks), intent(in) :: data
 
+    integer :: varid
     integer :: iblk
     integer :: ilo, jlo, ihi, jhi, gilo, gjlo, gihi, gjhi
     integer, dimension(2) :: start, count
     type(block) :: the_block
+
+    call check(nf90_inq_varid(ncid, var_name, varid), &
+               'inq varid for '//var_name)
 
     do iblk=1, nblocks
         the_block = get_block(blocks_ice(iblk), iblk)
@@ -1799,16 +1791,20 @@ subroutine put_2d_with_blocks(ncid, varid, var_name, data)
 
 end subroutine put_2d_with_blocks
 
-subroutine put_3d_with_blocks(ncid, varid, var_name, len_3dim, data)
+subroutine put_3d_with_blocks(ncid, var_name, len_3dim, data)
 
-    integer, intent(in) :: ncid, varid, len_3dim
+    integer, intent(in) :: ncid, len_3dim
     character(len=*), intent(in) :: var_name
     real(kind=dbl_kind), dimension(nx_block, ny_block, len_3dim, max_blocks), intent(in) :: data
 
+    integer :: varid
     integer :: iblk
     integer :: ilo, jlo, ihi, jhi, gilo, gjlo, gihi, gjhi
     integer, dimension(3) :: start, count
     type(block) :: the_block
+
+    call check(nf90_inq_varid(ncid, var_name, varid), &
+               'inq varid for '//var_name)
 
     do iblk=1, nblocks
         the_block = get_block(blocks_ice(iblk), iblk)
@@ -1833,17 +1829,21 @@ subroutine put_3d_with_blocks(ncid, varid, var_name, len_3dim, data)
 end subroutine put_3d_with_blocks
 
 
-subroutine put_4d_with_blocks(ncid, varid, var_name, len_3dim, len_4dim, data)
+subroutine put_4d_with_blocks(ncid, var_name, len_3dim, len_4dim, data)
 
-    integer, intent(in) :: ncid, varid, len_3dim, len_4dim
+    integer, intent(in) :: ncid, len_3dim, len_4dim
     character(len=*), intent(in) :: var_name
     real(kind=dbl_kind), dimension(nx_block, ny_block, len_3dim, &
                                    len_4dim, max_blocks), intent(in) :: data
 
+    integer :: varid
     integer :: iblk
     integer :: ilo, jlo, ihi, jhi, gilo, gjlo, gihi, gjhi
     integer, dimension(4) :: start, count
     type(block) :: the_block
+
+    call check(nf90_inq_varid(ncid, var_name, varid), &
+               'inq varid for '//var_name)
 
     do iblk=1, nblocks
         the_block = get_block(blocks_ice(iblk), iblk)
