@@ -129,10 +129,6 @@ subroutine ice_write_hist (ns)
     TYPE(coord_attributes), dimension(nvarz) :: var_nz
     CHARACTER (char_len), dimension(ncoord) :: coord_bounds
 
-    logical :: do_parallel_io
-
-    do_parallel_io = .true.
-
     ! We leave shuffle at 0, this is only useful for integer data.
     shuffle = 0
 
@@ -146,7 +142,7 @@ subroutine ice_write_hist (ns)
         deflate_level = history_deflate_level
     endif
 
-    if (my_task == master_task .or. do_parallel_io) then
+    if (my_task == master_task .or. history_parallel_io) then
 
         ltime=time/int(secday)
 
@@ -160,7 +156,7 @@ subroutine ice_write_hist (ns)
         endif
 
         ! create file
-        if (do_parallel_io) then
+        if (history_parallel_io) then
             call check(nf90_create(ncfile(ns), ior(NF90_NETCDF4, NF90_MPIIO), ncid, &
                                    comm=MPI_COMM_ICE, info=MPI_INFO_NULL), &
                         'create history ncfile '//ncfile(ns))
@@ -340,11 +336,15 @@ subroutine ice_write_hist (ns)
         dimid(3) = timid
 
         do i = 1, ncoord
-          status = nf90_def_var(ncid, coord_var(i)%short_name, nf90_float, &
-                                dimid(1:2), varid, &
-                                chunksizes=(/ 180, 150 /))
-          if (status /= nf90_noerr) call abort_ice( &
-               'Error defining short_name for '//coord_var(i)%short_name)
+          call check(nf90_def_var(ncid, coord_var(i)%short_name, nf90_float, &
+                                  dimid(1:2), varid), &
+                     'def var '//coord_var(i)%short_name)
+
+          if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+            call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                        (/ history_chunksize_x, history_chunksize_y /)), &
+                       'def var chunking '//coord_var(i)%short_name)
+          endif
 
           status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                         deflate_level)
@@ -389,29 +389,34 @@ subroutine ice_write_hist (ns)
             if (igrdz(i)) then
                 status = nf90_def_var(ncid, var_nz(i)%short_name, &
                                       nf90_float, dimidex(i), varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                'Error defining short_name for '//var_nz(i)%short_name)
+                if (status /= nf90_noerr) call abort_ice( &
+                    'Error defining short_name for '//var_nz(i)%short_name)
 
-            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                            deflate_level)
-            if (status /= nf90_noerr) call abort_ice( &
-                'Error defining short_name for '//var_nz(i)%short_name)
+                status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                                deflate_level)
+                if (status /= nf90_noerr) call abort_ice( &
+                    'Error defining short_name for '//var_nz(i)%short_name)
 
-           status = nf90_put_att(ncid,varid,'long_name',var_nz(i)%long_name)
-           if (status /= nf90_noerr) call abort_ice( &
-                'Error defining long_name for '//var_nz(i)%short_name)
-           status = nf90_put_att(ncid, varid, 'units', var_nz(i)%units)
-           if (Status /= nf90_noerr) call abort_ice( &
-                'Error defining units for '//var_nz(i)%short_name)
+               status = nf90_put_att(ncid,varid,'long_name',var_nz(i)%long_name)
+               if (status /= nf90_noerr) call abort_ice( &
+                    'Error defining long_name for '//var_nz(i)%short_name)
+               status = nf90_put_att(ncid, varid, 'units', var_nz(i)%units)
+               if (Status /= nf90_noerr) call abort_ice( &
+                    'Error defining units for '//var_nz(i)%short_name)
             endif
         enddo
 
         ! Attributes for tmask, blkmask defined separately, since they have no units
         if (igrd(n_tmask)) then
-            status = nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid, &
-                                  chunksizes=(/ 180, 150 /))
+            status = nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid)
             if (status /= nf90_noerr) call abort_ice( &
                           'ice: Error defining var tmask')
+
+            if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                            (/ history_chunksize_x, history_chunksize_y /)), &
+                           'def var chunking tmask')
+            endif
 
             status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                           deflate_level)
@@ -431,10 +436,15 @@ subroutine ice_write_hist (ns)
         endif
 
         if (igrd(n_blkmask)) then
-            status = nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid, &
-                                  chunksizes=(/ 180, 150 /))
+            status = nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid)
             if (status /= nf90_noerr) call abort_ice( &
                           'ice: Error defining var blkmask')
+
+            if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                            (/ history_chunksize_x, history_chunksize_y /)), &
+                           'def var chunking blkmask')
+            endif
 
             status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                           deflate_level)
@@ -456,10 +466,15 @@ subroutine ice_write_hist (ns)
         do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
             if (igrd(i)) then
                 status = nf90_def_var(ncid, var(i)%req%short_name, &
-                                      nf90_float, dimid(1:2), varid, &
-                                      chunksizes=(/ 180, 150 /))
+                                      nf90_float, dimid(1:2), varid)
                 if (status /= nf90_noerr) call abort_ice( &
                      'Error defining variable '//var(i)%req%short_name)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ history_chunksize_x, history_chunksize_y /)), &
+                               'def var chunking '//var(i)%req%short_name)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -491,10 +506,15 @@ subroutine ice_write_hist (ns)
         do i = 1, nvar_verts
             if (f_bounds) then
                 status = nf90_def_var(ncid, var_nverts(i)%short_name, &
-                                      nf90_float,dimid_nverts, varid, &
-                                      chunksizes=(/ 1, 180, 150 /))
+                                      nf90_float,dimid_nverts, varid)
                 if (status /= nf90_noerr) call abort_ice( &
                      'Error defining variable '//var_nverts(i)%short_name)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ 1, history_chunksize_x, history_chunksize_y /)), &
+                               'def var chunking '//var_nverts(i)%short_name)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -520,10 +540,15 @@ subroutine ice_write_hist (ns)
         do n=1,num_avail_hist_fields_2D
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                                       nf90_float, dimid, varid, &
-                                       chunksizes=(/ 180, 150, 1 /))
+                                       nf90_float, dimid, varid)
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ history_chunksize_x, history_chunksize_y, 1 /)), &
+                               'def var chunking '//avail_hist_fields(n)%vname)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -587,10 +612,15 @@ subroutine ice_write_hist (ns)
         do n = n2D + 1, n3Dccum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                                       nf90_float, dimidz, varid, &
-                                       chunksizes=(/ 180, 150, 1, 1 /))
+                                       nf90_float, dimidz, varid)
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ history_chunksize_x, history_chunksize_y, 1, 1 /)), &
+                               'def var chunking '//avail_hist_fields(n)%vname)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -645,10 +675,15 @@ subroutine ice_write_hist (ns)
         do n = n3Dccum + 1, n3Dzcum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                                       nf90_float, dimidz, varid, &
-                                       chunksizes=(/ 180, 150, 1, 1 /))
+                                       nf90_float, dimidz, varid)
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ history_chunksize_x, history_chunksize_y, 1, 1 /)), &
+                               'def var chunking '//avail_hist_fields(n)%vname)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -689,10 +724,15 @@ subroutine ice_write_hist (ns)
         do n = n3Dzcum + 1, n3Dbcum
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                                       nf90_float, dimidz, varid, &
-                                       chunksizes=(/ 180, 150, 1, 1 /))
+                                       nf90_float, dimidz, varid)
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ history_chunksize_x, history_chunksize_y, 1, 1 /)), &
+                               'def var chunking '//avail_hist_fields(n)%vname)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -734,10 +774,15 @@ subroutine ice_write_hist (ns)
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
                                        !nf90_float, dimidcz, varid)  ! ferret
-                                       nf90_float, dimidcz(1:4), varid, &
-                                       chunksizes=(/ 180, 150, 1, 1 /))
+                                       nf90_float, dimidcz(1:4), varid)
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ history_chunksize_x, history_chunksize_y, 1, 1 /)), &
+                               'def var chunking '//avail_hist_fields(n)%vname)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -794,10 +839,15 @@ subroutine ice_write_hist (ns)
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
                                        !nf90_float, dimidcz, varid) ! ferret
-                                       nf90_float, dimidcz(1:4), varid, &
-                                       chunksizes=(/ 180, 150, 1, 1 /))
+                                       nf90_float, dimidcz(1:4), varid)
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ history_chunksize_x, history_chunksize_y, 1, 1 /)), &
+                               'def var chunking '//avail_hist_fields(n)%vname)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -854,10 +904,15 @@ subroutine ice_write_hist (ns)
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
                 status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
                                        !nf90_float, dimidcz, varid) ! ferret
-                                       nf90_float, dimidcz(1:4), varid, &
-                                       chunksizes=(/ 180, 150, 1, 1 /))
+                                       nf90_float, dimidcz(1:4), varid)
                 if (status /= nf90_noerr) call abort_ice( &
                    'Error defining variable '//avail_hist_fields(n)%vname)
+
+                if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
+                    call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
+                                (/ history_chunksize_x, history_chunksize_y, 1, 1 /)), &
+                               'def var chunking '//avail_hist_fields(n)%vname)
+                endif
 
                 status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
                                               deflate_level)
@@ -1005,13 +1060,13 @@ subroutine ice_write_hist (ns)
             if (status /= nf90_noerr) call abort_ice( &
                           'ice: Error writing time_end')
         endif
-    endif                     ! master_task or do_parallel_io
+    endif                     ! master_task or history_parallel_io
 
     !-----------------------------------------------------------------
     ! write coordinate variables
     !-----------------------------------------------------------------
 
-    if (do_parallel_io) then
+    if (history_parallel_io) then
         call write_coordinate_variables_parallel(ncid, coord_var, var_nz)
     else
         call write_coordinate_variables(ncid, coord_var, var_nz)
@@ -1021,7 +1076,7 @@ subroutine ice_write_hist (ns)
     ! write grid masks, area and rotation angle
     !-----------------------------------------------------------------
 
-    if (do_parallel_io) then
+    if (history_parallel_io) then
         call write_grid_variables_parallel(ncid, var, var_nverts)
     else
         call write_grid_variables(ncid, var, var_nverts)
@@ -1032,13 +1087,13 @@ subroutine ice_write_hist (ns)
     ! write 2d variable data
     !-----------------------------------------------------------------
 
-    if (do_parallel_io) then
+    if (history_parallel_io) then
         call write_2d_variables_parallel(ns, ncid)
     else
         call write_2d_variables(ns, ncid)
     endif
 
-    if (do_parallel_io) then
+    if (history_parallel_io) then
         call write_3d_and_4d_variables_parallel(ns, ncid)
     else
         call write_3d_and_4d_variables(ns, ncid)
@@ -1048,13 +1103,14 @@ subroutine ice_write_hist (ns)
     ! close output dataset
     !-----------------------------------------------------------------
 
-    if (my_task == master_task .or. do_parallel_io) then
+    if (my_task == master_task .or. history_parallel_io) then
         status = nf90_close(ncid)
         if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error closing netCDF history file')
         write(nu_diag,*) ' '
         write(nu_diag,*) 'Finished writing ',trim(ncfile(ns))
     endif
+
 #endif
 
 end subroutine ice_write_hist
@@ -1085,7 +1141,6 @@ subroutine write_coordinate_variables(ncid, coord_var, var_nz)
 
     do i = 1,ncoord
         coord_var_name = coord_var(i)%short_name
-
         call broadcast_scalar(coord_var_name, master_task)
         SELECT CASE (coord_var_name)
         CASE ('TLON')
