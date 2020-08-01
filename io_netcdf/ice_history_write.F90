@@ -86,18 +86,15 @@ end subroutine check
 
 subroutine ice_write_hist (ns)
 
-#ifdef ncdf
     use ice_calendar, only: time, sec, idate, idate0, &
         dayyr, days_per_year, use_leap_years
     use ice_fileunits, only: nu_diag
     use ice_restart_shared, only: runid
-#endif
 
     integer (kind=int_kind), intent(in) :: ns
 
     ! local variables
 
-#ifdef ncdf
     real (kind=dbl_kind),  dimension(:,:),   allocatable :: work_g1
     real (kind=real_kind), dimension(:,:),   allocatable :: work_gr
     real (kind=real_kind), dimension(:,:,:), allocatable :: work_gr3
@@ -160,7 +157,6 @@ subroutine ice_write_hist (ns)
             call check(nf90_create(ncfile(ns), ior(NF90_NETCDF4, NF90_MPIIO), ncid, &
                                    comm=MPI_COMM_ICE, info=MPI_INFO_NULL), &
                         'create history ncfile '//ncfile(ns))
-            ! FIXME: put in a check that each PE has the same number of blocks
         else
             call check(nf90_create(ncfile(ns), ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid), &
                         'create history ncfile '//ncfile(ns))
@@ -207,25 +203,21 @@ subroutine ice_write_hist (ns)
                     'put_att time units')
 
         if (days_per_year == 360) then
-            status = nf90_put_att(ncid,varid,'calendar','360_day')
-            if (status /= nf90_noerr) call abort_ice( &
-                         'ice Error: time calendar')
+            call check(nf90_put_att(ncid,varid,'calendar','360_day'), &
+                         'att time calendar')
         elseif (days_per_year == 365 .and. .not.use_leap_years ) then
-            status = nf90_put_att(ncid,varid,'calendar','NoLeap')
-            if (status /= nf90_noerr) call abort_ice( &
-                         'ice Error: time calendar')
+            call check(nf90_put_att(ncid,varid,'calendar','NoLeap'), &
+                         'att time calendar')
         elseif (use_leap_years) then
-            status = nf90_put_att(ncid,varid,'calendar','Gregorian')
-            if (status /= nf90_noerr) call abort_ice( &
-                         'ice Error: time calendar')
+            call check(nf90_put_att(ncid,varid,'calendar','Gregorian'), &
+                         'att time calendar')
         else
             call abort_ice( 'ice Error: invalid calendar settings')
         endif
 
         if (hist_avg) then
-            status = nf90_put_att(ncid,varid,'bounds','time_bounds')
-            if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: time bounds')
+            call check(nf90_put_att(ncid,varid,'bounds','time_bounds'), &
+                        'att time bounds')
         endif
 
         !-----------------------------------------------------------------
@@ -235,21 +227,18 @@ subroutine ice_write_hist (ns)
         if (hist_avg) then
             dimid(1) = boundid
             dimid(2) = timid
-            status = nf90_def_var(ncid, 'time_bounds', &
-                                  nf90_float,dimid(1:2),varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                        'ice: Error defining var time_bounds')
+            call check(nf90_def_var(ncid, 'time_bounds', &
+                                  nf90_float,dimid(1:2),varid), &
+                        'def var time_bounds')
 
-            status = nf90_put_att(ncid,varid,'long_name', &
-                                'boundaries for time-averaging interval')
-            if (status /= nf90_noerr) call abort_ice( &
-                        'ice Error: time_bounds long_name')
+            call check(nf90_put_att(ncid,varid,'long_name', &
+                                'boundaries for time-averaging interval'), &
+                        'att time_bounds long_name')
             write(cdate,'(i8.8)') idate0
             write(title,'(a,a,a,a,a,a,a,a)') 'days since ', &
                     cdate(1:4),'-',cdate(5:6),'-',cdate(7:8),' 00:00:00'
-            status = nf90_put_att(ncid,varid,'units',title)
-            if (status /= nf90_noerr) call abort_ice( &
-                        'ice Error: time_bounds units')
+            call check(nf90_put_att(ncid,varid,'units',title), &
+                                  'att time_bounds units')
         endif
 
         !-----------------------------------------------------------------
@@ -346,34 +335,28 @@ subroutine ice_write_hist (ns)
                        'def var chunking '//coord_var(i)%short_name)
           endif
 
-          status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                        deflate_level)
-          if (status /= nf90_noerr) call abort_ice( &
-               'Error deflate short_name for '//coord_var(i)%short_name)
+          call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                        deflate_level), &
+                     'deflate '//coord_var(i)%short_name)
 
-          status = nf90_put_att(ncid,varid,'long_name',coord_var(i)%long_name)
-          if (status /= nf90_noerr) call abort_ice( &
-               'Error defining long_name for '//coord_var(i)%short_name)
-          status = nf90_put_att(ncid, varid, 'units', coord_var(i)%units)
-          if (status /= nf90_noerr) call abort_ice( &
-                  'Error defining units for '//coord_var(i)%short_name)
-          status = nf90_put_att(ncid,varid,'missing_value',spval)
-          if (status /= nf90_noerr) call abort_ice( &
-             'Error defining missing_value for '//coord_var(i)%short_name)
+          call check(nf90_put_att(ncid,varid,'long_name',coord_var(i)%long_name), &
+                        'put att long_name '//coord_var(i)%short_name)
+          call check(nf90_put_att(ncid, varid, 'units', coord_var(i)%units), &
+                        'put att units '//coord_var(i)%short_name)
+          call check(nf90_put_att(ncid,varid,'missing_value',spval), &
+                     'put att missing_value '//coord_var(i)%short_name)
 
           call check(nf90_put_att(ncid, varid, '_FillValue', spval), &
-                        'put att _FillValue for '//coord_var(i)%short_name)
+                        'put att _FillValue '//coord_var(i)%short_name)
 
           if (coord_var(i)%short_name == 'ULAT') then
-             status = nf90_put_att(ncid,varid,'comment', &
-                  'Latitude of NE corner of T grid cell')
-             if (status /= nf90_noerr) call abort_ice( &
-                  'Error defining comment for '//coord_var(i)%short_name)
+             call check(nf90_put_att(ncid,varid,'comment', &
+                                     'Latitude of NE corner of T grid cell'), &
+                        'put att comment for '//coord_var(i)%short_name)
           endif
           if (f_bounds) then
-              status = nf90_put_att(ncid, varid, 'bounds', coord_bounds(i))
-              if (status /= nf90_noerr) call abort_ice( &
-                  'Error defining bounds for '//coord_var(i)%short_name)
+              call check(nf90_put_att(ncid, varid, 'bounds', coord_bounds(i)), &
+                            'put att bounds '//coord_var(i)%short_name)
           endif
 
         enddo
@@ -387,30 +370,25 @@ subroutine ice_write_hist (ns)
 
         do i = 1, nvarz
             if (igrdz(i)) then
-                status = nf90_def_var(ncid, var_nz(i)%short_name, &
-                                      nf90_float, dimidex(i), varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining short_name for '//var_nz(i)%short_name)
+                call check(nf90_def_var(ncid, var_nz(i)%short_name, &
+                                      nf90_float, dimidex(i), varid), &
+                          'def var '//var_nz(i)%short_name)
 
-                status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                                deflate_level)
-                if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining short_name for '//var_nz(i)%short_name)
+                call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                                deflate_level), &
+                           'deflate '//var_nz(i)%short_name)
 
-               status = nf90_put_att(ncid,varid,'long_name',var_nz(i)%long_name)
-               if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining long_name for '//var_nz(i)%short_name)
-               status = nf90_put_att(ncid, varid, 'units', var_nz(i)%units)
-               if (Status /= nf90_noerr) call abort_ice( &
-                    'Error defining units for '//var_nz(i)%short_name)
+               call check(nf90_put_att(ncid,varid,'long_name',var_nz(i)%long_name), &
+                            'put att long_name '//var_nz(i)%short_name)
+               call check(nf90_put_att(ncid, varid, 'units', var_nz(i)%units), &
+                            'for att units '//var_nz(i)%short_name)
             endif
         enddo
 
         ! Attributes for tmask, blkmask defined separately, since they have no units
         if (igrd(n_tmask)) then
-            status = nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error defining var tmask')
+            call check(nf90_def_var(ncid, 'tmask', nf90_float, dimid(1:2), varid), &
+                       'def var tmask')
 
             if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
                 call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
@@ -418,27 +396,24 @@ subroutine ice_write_hist (ns)
                            'def var chunking tmask')
             endif
 
-            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                          deflate_level)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error deflating var tmask')
+            call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                        deflate_level), 'deflating var tmask')
 
-            status = nf90_put_att(ncid,varid, 'long_name', 'ocean grid mask')
-            if (status /= nf90_noerr) call abort_ice('ice Error: tmask long_name')
-            status = nf90_put_att(ncid, varid, 'coordinates', 'TLON TLAT')
-            if (status /= nf90_noerr) call abort_ice('ice Error: tmask units')
-            status = nf90_put_att(ncid,varid,'comment', '0 = land, 1 = ocean')
-            if (status /= nf90_noerr) call abort_ice('ice Error: tmask comment')
-            status = nf90_put_att(ncid,varid,'missing_value',spval)
-            if (status /= nf90_noerr) call abort_ice('Error defining missing_value for tmask')
-            status = nf90_put_att(ncid,varid,'_FillValue',spval)
-            if (status /= nf90_noerr) call abort_ice('Error defining _FillValue for tmask')
+            call check(nf90_put_att(ncid,varid, 'long_name', 'ocean grid mask'), &
+                        'put att tmask long_name')
+            call check(nf90_put_att(ncid, varid, 'coordinates', 'TLON TLAT'), &
+                       'put att tmask units')
+            call check(nf90_put_att(ncid,varid,'comment', '0 = land, 1 = ocean'), &
+                       'put att tmask comment')
+            call check(nf90_put_att(ncid,varid,'missing_value',spval), &
+                       'put att missing_value for tmask')
+            call check(nf90_put_att(ncid,varid,'_FillValue',spval), &
+                        'put att _FillValue for tmask')
         endif
 
         if (igrd(n_blkmask)) then
-            status = nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error defining var blkmask')
+            call check(nf90_def_var(ncid, 'blkmask', nf90_float, dimid(1:2), varid), &
+                       'def var blkmask')
 
             if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
                 call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
@@ -446,29 +421,27 @@ subroutine ice_write_hist (ns)
                            'def var chunking blkmask')
             endif
 
-            status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                          deflate_level)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error deflating var blkmask')
+            call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                          deflate_level), &
+                       'deflating var blkmask')
 
-            status = nf90_put_att(ncid,varid, 'long_name', 'ice grid block mask')
-            if (status /= nf90_noerr) call abort_ice('ice Error: blkmask long_name')
-            status = nf90_put_att(ncid, varid, 'coordinates', 'TLON TLAT')
-            if (status /= nf90_noerr) call abort_ice('ice Error: blkmask units')
-            status = nf90_put_att(ncid,varid,'comment', 'mytask + iblk/100')
-            if (status /= nf90_noerr) call abort_ice('ice Error: blkmask comment')
-            status = nf90_put_att(ncid,varid,'missing_value',spval)
-            if (status /= nf90_noerr) call abort_ice('Error defining missing_value for blkmask')
-            status = nf90_put_att(ncid,varid,'_FillValue',spval)
-            if (status /= nf90_noerr) call abort_ice('Error defining _FillValue for blkmask')
+            call check(nf90_put_att(ncid,varid, 'long_name', 'ice grid block mask'), &
+                        'put att blkmask long_name')
+            call check(nf90_put_att(ncid, varid, 'coordinates', 'TLON TLAT'), &
+                        'put att blkmask coordinates')
+            call check(nf90_put_att(ncid,varid,'comment', 'mytask + iblk/100'), &
+                        'put att blkmask comment')
+            call check(nf90_put_att(ncid,varid,'missing_value',spval), &
+                        'put att blkmask missing_value')
+            call check(nf90_put_att(ncid,varid,'_FillValue',spval), &
+                        'put att blkmask _FillValue')
         endif
 
         do i = 3, nvar      ! note n_tmask=1, n_blkmask=2
             if (igrd(i)) then
-                status = nf90_def_var(ncid, var(i)%req%short_name, &
-                                      nf90_float, dimid(1:2), varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error defining variable '//var(i)%req%short_name)
+                call check(nf90_def_var(ncid, var(i)%req%short_name, &
+                                       nf90_float, dimid(1:2), varid), &
+                           'def variable '//var(i)%req%short_name)
 
                 if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
                     call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
@@ -476,26 +449,20 @@ subroutine ice_write_hist (ns)
                                'def var chunking '//var(i)%req%short_name)
                 endif
 
-                status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                              deflate_level)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error deflating variable '//var(i)%req%short_name)
+                call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                              deflate_level), &
+                           'deflate var '//var(i)%req%short_name)
 
-                status = nf90_put_att(ncid,varid, 'long_name', var(i)%req%long_name)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error defining long_name for '//var(i)%req%short_name)
-                status = nf90_put_att(ncid, varid, 'units', var(i)%req%units)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error defining units for '//var(i)%req%short_name)
-                status = nf90_put_att(ncid, varid, 'coordinates', var(i)%coordinates)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error defining coordinates for '//var(i)%req%short_name)
-                status = nf90_put_att(ncid,varid,'missing_value',spval)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'Error defining missing_value for '//var(i)%req%short_name)
-                status = nf90_put_att(ncid,varid,'_FillValue',spval)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'Error defining _FillValue for '//var(i)%req%short_name)
+                call check(nf90_put_att(ncid,varid, 'long_name', var(i)%req%long_name), &
+                           'put att long_name '//var(i)%req%short_name)
+                call check(nf90_put_att(ncid, varid, 'units', var(i)%req%units), &
+                           'put att units '//var(i)%req%short_name)
+                call check(nf90_put_att(ncid, varid, 'coordinates', var(i)%coordinates), &
+                           'put att coordinates '//var(i)%req%short_name)
+                call check(nf90_put_att(ncid,varid,'missing_value',spval), &
+                           'put att missing_value '//var(i)%req%short_name)
+                call check(nf90_put_att(ncid,varid,'_FillValue',spval), &
+                           'put att _FillValue '//var(i)%req%short_name)
             endif
         enddo
 
@@ -505,10 +472,9 @@ subroutine ice_write_hist (ns)
         dimid_nverts(3) = jmtid
         do i = 1, nvar_verts
             if (f_bounds) then
-                status = nf90_def_var(ncid, var_nverts(i)%short_name, &
-                                      nf90_float,dimid_nverts, varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error defining variable '//var_nverts(i)%short_name)
+                call check(nf90_def_var(ncid, var_nverts(i)%short_name, &
+                                      nf90_float,dimid_nverts, varid), &
+                           'def var '//var_nverts(i)%short_name)
 
                 if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
                     call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
@@ -516,33 +482,27 @@ subroutine ice_write_hist (ns)
                                'def var chunking '//var_nverts(i)%short_name)
                 endif
 
-                status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                              deflate_level)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error deflating variable '//var_nverts(i)%short_name)
+                call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                              deflate_level), &
+                           'deflate var '//var_nverts(i)%short_name)
 
-                status = nf90_put_att(ncid,varid, 'long_name', &
-                            var_nverts(i)%long_name)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error defining long_name for '//var_nverts(i)%short_name)
-                status = nf90_put_att(ncid, varid, 'units', var_nverts(i)%units)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'Error defining units for '//var_nverts(i)%short_name)
-                status = nf90_put_att(ncid,varid,'missing_value',spval)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'Error defining missing_value for '//var_nverts(i)%short_name)
-                status = nf90_put_att(ncid,varid,'_FillValue',spval)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'Error defining _FillValue for '//var_nverts(i)%short_name)
+                call check(nf90_put_att(ncid,varid, 'long_name', &
+                            var_nverts(i)%long_name), &
+                           'put att long_name '//var_nverts(i)%short_name)
+                call check(nf90_put_att(ncid, varid, 'units', var_nverts(i)%units), &
+                           'put att units '//var_nverts(i)%short_name)
+                call check(nf90_put_att(ncid,varid,'missing_value',spval), &
+                           'put att missing_value '//var_nverts(i)%short_name)
+                call check(nf90_put_att(ncid,varid,'_FillValue',spval), &
+                           'put att _FillValue '//var_nverts(i)%short_name)
             endif
         enddo
 
         do n=1,num_avail_hist_fields_2D
             if (avail_hist_fields(n)%vhistfreq == histfreq(ns) .or. write_ic) then
-                status  = nf90_def_var(ncid, avail_hist_fields(n)%vname, &
-                                       nf90_float, dimid, varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'Error defining variable '//avail_hist_fields(n)%vname)
+                call check(nf90_def_var(ncid, avail_hist_fields(n)%vname, &
+                                       nf90_float, dimid, varid), &
+                           'def var '//avail_hist_fields(n)%vname)
 
                 if (history_chunksize_x > 0 .and. history_chunksize_y > 0) then
                     call check(nf90_def_var_chunking(ncid, varid, NF90_CHUNKED, &
@@ -550,33 +510,26 @@ subroutine ice_write_hist (ns)
                                'def var chunking '//avail_hist_fields(n)%vname)
                 endif
 
-                status = nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
-                                              deflate_level)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'Error deflating variable '//avail_hist_fields(n)%vname)
+                call check(nf90_def_var_deflate(ncid, varid, shuffle, deflate, &
+                                              deflate_level), &
+                           'deflate '//avail_hist_fields(n)%vname)
 
-                status = nf90_put_att(ncid,varid,'units', &
-                            avail_hist_fields(n)%vunit)
-                if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining units for '//avail_hist_fields(n)%vname)
-                status = nf90_put_att(ncid,varid, 'long_name', &
-                            avail_hist_fields(n)%vdesc)
-                if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining long_name for '//avail_hist_fields(n)%vname)
-                status = nf90_put_att(ncid,varid,'coordinates', &
-                            avail_hist_fields(n)%vcoord)
-                if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining coordinates for '//avail_hist_fields(n)%vname)
-                status = nf90_put_att(ncid,varid,'cell_measures', &
-                            avail_hist_fields(n)%vcellmeas)
-                if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining cell measures for '//avail_hist_fields(n)%vname)
-                status = nf90_put_att(ncid,varid,'missing_value',spval)
-                if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining missing_value for '//avail_hist_fields(n)%vname)
-                status = nf90_put_att(ncid,varid,'_FillValue',spval)
-                if (status /= nf90_noerr) call abort_ice( &
-                    'Error defining _FillValue for '//avail_hist_fields(n)%vname)
+                call check(nf90_put_att(ncid,varid,'units', &
+                            avail_hist_fields(n)%vunit), &
+                           'put att units '//avail_hist_fields(n)%vname)
+                call check(nf90_put_att(ncid,varid, 'long_name', &
+                            avail_hist_fields(n)%vdesc), &
+                           'put att long_name '//avail_hist_fields(n)%vname)
+                call check(nf90_put_att(ncid,varid,'coordinates', &
+                            avail_hist_fields(n)%vcoord), &
+                           'put att coordinates '//avail_hist_fields(n)%vname)
+                call check(nf90_put_att(ncid,varid,'cell_measures', &
+                            avail_hist_fields(n)%vcellmeas), &
+                           'put att cell_measures '//avail_hist_fields(n)%vname)
+                call check(nf90_put_att(ncid,varid,'missing_value',spval), &
+                           'put att missing_value '//avail_hist_fields(n)%vname)
+                call check(nf90_put_att(ncid,varid,'_FillValue',spval), &
+                           'put att _FillValue '//avail_hist_fields(n)%vname)
 
                 !---------------------------------------------------------------
                 ! Add cell_methods attribute to variables if averaged
@@ -585,9 +538,8 @@ subroutine ice_write_hist (ns)
                     if (TRIM(avail_hist_fields(n)%vname)/='sig1' .or. &
                         TRIM(avail_hist_fields(n)%vname)/='sig2') then
 
-                        status = nf90_put_att(ncid,varid,'cell_methods','time: mean')
-                        if (status /= nf90_noerr) call abort_ice( &
-                            'Error defining cell methods for '//avail_hist_fields(n)%vname)
+                        call check(nf90_put_att(ncid,varid,'cell_methods','time: mean'), &
+                                  'put att cell methods time mean '//avail_hist_fields(n)%vname)
                     endif
                 endif
 
@@ -597,9 +549,11 @@ subroutine ice_write_hist (ns)
                     .or. n==n_trsig(ns)                             &
                     .or. n==n_mlt_onset(ns) .or. n==n_frz_onset(ns) &
                     .or. n==n_hisnap(ns)    .or. n==n_aisnap(ns)) then
-                    status = nf90_put_att(ncid,varid,'time_rep','instantaneous')
+                    call check(nf90_put_att(ncid,varid,'time_rep','instantaneous'), &
+                               'put att time_rep instantaneous')
                 else
-                    status = nf90_put_att(ncid,varid,'time_rep','averaged')
+                    call check(nf90_put_att(ncid,varid,'time_rep','averaged'), &
+                               'put att time_rep averaged')
                 endif
             endif
         enddo  ! num_avail_hist_fields_2D
@@ -952,9 +906,11 @@ subroutine ice_write_hist (ns)
                 endif
 
                 if (histfreq(ns) == '1' .or. .not. hist_avg) then
-                   status = nf90_put_att(ncid,varid,'time_rep','instantaneous')
+                   call check(nf90_put_att(ncid,varid,'time_rep','instantaneous'), &
+                              'put att time_rep instantaneous')
                 else
-                   status = nf90_put_att(ncid,varid,'time_rep','averaged')
+                   call check(nf90_put_att(ncid,varid,'time_rep','averaged'), &
+                              'put att time_rep averaged')
                 endif
             endif
         enddo  ! num_avail_hist_fields_4Db
@@ -965,24 +921,20 @@ subroutine ice_write_hist (ns)
         ! ... the user should change these to something useful ...
         !-----------------------------------------------------------------
 #ifdef CCSMCOUPLED
-        status = nf90_put_att(ncid,nf90_global,'title',runid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error in global attribute title')
+        call check(nf90_put_att(ncid,nf90_global,'title',runid), &
+                   'in global attribute title')
 #else
         title  = 'sea ice model output for CICE'
-        status = nf90_put_att(ncid,nf90_global,'title',title)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error in global attribute title')
+        call check(nf90_put_att(ncid,nf90_global,'title',title), &
+                   'global attribute title')
 #endif
         title = 'Diagnostic and Prognostic Variables'
-        status = nf90_put_att(ncid,nf90_global,'contents',title)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: global attribute contents')
+        call check(nf90_put_att(ncid,nf90_global,'contents',title), &
+                  'global attribute contents')
 
         title  = 'Los Alamos Sea Ice Model (CICE) Version 5'
-        status = nf90_put_att(ncid,nf90_global,'source',title)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: global attribute source')
+        call check(nf90_put_att(ncid,nf90_global,'source',title), &
+                   'global attribute source')
 
 #ifdef AusCOM
         write(title,'(a,i3,a)') 'This Year Has ',int(dayyr),' days'
@@ -993,25 +945,20 @@ subroutine ice_write_hist (ns)
             write(title,'(a,i3,a)') 'All years have exactly ',int(dayyr),' days'
         endif
 #endif
-        status = nf90_put_att(ncid,nf90_global,'comment',title)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: global attribute comment')
+        call check(nf90_put_att(ncid,nf90_global,'comment',title), &
+                   'global attribute comment')
 
         write(title,'(a,i8.8)') 'File written on model date ',idate
-        status = nf90_put_att(ncid,nf90_global,'comment2',title)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: global attribute date1')
+        call check(nf90_put_att(ncid,nf90_global,'comment2',title), &
+                   'global attribute date1')
 
         write(title,'(a,i6)') 'seconds elapsed into model date: ',sec
-        status = nf90_put_att(ncid,nf90_global,'comment3',title)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: global attribute date2')
+        call check(nf90_put_att(ncid,nf90_global,'comment3',title), &
+                   'global attribute date2')
 
         title = 'CF-1.0'
-        status =  &
-             nf90_put_att(ncid,nf90_global,'conventions',title)
-        if (status /= nf90_noerr) call abort_ice( &
-             'Error in global attribute conventions')
+        call check(nf90_put_att(ncid,nf90_global,'conventions',title), &
+                   'global attribute conventions')
 
         call date_and_time(date=current_date, time=current_time)
         write(start_time,1000) current_date(1:4), current_date(5:6), &
@@ -1020,13 +967,11 @@ subroutine ice_write_hist (ns)
 1000    format('This dataset was created on ', &
                 a,'-',a,'-',a,' at ',a,':',a,':',a)
 
-        status = nf90_put_att(ncid,nf90_global,'history',start_time)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: global attribute history')
+        call check(nf90_put_att(ncid,nf90_global,'history',start_time), &
+                   'global attribute history')
 
-        status = nf90_put_att(ncid,nf90_global,'io_flavor','io_netcdf')
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice Error: global attribute io_flavor')
+        call check(nf90_put_att(ncid,nf90_global,'io_flavor','io_netcdf'), &
+                   'global attribute io_flavor')
 
         !-----------------------------------------------------------------
         ! end define mode
@@ -1038,27 +983,22 @@ subroutine ice_write_hist (ns)
         ! write time variable
         !-----------------------------------------------------------------
 
-        status = nf90_inq_varid(ncid,'time',varid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error getting time varid')
-        status = nf90_put_var(ncid,varid,ltime)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error writing time variable')
+        call check(nf90_inq_varid(ncid,'time',varid), &
+                   'inq varid time')
+        call check(nf90_put_var(ncid,varid,ltime), &
+                   'put var time')
 
         !-----------------------------------------------------------------
         ! write time_bounds info
         !-----------------------------------------------------------------
 
         if (hist_avg) then
-            status = nf90_inq_varid(ncid,'time_bounds',varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error getting time_bounds id')
-            status = nf90_put_var(ncid,varid,time_beg(ns),start=(/1/))
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error writing time_beg')
-            status = nf90_put_var(ncid,varid,time_end(ns),start=(/2/))
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error writing time_end')
+            call check(nf90_inq_varid(ncid,'time_bounds',varid), &
+                       'inq varid time_bounds')
+            call check(nf90_put_var(ncid,varid,time_beg(ns),start=(/1/)), &
+                       'put var time_bounds beginning')
+            call check(nf90_put_var(ncid,varid,time_end(ns),start=(/2/)), &
+                       'put var time_bounds end')
         endif
     endif                     ! master_task or history_parallel_io
 
@@ -1104,14 +1044,10 @@ subroutine ice_write_hist (ns)
     !-----------------------------------------------------------------
 
     if (my_task == master_task .or. history_parallel_io) then
-        status = nf90_close(ncid)
-        if (status /= nf90_noerr) call abort_ice( &
-                      'ice: Error closing netCDF history file')
+        call check(nf90_close(ncid), 'closing netCDF history file')
         write(nu_diag,*) ' '
         write(nu_diag,*) 'Finished writing ',trim(ncfile(ns))
     endif
-
-#endif
 
 end subroutine ice_write_hist
 
@@ -1162,12 +1098,10 @@ subroutine write_coordinate_variables(ncid, coord_var, var_nz)
 
         if (my_task == master_task) then
             work_gr = work_g1
-            status = nf90_inq_varid(ncid, coord_var_name, varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                 'ice: Error getting varid for '//coord_var_name)
-            status = nf90_put_var(ncid,varid,work_gr)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error writing'//coord_var_name)
+            call check(nf90_inq_varid(ncid, coord_var_name, varid), &
+                        'inq varid '//coord_var_name)
+            call check(nf90_put_var(ncid,varid,work_gr), &
+                        'put var '//coord_var_name)
         endif
     enddo
 
@@ -1177,9 +1111,8 @@ subroutine write_coordinate_variables(ncid, coord_var, var_nz)
         if (igrdz(i)) then
             call broadcast_scalar(var_nz(i)%short_name,master_task)
             if (my_task == master_task) then
-                status = nf90_inq_varid(ncid, var_nz(i)%short_name, varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                     'ice: Error getting varid for '//var_nz(i)%short_name)
+                call check(nf90_inq_varid(ncid, var_nz(i)%short_name, varid), &
+                           'inq varid '//var_nz(i)%short_name)
                 SELECT CASE (var_nz(i)%short_name)
                 CASE ('NCAT')
                     status = nf90_put_var(ncid,varid,hin_max(1:ncat_hist))
@@ -1214,7 +1147,7 @@ subroutine write_grid_variables(ncid, var, var_nverts)
     real (kind=real_kind), dimension(:,:, :), allocatable :: work_gr3
     real (kind=dbl_kind),  dimension(nx_block,ny_block,max_blocks) :: work1
 
-    integer :: ivertex, i, status
+    integer :: ivertex, i
     integer :: varid
     character (len=len(var(1)%req%short_name)) :: var_name
     character (len=len(var_nverts(1)%short_name)) :: var_nverts_name
@@ -1237,12 +1170,10 @@ subroutine write_grid_variables(ncid, var, var_nverts)
         call gather_global(work_g1, hm, master_task, distrb_info)
         if (my_task == master_task) then
             work_gr = work_g1
-            status = nf90_inq_varid(ncid, 'tmask', varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                                'ice: Error getting varid for tmask')
-            status = nf90_put_var(ncid,varid,work_gr)
-            if (status /= nf90_noerr) call abort_ice( &
-                        'ice: Error writing variable tmask')
+            call check(nf90_inq_varid(ncid, 'tmask', varid), &
+                       'inq var tmask')
+            call check(nf90_put_var(ncid,varid,work_gr), &
+                       'put var blkmask')
         endif
     endif
 
@@ -1250,12 +1181,10 @@ subroutine write_grid_variables(ncid, var, var_nverts)
         call gather_global(work_g1, bm, master_task, distrb_info)
         if (my_task == master_task) then
             work_gr=work_g1
-            status = nf90_inq_varid(ncid, 'blkmask', varid)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error getting varid for blkmask')
-            status = nf90_put_var(ncid,varid,work_gr)
-            if (status /= nf90_noerr) call abort_ice( &
-                          'ice: Error writing variable blkmask')
+            call check(nf90_inq_varid(ncid, 'blkmask', varid), &
+                       'inq var blkmask')
+            call check(nf90_put_var(ncid,varid,work_gr), &
+                       'put var blkmask')
         endif
     endif
 
@@ -1289,12 +1218,10 @@ subroutine write_grid_variables(ncid, var, var_nverts)
 
             if (my_task == master_task) then
               work_gr=work_g1
-              status = nf90_inq_varid(ncid, var_name, varid)
-              if (status /= nf90_noerr) call abort_ice( &
-                            'ice: Error getting varid for '//var_name)
-              status = nf90_put_var(ncid,varid,work_gr)
-              if (status /= nf90_noerr) call abort_ice( &
-                            'ice: Error writing variable '//var_name)
+              call check(nf90_inq_varid(ncid, var_name, varid), &
+                         'inq varid  '//var_name)
+              call check(nf90_put_var(ncid,varid,work_gr), &
+                         'put var '//var_name)
             endif
         endif
     enddo
@@ -1338,12 +1265,10 @@ subroutine write_grid_variables(ncid, var, var_nverts)
             END SELECT
 
             if (my_task == master_task) then
-                status = nf90_inq_varid(ncid, var_nverts_name, varid)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'ice: Error getting varid for '//var_nverts_name)
-                status = nf90_put_var(ncid,varid,work_gr3)
-                if (status /= nf90_noerr) call abort_ice( &
-                   'ice: Error writing variable '//var_nverts_name)
+                call check(nf90_inq_varid(ncid, var_nverts_name, varid), &
+                            'inq varid '//var_nverts_name)
+                call check(nf90_put_var(ncid,varid,work_gr3), &
+                            'put var '//var_nverts_name)
             endif
         enddo
     endif
@@ -1363,7 +1288,7 @@ subroutine write_2d_variables(ns, ncid)
     real (kind=dbl_kind),  dimension(:,:), allocatable :: work_g1
     real (kind=real_kind), dimension(:,:), allocatable :: work_gr
 
-    integer :: n, status
+    integer :: n
     integer :: varid
 
     if (my_task == master_task) then
@@ -1407,7 +1332,7 @@ subroutine write_3d_and_4d_variables(ns, ncid)
     real (kind=real_kind), dimension(:,:), allocatable :: work_gr
 
     integer :: varid
-    integer :: status, n, nn, k, ic
+    integer :: n, nn, k, ic
 
     if (my_task == master_task) then
        allocate(work_g1(nx_global,ny_global))
@@ -1753,7 +1678,7 @@ subroutine write_3d_and_4d_variables_parallel(ns, ncid)
     integer, intent(in) :: ncid
 
     integer :: varid
-    integer :: status, n, nn, k, ic
+    integer :: n, nn, k, ic
 
     do n = n2D + 1, n3Dccum
         nn = n - n2D
