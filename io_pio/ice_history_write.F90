@@ -364,9 +364,8 @@
                                        deflate_level)
           if (status /= nf90_noerr) call abort_ice( &
                         'ice: Error deflating var '//trim(coord_var(i)%short_name))
-          print*, '0a: ',  (/ block_size_x, block_size_y /), dimid2, nx_global, ny_global
           status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                 (/ block_size_x, block_size_y /))
+                 (/ 360, 270 /))
           if (status /= nf90_noerr) call abort_ice( &
                  'ice: Error chunking var '//trim(coord_var(i)%short_name))
 
@@ -395,16 +394,6 @@
                                    (/dimidex(i)/), varid)
               if (status /= nf90_noerr) call abort_ice( &
                 'ice: Error def var '//trim(var_nz(i)%short_name))
-              !status = pio_def_var_deflate(File, varid, shuffle, deflate, &
-              !                             deflate_level)
-              !if (status /= nf90_noerr) call abort_ice( &
-              !  'ice: Error deflating var '//trim(var_nz(i)%short_name))
-
-              !print*, '0b: ',  (/ 1 /)
-              !status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-              !            (/ 1 /))
-              !if (status /= nf90_noerr) call abort_ice( &
-              !      'ice: Error chunking var '//trim(var_nz(i)%short_name))
 
               status = pio_put_att(File, varid, 'long_name', var_nz(i)%long_name)
               status = pio_put_att(File, varid, 'units'    , var_nz(i)%units)
@@ -418,12 +407,10 @@
            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                         deflate_level)
            if (status /= nf90_noerr) call abort_ice('ice: Error deflating var tmask')
-           print*, '1: ',  (/ block_size_x, block_size_y /)
            status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                        (/ block_size_x, block_size_y /))
+                        (/ 360, 270 /))
            if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error def var chunking tmask')
-
 
            status = pio_put_att(File,varid, 'long_name', 'ocean grid mask') 
            if (status /= nf90_noerr) call abort_ice('ice: Error put_att')
@@ -443,9 +430,8 @@
            status = pio_def_var_deflate(File, varid, shuffle, deflate, &
                                         deflate_level)
            if (status /= nf90_noerr) call abort_ice('ice: Error deflating var blkmask')
-           print*, '2: ',  (/ block_size_x, block_size_y /)
            status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                        (/ block_size_x, block_size_y /))
+                        (/ 360, 270 /))
            if (status /= nf90_noerr) call abort_ice( &
                       'ice: Error def var chunking blkmask')
 
@@ -466,9 +452,8 @@
                                         deflate_level)
              if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(var(i)%req%short_name))
-             print*, '3: ',  (/ block_size_x, block_size_y /)
              status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ block_size_x, block_size_y /))
+                     (/ 360, 270 /))
              if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error chunking var '//trim(var(i)%req%short_name))
 
@@ -494,9 +479,8 @@
                                         deflate_level)
              if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(var_nverts(i)%short_name))
-             print*, '4: ',  (/ 1, block_size_x, block_size_y /)
              status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ 1, block_size_x, block_size_y /))
+                     (/ 1, 360, 270 /))
              if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error chunking var '//trim(var_nverts(i)%short_name))
 
@@ -532,7 +516,7 @@
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
              status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ block_size_x, block_size_y, 1 /))
+                     (/ 360, 270, 1 /))
              if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
 
@@ -587,9 +571,8 @@
                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
-             print*, '6: ',  (/ nx_block, ny_block, 1, 1 /)
              status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ block_size_x, block_size_y, 1, 1 /))
+                     (/ 360, 270, 1, 1 /))
              if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
 
@@ -638,7 +621,7 @@
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
              status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ block_size_x, block_size_y, 1, 1 /))
+                     (/ 360, 270, 1, 1 /))
              if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
 
@@ -686,7 +669,7 @@
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
              status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ block_size_x, block_size_y, 1, 1 /))
+                     (/ 360, 270, 1, 1 /))
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
 
@@ -741,7 +724,7 @@
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ block_size_x, block_size_y, 1, 1, 1 /))
+                     (/ 360, 270, 1, 1, 1 /))
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
 
@@ -789,9 +772,8 @@
                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
-            print*, '10: ',  (/ block_size_x, block_size_y, 1, 1, 1 /)
             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ block_size_x, block_size_y, 1, 1, 1 /))
+                     (/ 360, 270, 1, 1, 1 /))
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
 
@@ -839,9 +821,8 @@
                                          deflate_level)
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error deflating var '//trim(avail_hist_fields(n)%vname))
-            print*, '11: ',  (/ block_size_x, block_size_y, 1, 1, 1 /)
             status = pio_def_var_chunking(File, varid, NF90_CHUNKED, &
-                     (/ block_size_x, block_size_y, 1, 1, 1 /))
+                     (/ 360, 270, 1, 1, 1 /))
             if (status /= nf90_noerr) call abort_ice( &
                      'ice: Error chunking var '//trim(avail_hist_fields(n)%vname))
 
