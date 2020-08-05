@@ -53,24 +53,29 @@ setenv NICELYR    4       # number of vertical layers in the ice
 setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
 
-#if ( $IO_TYPE == 'pio' ) then
+if ( $IO_TYPE == 'pio' ) then
     # Build PIO
-#cd pio-2.5.0
-#    autoreconf -i
-#    setenv CPPFLAGS -I${NETCDF}/include/
-#    setenv LDFLAGS -L${NETCDF}/lib/ompi3/
-#    ./configure --enable-fortran --disable-pnetcdf --prefix=$ACCESS_OM_DIR/src/cice5/pio-2.5.0/usr
-#    make
-#    make install
-#    cd -
-#endif
+    mkdir -p ParallelIO/build
+    cd ParallelIO/build
+    setenv CC mpicc
+    setenv FC mpifort
+    cmake -DWITH_PNETCDF=OFF \
+          -DPIO_ENABLE_TIMING=OFF \
+          -DNetCDF_C_LIBRARY="${NETCDF}/lib/ompi3/libnetcdf.so" \
+          -DNetCDF_C_INCLUDE_DIR="${NETCDF}/include/" \
+          -DNetCDF_Fortran_LIBRARY="${NETCDF}/lib/ompi3/Intel" \
+          -DNetCDF_Fortran_INCLUDE_DIR="${NETCDF}/include/Intel" \
+          -DCMAKE_INSTALL_PREFIX="${SRCDIR}/ParallelIO/build" ../
+    make && make install
+    cd -
+endif
 
 if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
     setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
     setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
     setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
-    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/pio-2.5.0/usr/include/'
+    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/ParallelIO/build/include/'
 endif
 
 ### Setup the version string, this is the git hash of the commit used to build
