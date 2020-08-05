@@ -42,26 +42,20 @@
 
 !===============================================================================
 
-subroutine ice_pio_init(io_stride)
-    integer, intent(in), optional :: io_stride
-    integer :: num_iotasks, stride, ierr, base, num_agg
+subroutine ice_pio_init()
 
+    integer :: num_iotasks, stride, ierr, num_agg
     character(*),parameter :: subName = '(ice_pio_init) '
 
     if (pio_initialized) then
         return
     endif
 
-    if (present(io_stride)) then
-        stride = io_stride
-    else
-        stride = 1
-    endif
-
     pio_iotype = pio_iotype_netcdf4p
 
-    num_iotasks = get_num_procs() / stride
-    num_agg = 0
+    num_iotasks = get_num_procs()
+    num_agg = 1
+    stride = 1
 
     call pio_init(my_task, MPI_COMM_ICE, num_iotasks, num_agg, stride, PIO_rearr_box, ice_pio_subsystem)
 
