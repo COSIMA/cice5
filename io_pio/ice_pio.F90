@@ -4,21 +4,22 @@
 
   module ice_pio
 
-  use shr_kind_mod, only: r8 => shr_kind_r8, in=>shr_kind_in
-  use shr_kind_mod, only: cl => shr_kind_cl
-  use shr_sys_mod , only: shr_sys_flush
   use ice_kinds_mod
   use ice_blocks
   use ice_broadcast
-  use ice_communicate
+  use ice_communicate, only : master_task, my_task, MPI_COMM_ICE, get_num_procs
   use ice_domain, only : nblocks, blocks_ice
   use ice_domain_size
-  use ice_fileunits  
+  use ice_fileunits
   use ice_exit
   use pio
+  use pio, only: pio_set_buffer_size_limit, pio_set_log_level
+  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_box
 
   implicit none
+
   private
+  public :: ice_pio_subsystem
   save
 
   interface ice_pio_initdecomp
@@ -29,9 +30,11 @@
   end interface
 
   public ice_pio_init
+  public ice_pio_initfile
   public ice_pio_initdecomp
-
-  type(iosystem_desc_t), pointer, public :: ice_pio_subsystem
+  logical :: pio_initialized = .false.
+  integer :: pio_iotype
+  type(iosystem_desc_t) :: ice_pio_subsystem
 
 !===============================================================================
 
@@ -39,54 +42,61 @@
 
 !===============================================================================
 
-!    Initialize the io subsystem
-!    2009-Feb-17 - J. Edwards - initial version
+subroutine ice_pio_init()
 
-   subroutine ice_pio_init(mode, filename, File, clobber, cdf64)
+    integer :: num_iotasks, stride, ierr, num_agg
+    character(*),parameter :: subName = '(ice_pio_init) '
 
-   use shr_pio_mod, only: shr_pio_getiosys, shr_pio_getiotype
-     
-   implicit none
-   character(len=*)     , intent(in),    optional :: mode
-   character(len=*)     , intent(in),    optional :: filename
-   type(file_desc_t)    , intent(inout), optional :: File
-   logical              , intent(in),    optional :: clobber
-   logical              , intent(in),    optional :: cdf64
+    if (pio_initialized) then
+        return
+    endif
 
-   ! local variables
+    pio_iotype = pio_iotype_netcdf4p
 
-   integer (int_kind) :: &
+    num_agg = 1
+    stride = 1
+    num_iotasks = get_num_procs() / stride
+
+    call pio_init(my_task, MPI_COMM_ICE, num_iotasks, num_agg, stride, PIO_rearr_box, ice_pio_subsystem)
+
+    ! PIO needs to be compiled with --enable-debug to use this
+    ierr = pio_set_log_level(0)
+
+    pio_initialized = .true.
+end subroutine ice_pio_init
+
+
+subroutine ice_pio_initfile(mode, filename, File, clobber, cdf64)
+
+    implicit none
+    character(len=*)     , intent(in),    optional :: mode
+    character(len=*)     , intent(in),    optional :: filename
+    type(file_desc_t)    , intent(inout), optional :: File
+    logical              , intent(in),    optional :: clobber
+    logical              , intent(in),    optional :: cdf64
+
+    ! local variables
+
+    integer (int_kind) :: &
       nml_error          ! namelist read error flag
 
-   integer :: pio_iotype
-   logical :: exists
-   logical :: lclobber
-   logical :: lcdf64
-   integer :: status
-   integer :: nmode
-   character(*),parameter :: subName = '(ice_pio_wopen) '
-   logical, save :: first_call = .true.
+    logical :: exists
+    logical :: lclobber
+    integer :: status
+    character(*),parameter :: subName = '(ice_pio_wopen) '
 
-   ice_pio_subsystem => shr_pio_getiosys(inst_name)
-   pio_iotype =  shr_pio_getiotype(inst_name)
+    if (present(mode) .and. present(filename) .and. present(File)) then
 
-   if (present(mode) .and. present(filename) .and. present(File)) then
-      
       if (trim(mode) == 'write') then
          lclobber = .false.
          if (present(clobber)) lclobber=clobber
-         
-         lcdf64 = .false.
-         if (present(cdf64)) lcdf64=cdf64
-         
+
          if (File%fh<0) then
             ! filename not open
             inquire(file=trim(filename),exist=exists)
             if (exists) then
                if (lclobber) then
-                  nmode = pio_clobber
-                  if (lcdf64) nmode = ior(nmode,PIO_64BIT_OFFSET)
-                  status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), nmode)
+                  status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), PIO_clobber)
                   if (my_task == master_task) then
                      write(nu_diag,*) subname,' create file ',trim(filename)
                   end if
@@ -97,9 +107,7 @@
                   end if
                endif
             else
-               nmode = pio_noclobber
-               if (lcdf64) nmode = ior(nmode,PIO_64BIT_OFFSET)
-               status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), nmode)
+               status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), pio_noclobber)
                if (my_task == master_task) then
                   write(nu_diag,*) subname,' create file ',trim(filename)
                end if
@@ -108,7 +116,7 @@
             ! filename is already open, just return
          endif
       end if
-      
+
       if (trim(mode) == 'read') then
          inquire(file=trim(filename),exist=exists)
          if (exists) then
@@ -121,33 +129,40 @@
          endif
       end if
 
-   end if
+    end if
 
-   end subroutine ice_pio_init
+end subroutine ice_pio_initfile
 
 !================================================================================
 
-   subroutine ice_pio_initdecomp_2d(iodesc)
+   subroutine ice_pio_initdecomp_2d(iodesc, use_double)
 
       type(io_desc_t), intent(out) :: iodesc
+      logical, intent(in), optional :: use_double
 
+      logical :: luse_double
       integer (kind=int_kind) :: &
           iblk,ilo,ihi,jlo,jhi,lon,lat,i,j,n,k
 
-      type(block) :: this_block 
+      type(block) :: this_block
 
       integer(kind=int_kind), pointer :: dof2d(:)
 
       allocate(dof2d(nx_block*ny_block*nblocks))
 
+      luse_double = .false.
+      if (present(use_double)) then
+          luse_double = .true.
+      endif
+
       n=0
       do iblk = 1, nblocks
-         this_block = get_block(blocks_ice(iblk),iblk)         
+         this_block = get_block(blocks_ice(iblk),iblk)
          ilo = this_block%ilo
          ihi = this_block%ihi
          jlo = this_block%jlo
          jhi = this_block%jhi
-         
+
          do j=1,ny_block
          do i=1,nx_block
             n = n+1
@@ -164,8 +179,13 @@
          enddo !j
       end do
 
-      call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global/), &
-           dof2d, iodesc)
+      if (luse_double) then
+          call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global/), &
+               dof2d, iodesc)
+      else
+          call pio_initdecomp(ice_pio_subsystem, pio_real, (/nx_global,ny_global/), &
+               dof2d, iodesc)
+      endif
 
       deallocate(dof2d)
  
@@ -173,21 +193,31 @@
 
 !================================================================================
 
-   subroutine ice_pio_initdecomp_3d (ndim3, iodesc, remap)
+   subroutine ice_pio_initdecomp_3d (ndim3, iodesc, remap, use_double)
 
       integer(kind=int_kind), intent(in) :: ndim3
       type(io_desc_t), intent(out) :: iodesc
       logical, optional :: remap
+      logical, intent(in), optional :: use_double
       integer (kind=int_kind) :: &
           iblk,ilo,ihi,jlo,jhi,lon,lat,i,j,n,k 
 
       type(block) :: this_block 
-      logical :: lremap
+      logical :: lremap, luse_double
       integer(kind=int_kind), pointer :: dof3d(:)
 
       allocate(dof3d(nx_block*ny_block*nblocks*ndim3))
-      lremap=.false.
-      if(present(remap)) lremap=remap
+
+      lremap = .false.
+      if (present(remap)) then
+          lremap = remap
+      endif
+
+      luse_double = .false.
+      if (present(use_double)) then
+          luse_double = use_double
+      endif
+
       if(lremap) then
          ! Reorder the ndim3 and nblocks loops to avoid a temporary array in restart read/write
          n=0
@@ -241,8 +271,13 @@
          enddo !ndim3
       endif
 
-      call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global,ndim3/), &
-           dof3d, iodesc)
+      if (luse_double) then
+          call pio_initdecomp(ice_pio_subsystem, pio_double, (/nx_global,ny_global,ndim3/), &
+               dof3d, iodesc)
+      else
+          call pio_initdecomp(ice_pio_subsystem, pio_real, (/nx_global,ny_global,ndim3/), &
+               dof3d, iodesc)
+      endif
 
       deallocate(dof3d)
 
@@ -291,7 +326,7 @@
          enddo  !j
       end do    !iblk
 
-      call pio_initdecomp(ice_pio_subsystem, pio_double, (/ndim3,nx_global,ny_global/), &
+      call pio_initdecomp(ice_pio_subsystem, pio_real, (/ndim3,nx_global,ny_global/), &
            dof3d, iodesc)
 
       deallocate(dof3d)
@@ -342,7 +377,7 @@
       enddo !ndim3
       enddo !ndim4
 
-      call pio_initdecomp(ice_pio_subsystem, pio_double, &
+      call pio_initdecomp(ice_pio_subsystem, pio_real, &
           (/nx_global,ny_global,ndim3,ndim4/), dof4d, iodesc)
 
       deallocate(dof4d)
