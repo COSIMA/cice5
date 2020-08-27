@@ -58,7 +58,9 @@
            restart, restart_ext, input_dir, input_dir, restart_dir, restart_file, &
            pointer_file, runid, runtype, use_restart_time, restart_format
       use ice_history_shared, only: hist_avg, history_dir, history_file, &
-                             history_deflate_level, incond_dir, incond_file
+                             history_deflate_level, history_parallel_io, &
+                             history_chunksize_x, history_chunksize_y,   &
+                             incond_dir, incond_file
       use ice_exit, only: abort_ice
       use ice_itd, only: kitd, kcatbound
       use ice_ocean, only: oceanmixed_ice, tfrz_option
@@ -141,6 +143,7 @@
         print_global,   print_points,   latpnt,          lonpnt,        &
         dbug,           histfreq,       histfreq_n,      hist_avg,      &
         history_dir,    history_file,   history_deflate_level,          &
+        history_parallel_io, history_chunksize_x, history_chunksize_y,  &
         write_ic,       incond_dir,     incond_file
 
       namelist /grid_nml/ &
@@ -233,6 +236,11 @@
       history_deflate_level = -1 ! Deflate/compression level to use when
                                  ! writing netCDF4 history files, -1
                                  ! means no deflation
+      history_parallel_io = .false. ! Use parallel IO to write out history files
+      history_chunksize_x = -1 ! NetCDF chunksize in x/lon dimension. -1
+                               ! means use default selected by NetCDF library
+      history_chunksize_y = -1 ! NetCDF chunksize in y/lat dimension
+                               ! means use default selected by NetCDF library
       write_ic = .false.     ! write out initial condition
       incond_dir = history_dir ! write to history dir for default
       incond_file = 'iceh_ic'! file prefix
@@ -763,6 +771,9 @@
       call broadcast_scalar(history_dir,        master_task)
       call broadcast_scalar(history_file,       master_task)
       call broadcast_scalar(history_deflate_level, master_task)
+      call broadcast_scalar(history_parallel_io, master_task)
+      call broadcast_scalar(history_chunksize_x, master_task)
+      call broadcast_scalar(history_chunksize_y, master_task)
       call broadcast_scalar(write_ic,           master_task)
       call broadcast_scalar(incond_dir,         master_task)
       call broadcast_scalar(incond_file,        master_task)
