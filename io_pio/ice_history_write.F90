@@ -54,7 +54,6 @@
       use ice_pio
       use pio
       use pio_nf
-      use ifport, only: IEEE_FLAGS
 
       integer (kind=int_kind), intent(in) :: ns
 
@@ -134,9 +133,6 @@
       integer (kind=int_kind) :: shuffle, deflate, deflate_level
       character (len=9) :: ret_str
       integer :: ierr
-
-      !ierr = IEEE_FLAGS('CLEAR', 'exception', 'division', ret_str)
-      !ierr = IEEE_FLAGS('CLEAR', 'exception', 'invalid', ret_str)
 
       ! We leave shuffle at 0, this is only useful for integer data.
       shuffle = 0
@@ -1233,8 +1229,6 @@
       call pio_freedecomp(ice_pio_subsystem, iodesc3db)
       call pio_freedecomp(ice_pio_subsystem, iodesc4di)
 
-      !ierr = IEEE_FLAGS('SET', 'exception', 'division', ret_str)
-      !ierr = IEEE_FLAGS('SET', 'exception', 'invalid', ret_str)
 
       end subroutine ice_write_hist
 
