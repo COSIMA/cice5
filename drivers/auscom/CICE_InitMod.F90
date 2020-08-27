@@ -126,8 +126,10 @@
       ! unit numbers
       call init_fileunits()
 
+#ifdef PIO
       ! Initialise ParallelIO
-      call ice_pio_init(1)
+      call ice_pio_init()
+#endif
 
       ! Initialise libaccessom2
       call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))

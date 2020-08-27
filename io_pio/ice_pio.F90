@@ -53,15 +53,13 @@ subroutine ice_pio_init()
 
     pio_iotype = pio_iotype_netcdf4p
 
-    num_iotasks = get_num_procs()
     num_agg = 1
     stride = 1
+    num_iotasks = get_num_procs() / stride
 
     call pio_init(my_task, MPI_COMM_ICE, num_iotasks, num_agg, stride, PIO_rearr_box, ice_pio_subsystem)
 
-    call pio_set_buffer_size_limit(256*1024*1024)
-
-    ! PIO needs to be compiled with --enable-debug
+    ! PIO needs to be compiled with --enable-debug to use this
     ierr = pio_set_log_level(0)
 
     pio_initialized = .true.
