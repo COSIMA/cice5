@@ -21,6 +21,7 @@
        nblocks_x, nblocks_y, nblocks_tot, nx_block, ny_block
    use ice_distribution, only: distrb
    use ice_boundary, only: ice_halo
+   use ice_history_shared, only: history_parallel_io
 
    implicit none
    private
@@ -436,28 +437,31 @@
    end where
    deallocate(nocn)
 
-  ! Make sure that each PE has the same number of blocks. This is for the
-  ! collective writes needed for parallel, compressed netcdf output.
-  ! Calculate the number of padding blocks needed.
-  num_work_blocks = count(work_per_block /= 0)
-  num_padding_blocks = ceiling(real(num_work_blocks) / real(nprocs))*nprocs - num_work_blocks
+  if (history_parallel_io) then
+      ! When using parallel NetCDF we need to make sure that each PE has
+      ! the same number of blocks. This is because all parallel writes are
+      ! synchronous.
 
-  ! Add padding blocks
-  p = 0
-  do n=1, nblocks_tot
-    if (p >= num_padding_blocks) then
-        exit
-    elseif (work_per_block(n) == 0) then
-        work_per_block(n) = 1
-        p = p + 1
-    endif
-  enddo
+      ! First calculate the number of padding blocks needed.
+      num_work_blocks = count(work_per_block /= 0)
+      num_padding_blocks = ceiling(real(num_work_blocks) / real(nprocs))*nprocs - num_work_blocks
 
-  if (p /= num_padding_blocks) then
-    call abort_ice("ice: can't assign work to pad blocks")
+      ! Add padding blocks wherever necessary
+      p = 0
+      do n=1, nblocks_tot
+        if (p >= num_padding_blocks) then
+            exit
+        elseif (work_per_block(n) == 0) then
+            work_per_block(n) = 1
+            p = p + 1
+        endif
+      enddo
+
+      if (p /= num_padding_blocks) then
+        call abort_ice("ice: can't assign work to pad blocks")
+      endif
   endif
 
-  ! FIXME: use collective below to make sure that all PEs have the same number of blocks
 
 !----------------------------------------------------------------------
 !

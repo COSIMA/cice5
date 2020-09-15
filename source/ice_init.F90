@@ -236,7 +236,7 @@
       history_deflate_level = -1 ! Deflate/compression level to use when
                                  ! writing netCDF4 history files, -1
                                  ! means no deflation
-      history_parallel_io = .false. ! Use parallel IO to write out history files
+      history_parallel_io = .false. ! Use NetCDF parallel IO to write out history files
       history_chunksize_x = -1 ! NetCDF chunksize in x/lon dimension. -1
                                ! means use default selected by NetCDF library
       history_chunksize_y = -1 ! NetCDF chunksize in y/lat dimension
