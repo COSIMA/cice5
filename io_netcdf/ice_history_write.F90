@@ -27,6 +27,7 @@ module ice_history_write
     use ice_blocks, only: nx_block, ny_block, block, get_block
     use ice_exit, only: abort_ice
     use ice_domain, only: distrb_info, nblocks, blocks_ice
+    use ice_domain, only: equal_num_blocks_per_cpu
     use ice_communicate, only: my_task, master_task, MPI_COMM_ICE
     use ice_broadcast, only: broadcast_scalar
     use ice_gather_scatter, only: gather_global
@@ -157,6 +158,9 @@ subroutine ice_write_hist (ns)
             call check(nf90_create(ncfile(ns), ior(NF90_NETCDF4, NF90_MPIIO), ncid, &
                                    comm=MPI_COMM_ICE, info=MPI_INFO_NULL), &
                         'create history ncfile '//ncfile(ns))
+            if (.not. equal_num_blocks_per_cpu) then
+                call abort_ice('ice: error history_parallel_io needs equal_num_blocks_per_cpu')
+            endif
         else
             call check(nf90_create(ncfile(ns), ior(NF90_CLASSIC_MODEL, NF90_HDF5), ncid), &
                         'create history ncfile '//ncfile(ns))

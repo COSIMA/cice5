@@ -21,7 +21,6 @@
        nblocks_x, nblocks_y, nblocks_tot, nx_block, ny_block
    use ice_distribution, only: distrb
    use ice_boundary, only: ice_halo
-   use ice_history_shared, only: history_parallel_io
 
    implicit none
    private
@@ -49,7 +48,8 @@
    logical (kind=log_kind), public :: &
       maskhalo_dyn   , & ! if true, use masked halo updates for dynamics
       maskhalo_remap , & ! if true, use masked halo updates for transport
-      maskhalo_bound     ! if true, use masked halo updates for bound_state
+      maskhalo_bound , & ! if true, use masked halo updates for bound_state
+      equal_num_blocks_per_cpu ! if true, all CPUs have the same number of blocks
 
 !-----------------------------------------------------------------------
 !
@@ -114,7 +114,8 @@
                          ns_boundary_type,  &
                          maskhalo_dyn,      &
                          maskhalo_remap,    &
-                         maskhalo_bound
+                         maskhalo_bound,    &
+                         equal_num_blocks_per_cpu
 
 !----------------------------------------------------------------------
 !
@@ -131,6 +132,7 @@
    maskhalo_dyn      = .false.     ! if true, use masked halos for dynamics
    maskhalo_remap    = .false.     ! if true, use masked halos for transport
    maskhalo_bound    = .false.     ! if true, use masked halos for bound_state
+   equal_num_blocks_per_cpu = .false. ! if true, all CPUs have the same number of blocks
 
    call get_fileunit(nu_nml)
    if (my_task == master_task) then
@@ -161,6 +163,7 @@
    call broadcast_scalar(maskhalo_dyn,      master_task)
    call broadcast_scalar(maskhalo_remap,    master_task)
    call broadcast_scalar(maskhalo_bound,    master_task)
+   call broadcast_scalar(equal_num_blocks_per_cpu, master_task)
 
 !----------------------------------------------------------------------
 !
@@ -437,10 +440,10 @@
    end where
    deallocate(nocn)
 
-  if (history_parallel_io) then
-      ! When using parallel NetCDF we need to make sure that each PE has
-      ! the same number of blocks. This is because all parallel writes are
-      ! synchronous.
+  if (equal_num_blocks_per_cpu) then
+      ! Make sure that each PE has
+      ! the same number of blocks. This is needed when using parallel NetCDF
+      ! because all parallel writes are synchronous.
 
       ! First calculate the number of padding blocks needed.
       num_work_blocks = count(work_per_block /= 0)
