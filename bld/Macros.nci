@@ -55,6 +55,13 @@ ifeq ($(IO_TYPE), netcdf)
    SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
 endif
 
+ifeq ($(IO_TYPE), pio)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf -DPIO
+   INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
+   SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
+   SLIBS   := $(SLIBS) -L$(SRCDIR)/ParallelIO/build/lib/ -lpiof -lpioc -Wl,-rpath=$(SRCDIR)/ParallelIO/build/lib/
+endif
+
 ifeq ($(USE_ESMF), yes)
    CPPDEFS :=  $(CPPDEFS) -Duse_esmf
    INCLDIR :=  $(INCLDIR) -I ???
@@ -64,7 +71,7 @@ endif
 ifeq ($(AusCOM), yes)
    CPPDEFS := $(CPPDEFS) -DAusCOM -Dcoupled
    INCLDIR := $(INCLDIR) $(CPL_INCS) $(LIBAUSCOM_INCS)
-   SLIBS   := $(SLIBS) -L$(CPLLIBDIR) -laccessom2
+   SLIBS   := $(SLIBS) $(CPLLIBS)
 endif
 
 ifeq ($(UNIT_TESTING), yes)

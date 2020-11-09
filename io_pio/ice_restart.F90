@@ -12,7 +12,7 @@
       use ice_kinds_mod
       use ice_restart_shared, only: &
           restart, restart_ext, restart_dir, restart_file, pointer_file, &
-          runid, runtype, use_restart_time, restart_format, lcdf64, lenstr
+          runid, runtype, use_restart_time, restart_format, lenstr
       use ice_pio
       use pio
 
@@ -74,10 +74,11 @@
 
       if (restart_format == 'pio') then
          File%fh=-1
-         call ice_pio_init(mode='read', filename=trim(filename), File=File)
-      
-         call ice_pio_initdecomp(iodesc=iodesc2d)
-         call ice_pio_initdecomp(ndim3=ncat  , iodesc=iodesc3d_ncat,remap=.true.)
+         call ice_pio_initfile(mode='read', filename=trim(filename), File=File)
+
+         call ice_pio_initdecomp(iodesc=iodesc2d, use_double=.true.)
+         call ice_pio_initdecomp(ndim3=ncat, iodesc=iodesc3d_ncat, &
+                                 remap=.true., use_double=.true.)
 
          if (use_restart_time) then
          status = pio_get_att(File, pio_global, 'istep1', istep0)
@@ -179,8 +180,8 @@
       if (restart_format == 'pio') then
       
          File%fh=-1
-         call ice_pio_init(mode='write',filename=trim(filename), File=File, &
-              clobber=.true., cdf64=lcdf64 )
+         call ice_pio_initfile(mode='write',filename=trim(filename), File=File, &
+              clobber=.true.)
 
          status = pio_put_att(File,pio_global,'istep1',istep1)
          status = pio_put_att(File,pio_global,'time',time)
@@ -373,8 +374,9 @@
          deallocate(dims)
          status = pio_enddef(File)
 
-         call ice_pio_initdecomp(iodesc=iodesc2d)
-         call ice_pio_initdecomp(ndim3=ncat  , iodesc=iodesc3d_ncat, remap=.true.)
+         call ice_pio_initdecomp(iodesc=iodesc2d, use_double=.true.)
+         call ice_pio_initdecomp(ndim3=ncat, iodesc=iodesc3d_ncat, &
+                                 remap=.true., use_double=.true.)
 
       endif
 
@@ -618,7 +620,7 @@
         status        ! status variable from netCDF routine
 
       status = pio_def_var(File,trim(vname),pio_double,dims,vardesc)
-        
+
       end subroutine define_rest_field
 
 !=======================================================================

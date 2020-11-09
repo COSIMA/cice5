@@ -49,6 +49,15 @@
          history_deflate_level ! Deflation/compression level to use for
                                ! netCDF4 output
 
+      logical, public :: &
+         history_parallel_io   ! Use parallel write for netCDF4 output
+
+      integer, public :: &
+         history_chunksize_x   ! NetCDF chunksize in x/lon dimension
+
+      integer, public :: &
+         history_chunksize_y   ! NetCDF chunksize in y/lat dimension
+
       character (len=char_len_long), public :: &
          pointer_file      ! input pointer file for restarts
 

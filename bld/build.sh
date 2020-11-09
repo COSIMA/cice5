@@ -37,7 +37,7 @@ source $CBLD/config.$platform.$driver.$resolution
 ### Specialty code
 setenv CAM_ICE  no        # set to yes for CAM runs (single column)
 setenv SHRDIR   csm_share # location of CCSM shared code
-setenv IO_TYPE  netcdf    # set to none if netcdf library is unavailable
+setenv IO_TYPE  pio       # set to none if netcdf library is unavailable
 setenv DITTO    no        # reproducible diagnostics
 setenv THRD     no        # set to yes for OpenMP threading
 if ( $THRD == 'yes') setenv OMP_NUM_THREADS 2 # positive integer 
@@ -53,12 +53,29 @@ setenv NICELYR    4       # number of vertical layers in the ice
 setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
 
+if ( $IO_TYPE == 'pio' ) then
+    # Build PIO
+    mkdir -p ParallelIO/build
+    cd ParallelIO/build
+    setenv CC mpicc
+    setenv FC mpifort
+    cmake -DWITH_PNETCDF=OFF \
+          -DPIO_ENABLE_TIMING=OFF \
+          -DNetCDF_C_LIBRARY="${NETCDF}/lib/ompi3/libnetcdf.so" \
+          -DNetCDF_C_INCLUDE_DIR="${NETCDF}/include/" \
+          -DNetCDF_Fortran_LIBRARY="${NETCDF}/lib/ompi3/Intel/libnetcdff.so" \
+          -DNetCDF_Fortran_INCLUDE_DIR="${NETCDF}/include/Intel" \
+          -DCMAKE_INSTALL_PREFIX="${SRCDIR}/ParallelIO/build" ../
+    make && make install
+    cd -
+endif
+
 if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
     setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
     setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
     setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
-    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct'
+    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/ParallelIO/build/include/'
 endif
 
 ### Setup the version string, this is the git hash of the commit used to build
