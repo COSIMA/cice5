@@ -619,12 +619,30 @@
       integer (kind=int_kind) :: &
         status        ! status variable from netCDF routine
 
-      status = pio_def_var(File,trim(vname),pio_double,dims,vardesc)
+      call check(pio_def_var(File,trim(vname),pio_double,dims,vardesc), &
+                 'def var: '//trim(vname))
 
       end subroutine define_rest_field
+
+
+subroutine check(status, msg)
+
+    use netcdf, only: nf90_noerr, nf90_strerror
+
+    integer, intent (in) :: status
+    character(len=*), intent (in) :: msg
+
+    if(status /= nf90_noerr) then
+        call abort_ice('ice: NetCDF error '//trim(nf90_strerror(status)//' '//trim(msg)))
+    end if
+
+end subroutine check
+
 
 !=======================================================================
 
       end module ice_restart
+
+
 
 !=======================================================================
