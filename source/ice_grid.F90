@@ -182,13 +182,13 @@
                        'open: '//trim(grid_file))
 
             call check(nf90_inq_varid(fid_grid, trim(fieldname), &
-                                       varid), &
+                                      varid), &
                        'inq var: '//trim(fieldname))
 
             call check(nf90_get_var(fid_grid, varid, work_g1, &
                                     start=(/1,1,1/), &
-                                    count=(/nx_global,ny_global,1/), &
-                       'get var: '//trim(fieldname)))
+                                    count=(/nx_global,ny_global,1/)), &
+                       'get var: '//trim(fieldname))
 
             fieldname='kmt'
             call check(nf90_open(kmt_file, NF90_NOWRITE, fid_kmt), &
@@ -199,9 +199,9 @@
                        'inq var: '//trim(fieldname))
 
             call check(nf90_get_var(fid_kmt, varid, work_g2, &
-                                    start=(/1,1,1/), & 
-                                    count=(/nx_global,ny_global,1/), &
-                       'get var: '//trim(fieldname)))
+                                    start=(/1,1,1/), &
+                                    count=(/nx_global,ny_global,1/)), &
+                       'get var: '//trim(fieldname))
          else
 
             call ice_open(nu_grid,grid_file,64) ! ULAT
@@ -252,6 +252,7 @@
       subroutine check(status, msg)
 
           use netcdf, only: nf90_noerr, nf90_strerror
+          use ice_exit, only: abort_ice
 
           integer, intent (in) :: status
           character(len=*), intent (in) :: msg
