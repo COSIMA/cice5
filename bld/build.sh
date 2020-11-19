@@ -63,7 +63,7 @@ if ( $IO_TYPE == 'pio' ) then
           -DPIO_ENABLE_TIMING=OFF \
           -DNetCDF_C_LIBRARY="${NETCDF}/lib/ompi3/libnetcdf.so" \
           -DNetCDF_C_INCLUDE_DIR="${NETCDF}/include/" \
-          -DNetCDF_Fortran_LIBRARY="${NETCDF}/lib/ompi3/Intel" \
+          -DNetCDF_Fortran_LIBRARY="${NETCDF}/lib/ompi3/Intel/libnetcdff.so" \
           -DNetCDF_Fortran_INCLUDE_DIR="${NETCDF}/include/Intel" \
           -DCMAKE_INSTALL_PREFIX="${SRCDIR}/ParallelIO/build" ../
     make && make install

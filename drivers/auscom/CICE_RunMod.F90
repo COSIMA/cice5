@@ -74,8 +74,6 @@
       type(accessom2_type), intent(inout) :: accessom2
 
       integer (kind=int_kind) :: time_sec, itap, icpl_ai, icpl_io
-      integer (kind=int_kind) :: stimestamp_ai
-      integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
       integer (kind=int_kind) :: imon
       logical :: first_ice_step, first_ocean_wait
@@ -155,15 +153,13 @@
       Do icpl_io = 1, num_cpl_io   !begin I <==> O coupling iterations
         call coupling_step_timer%start()
 
-        stimestamp_io = time_sec
-
         ! ---temp check for roughness etc.---
         if (chk_gfdl_roughness) then
            !
            !call gather_global(gwork, u_star0, master_task, distrb_info)
            !if (my_task == master_task) write(54,'(10e12.4)')gwork
            !
-           call check_roughness(trim(input_dir)//'fields_roughness.nc',stimestamp_io)
+           call check_roughness(trim(input_dir)//'fields_roughness.nc',time_sec)
         endif
         ! ----------------------------------- 
 
@@ -171,9 +167,11 @@
             call write_boundary_checksums(time_sec)
         endif
 
-        call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
-        call into_ocn(stimestamp_io, 1.0)
-        call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
+        if (time_sec == 0) then
+            call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
+            call into_ocn(time_sec, 1.0)
+            call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
+        endif
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
         call nullify_i2o_fluxes() 
 
@@ -231,10 +229,15 @@
           call t2ugrid_vector(iostrsv)
         endif
 
-        rtimestamp_io = time_sec
-        if (rtimestamp_io < (dt*npt)) then
+        if (time_sec /= 0 .and. time_sec < (dt*npt)) then
+            call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
+            call into_ocn(time_sec, 1.0)
+            call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
+        endif
+
+        if (time_sec < (dt*npt)) then
           call ocean_wait_timer%start()
-          call from_ocn(rtimestamp_io)
+          call from_ocn(time_sec)
           call ocean_wait_timer%stop()
         endif
 
@@ -243,16 +246,9 @@
 
       END DO        !icpl_ai
 
-      ! final update of the stimestamp_io, ie., put back the last dt_ice:
-      stimestamp_io = stimestamp_io + dt
-
-!XXX      call save_time0_a2i_fields('CICE_input/A2I_time1.nc', stimestamp_io)
-
-      call save_time0_i2o_fields(trim(restart_dir)//'i2o.nc', stimestamp_io) 
-
-      call save_u_star(trim(restart_dir)//'u_star.nc',stimestamp_io)    
-
-      call save_sicemass(trim(restart_dir)//'sicemass.nc',stimestamp_io)    
+      call save_time0_i2o_fields(trim(restart_dir)//'i2o.nc', time_sec) 
+      call save_u_star(trim(restart_dir)//'u_star.nc', time_sec)    
+      call save_sicemass(trim(restart_dir)//'sicemass.nc', time_sec)    
 
    !--------------------------------------------------------------------
    ! end of timestep loop
