@@ -16,7 +16,7 @@
    use ice_kinds_mod
    use ice_constants, only: puny, shlat, nhlat, rad_to_deg
    use ice_communicate, only: my_task, master_task, get_num_procs
-   use ice_broadcast, only: broadcast_scalar
+   use ice_broadcast, only: broadcast_scalar, broadcast_array
    use ice_blocks, only: block, get_block, create_blocks, nghost, &
        nblocks_x, nblocks_y, nblocks_tot, nx_block, ny_block
    use ice_distribution, only: distrb
@@ -69,6 +69,9 @@
        distribution_wght     ! method for weighting work per block 
                              ! 'block' = POP default configuration
                              ! 'latitude' = no. ocean points * |lat|
+                             ! 'file' = read distribution_wght_file
+    character (char_len_long) :: &
+       distribution_wght_file  ! file for distribution_wght=file
 
     integer (int_kind) :: &
        nprocs                ! num of processors
@@ -110,6 +113,7 @@
                          processor_shape,   &
                          distribution_type, &
                          distribution_wght, &
+                         distribution_wght_file, &
                          ew_boundary_type,  &
                          ns_boundary_type,  &
                          maskhalo_dyn,      &
@@ -127,6 +131,7 @@
    processor_shape   = 'slenderX2'
    distribution_type = 'cartesian'
    distribution_wght = 'latitude'
+   distribution_wght_file = 'unknown'
    ew_boundary_type  = 'cyclic'
    ns_boundary_type  = 'open'
    maskhalo_dyn      = .false.     ! if true, use masked halos for dynamics
@@ -158,6 +163,7 @@
    call broadcast_scalar(processor_shape,   master_task)
    call broadcast_scalar(distribution_type, master_task)
    call broadcast_scalar(distribution_wght, master_task)
+   call broadcast_scalar(distribution_wght_file, master_task)
    call broadcast_scalar(ew_boundary_type,  master_task)
    call broadcast_scalar(ns_boundary_type,  master_task)
    call broadcast_scalar(maskhalo_dyn,      master_task)
@@ -222,6 +228,8 @@
                                   trim(distribution_type)
      write(nu_diag,'(a25,a10)') '  Distribution weight:    ', &
                                   trim(distribution_wght)
+     write(nu_diag,'(a,a)')   '  Distribution wght file= ',   &
+                                    trim(distribution_wght_file)
      write(nu_diag,'(a25,a10)') '  ew_boundary_type:       ', &
                                   trim(ew_boundary_type)
      write(nu_diag,'(a25,a10)') '  ns_boundary_type:       ', &
@@ -254,6 +262,7 @@
    use ice_domain_size, only: max_blocks, nx_global, ny_global
    use ice_exit, only: abort_ice
    use ice_fileunits, only: nu_diag
+   use netcdf
 
    real (dbl_kind), dimension(nx_global,ny_global), intent(in) :: &
       KMTG           ,&! global topography
@@ -287,6 +296,14 @@
 
    type (block) :: &
       this_block           ! block information for current block
+
+   real (dbl_kind), dimension(:,:), allocatable :: &
+      wght                 ! wghts from file
+
+   integer (int_kind) :: &
+      status, &
+      fid, &
+      varid
 
     ! The number of extra blocks that need to be added so that each PE
     ! has an equal number.
@@ -385,47 +402,87 @@
 !----------------------------------------------------------------------
 
    if (distribution_wght == 'latitude') then
-       flat = NINT(abs(ULATG*rad_to_deg), int_kind) + 1 ! linear function
+       flat = NINT(abs(ULATG*rad_to_deg), int_kind)  ! linear function
    else
        flat = 1
    endif
 
    allocate(nocn(nblocks_tot))
 
-   nocn = 0
-   do n=1,nblocks_tot
-      this_block = get_block(n,n)
-      do j=this_block%jlo,this_block%jhi
-         if (this_block%j_glob(j) > 0) then
-            do i=this_block%ilo,this_block%ihi
-               if (this_block%i_glob(i) > 0) then
-	          ig = this_block%i_glob(i)
-                  jg = this_block%j_glob(j)
-                  if (KMTG(ig,jg) > puny .and.                      &
-                     (ULATG(ig,jg) < shlat/rad_to_deg .or.          &
-                      ULATG(ig,jg) > nhlat/rad_to_deg) )            & 
- 	              nocn(n) = nocn(n) + flat(ig,jg)
-               endif
-            end do
-         endif
-      end do
+   if (distribution_wght == 'file') then
+      allocate(wght(nx_global,ny_global))
+      ! cannot use ice_read_write due to circular dependency
+      status = nf90_open(distribution_wght_file, NF90_NOWRITE, fid)
+      if (status /= nf90_noerr) then
+        call abort_ice ('ERROR: Cannot open '//trim(distribution_wght_file))
+      endif
+      status = nf90_inq_varid(fid, 'wght', varid)
+      status = nf90_get_var(fid, varid, wght)
+      status = nf90_close(fid)
+      if (my_task == master_task) then
+        write(nu_diag,*) 'read ',trim(distribution_wght_file),minval(wght),maxval(wght)
+      endif
 
-      !*** with array syntax, we actually do work on non-ocean
-      !*** points, so where the block is not completely land,
-      !*** reset nocn to be the full size of the block
+      nocn = 0
+      do n=1,nblocks_tot
+         this_block = get_block(n,n)
+         do j=this_block%jlo,this_block%jhi
+            if (this_block%j_glob(j) > 0) then
+               do i=this_block%ilo,this_block%ihi
+                  if (this_block%i_glob(i) > 0) then
+                     ig = this_block%i_glob(i)
+                     jg = this_block%j_glob(j)
+!                     if (KMTG(ig,jg) > puny) &
+!                        nocn(n) = max(nocn(n),nint(wght(ig,jg)+1.0_dbl_kind))
+                     if (KMTG(ig,jg) > puny) then
+                        if (wght(ig,jg) > 0.00001_dbl_kind) then
+                           nocn(n) = nocn(n)+nint(wght(ig,jg))
+                        else
+                           nocn(n) = max(nocn(n),1)
+                        endif
+                     endif
+                  endif
+               end do
+            endif
+         end do
+      enddo
+      deallocate(wght)
+   else
+      nocn = 0
+      do n=1,nblocks_tot
+         this_block = get_block(n,n)
+         do j=this_block%jlo,this_block%jhi
+            if (this_block%j_glob(j) > 0) then
+               do i=this_block%ilo,this_block%ihi
+                  if (this_block%i_glob(i) > 0) then
+                  ig = this_block%i_glob(i)
+                     jg = this_block%j_glob(j)
+                     if (KMTG(ig,jg) > puny .and.                      &
+                        (ULATG(ig,jg) < shlat/rad_to_deg .or.          &
+                         ULATG(ig,jg) > nhlat/rad_to_deg) )            & 
+                      nocn(n) = nocn(n) + flat(ig,jg)
+                  endif
+               end do
+            endif
+         end do
 
-      ! use processor_shape = 'square-pop' and distribution_wght = 'block' 
-      ! to make CICE and POP decompositions/distributions identical.
+         !*** with array syntax, we actually do work on non-ocean
+         !*** points, so where the block is not completely land,
+         !*** reset nocn to be the full size of the block
+
+          ! use processor_shape = 'square-pop' and distribution_wght = 'block' 
+          ! to make CICE and POP decompositions/distributions identical.
 
 
 #ifdef CICE_IN_NEMO
-      ! Keep all blocks even the ones only containing land points
-      if (distribution_wght == 'block') nocn(n) = nx_block*ny_block
+         ! Keep all blocks even the ones only containing land points
+         if (distribution_wght == 'block') nocn(n) = nx_block*ny_block
 #else
-      if (distribution_wght == 'block' .and. &   ! POP style
-          nocn(n) > 0) nocn(n) = nx_block*ny_block
+         if (distribution_wght == 'block' .and. &   ! POP style
+             nocn(n) > 0) nocn(n) = nx_block*ny_block
 #endif
-   end do
+      end do
+   endif  ! distribution_wght = file
 
    work_unit = maxval(nocn)/max_work_unit + 1
 
@@ -433,11 +490,18 @@
 
    allocate(work_per_block(nblocks_tot))
 
-   where (nocn > 0)
+   where (nocn > 1)
+     work_per_block = nocn/work_unit + 2
+   elsewhere (nocn == 1)
      work_per_block = nocn/work_unit + 1
    elsewhere
      work_per_block = 0
    end where
+   if (my_task == master_task) then
+      write(nu_diag,*) 'ice_domain work_unit, max_work_unit = ',work_unit, max_work_unit
+      write(nu_diag,*) 'ice_domain nocn = ',minval(nocn),maxval(nocn),sum(nocn)
+      write(nu_diag,*) 'ice_domain work_per_block = ',minval(work_per_block),maxval(work_per_block),sum(work_per_block)
+   endif
    deallocate(nocn)
 
   if (equal_num_blocks_per_cpu) then
