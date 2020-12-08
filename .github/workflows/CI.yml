@@ -24,6 +24,7 @@ jobs:
       FC: gfortran
       LIBACCESSOM2_ROOT: $GITHUB_WORKSPACE/libaccessom2
       OASIS_ROOT: $GITHUB_WORKSPACE/oasis3-mct/Linux
+      platform: ubuntu
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
