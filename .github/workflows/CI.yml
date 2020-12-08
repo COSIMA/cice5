@@ -57,4 +57,4 @@ jobs:
       - name: Build 1 degree
         run: |
           echo Building 1 degree
-          make
+          bld/build.sh $platform auscom 360x300
