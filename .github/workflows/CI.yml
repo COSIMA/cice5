@@ -36,7 +36,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: https://github.com/COSIMA/oasis3-mct.git
-          depth: 1
 
       # Compile libaccessom2
       - name: Compile OASIS3-mct
