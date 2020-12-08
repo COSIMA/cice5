@@ -39,7 +39,7 @@ jobs:
 
       # Compile libaccessom2
       - name: Compile OASIS3-mct
-        run: cd oasis3-mct && make ubuntu
+        run: cd $GITHUB_WORKSPACE/oasis3-mct && make ubuntu
 
       # Install libaccessom2
       - name: Install libaccessom2
