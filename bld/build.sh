@@ -32,8 +32,6 @@ if ($debug == 'unit_testing') then
     setenv UNIT_TESTING yes
 endif
 
-source $CBLD/config.$platform.$driver.$resolution
-
 ### Specialty code
 setenv CAM_ICE  no        # set to yes for CAM runs (single column)
 setenv SHRDIR   csm_share # location of CCSM shared code
@@ -52,6 +50,8 @@ setenv OASIS3_MCT yes	  # oasis3-mct version
 setenv NICELYR    4       # number of vertical layers in the ice
 setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
+
+source $CBLD/config.$platform.$driver.$resolution
 
 if ( $IO_TYPE == 'pio' ) then
     # Build PIO
