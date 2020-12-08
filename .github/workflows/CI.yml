@@ -56,4 +56,4 @@ jobs:
       - name: Build 1 degree
         run: |
           echo Building 1 degree
-          cd $GITHUB_WORKSPACE/cice5 && make
+          make
