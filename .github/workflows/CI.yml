@@ -40,7 +40,7 @@ jobs:
 
       # Install dependencies
       - name: Install dependencies
-        run: sudo apt-get install -y openmpi-bin libopenmpi-dev libopenmpi1.10
+        run: sudo apt-get install -y openmpi-bin libopenmpi-dev libopenmpi2
 
       # Compile libaccessom2
       - name: Compile OASIS3-mct
