@@ -2,7 +2,7 @@
 setenv NTASK 6
 setenv RES 360x300
 
-unsetenv IO_TYPE
+setenv IO_TYPE netcdf
 
 set NXGLOB = `echo $RES | sed s/x.\*//`
 set NYGLOB = `echo $RES | sed s/.\*x//`
