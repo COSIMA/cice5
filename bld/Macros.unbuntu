@@ -37,5 +37,52 @@ ifeq ($(IO_TYPE), netcdf)
    SLIBS   := $(SLIBS) -lnetcdf -lnetcdff
 endif
 
+CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) \
+            -DNUMIN=$(NUMIN) -DNUMAX=$(NUMAX) \
+            -DTRAGE=$(TRAGE) -DTRFY=$(TRFY) -DTRLVL=$(TRLVL) \
+            -DTRPND=$(TRPND) -DNTRAERO=$(NTRAERO) -DTRBRI=$(TRBRI) \
+            -DNBGCLYR=$(NBGCLYR) -DTRBGCS=$(TRBGCS) \
+            -DNICECAT=$(NICECAT) -DNICELYR=$(NICELYR) \
+            -DNSNWLYR=$(NSNWLYR) \
+            -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS)
+
+ifeq ($(COMMDIR), mpi)
+   SLIBS   :=  $(SLIBS) -lmpi
+endif
+
+ifeq ($(BARRIERS), yes)
+   CPPDEFS :=  $(CPPDEFS) -Dgather_scatter_barrier
+endif
+
+ifeq ($(IO_TYPE), netcdf)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf
+   INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
+   SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
+endif
+
+ifeq ($(AusCOM), yes)
+   CPPDEFS := $(CPPDEFS) -DAusCOM -Dcoupled
+   INCLDIR := $(INCLDIR) $(CPL_INCS) $(LIBAUSCOM_INCS)
+   SLIBS   := $(SLIBS) $(CPLLIBS)
+endif
+
+ifeq ($(UNIT_TESTING), yes)
+   CPPDEFS := $(CPPDEFS) -DUNIT_TESTING
+endif
+ifeq ($(ACCESS), yes)
+   CPPDEFS := $(CPPDEFS) -DACCESS
+endif
+# standalone CICE with AusCOM mods
+ifeq ($(ACCICE), yes)
+   CPPDEFS := $(CPPDEFS) -DACCICE
+endif
+# no MOM just CICE+UM
+ifeq ($(NOMOM), yes)
+   CPPDEFS := $(CPPDEFS) -DNOMOM
+endif
+ifeq ($(OASIS3_MCT), yes)
+   CPPDEFS := $(CPPDEFS) -DOASIS3_MCT
+endif
+
 ### note this file does not include PIO capability
 ### see Macros.Linux.LANL.conejo
