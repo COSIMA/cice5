@@ -45,13 +45,13 @@ jobs:
 
       # Compile libaccessom2
       - name: Compile OASIS3-mct
-        run: cd $GITHUB_WORKSPACE/oasis3-mct && make ubuntu
+        run: cd ${{ github.workspace }}/oasis3-mct && make ubuntu
 
       # Install libaccessom2
       - name: Install libaccessom2
         run: | 
           wget https://github.com/COSIMA/libaccessom2/releases/latest/download/binary_release.tar.gz
-          tar -zxf binary_release.tar.gz
+          tar --directory=${{ github.workspace }} -zxf binary_release.tar.gz
 
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
