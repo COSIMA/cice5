@@ -22,8 +22,8 @@ jobs:
     
     env:
       FC: gfortran
-      LIBACCESSOM2_ROOT: $GITHUB_WORKSPACE/libaccessom2
-      OASIS_ROOT: $GITHUB_WORKSPACE/oasis3-mct/Linux
+      LIBACCESSOM2_ROOT: ${GITHUB_WORKSPACE}/libaccessom2
+      OASIS_ROOT: ${GITHUB_WORKSPACE}/oasis3-mct/Linux
       platform: ubuntu
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -57,4 +57,5 @@ jobs:
       - name: Build 1 degree
         run: |
           echo Building 1 degree
+          env
           bld/build.sh $platform auscom 360x300
