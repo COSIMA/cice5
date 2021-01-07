@@ -1100,7 +1100,6 @@
                                   workr2, status, fillval=spval)
          endif
       enddo ! num_avail_hist_fields_2D
-
       deallocate(workr2)
 
       ! 3D (category)

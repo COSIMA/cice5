@@ -7,14 +7,17 @@
   use ice_kinds_mod
   use ice_blocks
   use ice_broadcast
-  use ice_communicate, only : master_task, my_task, MPI_COMM_ICE, get_num_procs
+  use ice_communicate, only : master_task, my_task
   use ice_domain, only : nblocks, blocks_ice
   use ice_domain_size
   use ice_fileunits
   use ice_exit
-  use pio
+  use pio, only: pio_init, pio_initdecomp, pio_createfile, pio_openfile
+  use pio, only: iosystem_desc_t, file_desc_t, io_desc_t
   use pio, only: pio_set_buffer_size_limit, pio_set_log_level
-  use pio_types, only: pio_iotype_netcdf4p, PIO_rearr_box
+  use pio, only: pio_clobber, pio_noclobber, pio_write, pio_nowrite
+  use pio, only: pio_iotype_netcdf4p, PIO_REARR_BOX
+  use pio, only: pio_double, pio_real
 
   implicit none
 
@@ -42,9 +45,17 @@
 
 !===============================================================================
 
-subroutine ice_pio_init()
+subroutine ice_pio_init(comm, num_total_procs, num_io_procs, new_comp_comm, io_comm)
 
-    integer :: num_iotasks, stride, ierr, num_agg
+    integer, intent(in) :: comm, num_total_procs, num_io_procs
+    integer, intent(out) :: new_comp_comm, io_comm
+
+    integer :: ierr, i, num_comp_procs
+    integer, dimension(1) :: procs_per_component, comp_comm
+    integer, dimension(num_io_procs) :: io_proc_list
+    integer, allocatable, dimension(:, :) :: comp_proc_list
+    type(iosystem_desc_t), dimension(1) :: tmp_ice_pio_subsystem
+
     character(*),parameter :: subName = '(ice_pio_init) '
 
     if (pio_initialized) then
@@ -53,11 +64,37 @@ subroutine ice_pio_init()
 
     pio_iotype = pio_iotype_netcdf4p
 
-    num_agg = 1
-    stride = 1
-    num_iotasks = get_num_procs() / stride
+    num_comp_procs = num_total_procs - num_io_procs
+    procs_per_component(1) = num_comp_procs
 
-    call pio_init(my_task, MPI_COMM_ICE, num_iotasks, num_agg, stride, PIO_rearr_box, ice_pio_subsystem)
+    allocate(comp_proc_list(num_comp_procs, 1))
+    do i=1, num_total_procs
+        if (i <= num_comp_procs) then
+            comp_proc_list(i,1) = i - 1
+        else
+            io_proc_list(i-num_comp_procs) = i - 1
+        endif
+    enddo
+
+    print*, 'num_total_procs: ', num_total_procs
+    print*, 'num_io_procs: ', num_io_procs
+    print*, 'comp_proc_list: ', comp_proc_list(:, 1)
+    print*, 'io_proc_list: ', io_proc_list
+    print*, 'my_task before: ', my_task
+
+    call pio_init(tmp_ice_pio_subsystem,      & ! iosystem
+                  comm,                       & ! MPI communicator
+                  procs_per_component,        & ! number of tasks per component model
+                  comp_proc_list,             & ! list of procs per component
+                  io_proc_list,               & ! list of io procs
+                  PIO_REARR_BOX,              & ! rearranger to use (currently only BOX is supported)
+                  comp_comm,                  & ! comp_comm to be returned
+                  io_comm)                      ! io_comm to be returned
+
+    ice_pio_subsystem = tmp_ice_pio_subsystem(1)
+    new_comp_comm = comp_comm(1)
+
+    print*, 'my_task after: ', my_task
 
     ! PIO needs to be compiled with --enable-debug to use this
     ierr = pio_set_log_level(0)

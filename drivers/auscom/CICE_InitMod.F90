@@ -78,8 +78,7 @@
       use ice_calendar, only: dt, npt, dt_dyn, time, istep, istep1, write_ic, &
           init_calendar, calendar, idate, month
 !ars599: 27032014
-      use ice_communicate, only: MPI_COMM_ICE
-      use ice_communicate, only: init_communicate
+      use ice_communicate, only: MPI_COMM_ICE, init_communicate, get_num_procs
       use ice_communicate, only: my_task, master_task
       use ice_diagnostics, only: init_diags
       use ice_domain, only: init_domain_blocks
@@ -112,36 +111,47 @@
 
       type(accessom2_type), intent(inout) :: accessom2
 
-      integer(kind=int_kind) :: idate_save
+      integer(kind=int_kind) :: comp_comm, io_comm
+      integer(kind=int_kind) :: num_io_procs
 
 
       call read_namelist_parameters()
 
       ! initial setup for message passing
+      ! FIXME: clean this up including setting my_task
       call init_communicate()
 
-      call prism_init(trim(accessom2_config_dir))
-      MPI_COMM_ICE = il_commlocal
-
-      ! unit numbers
-      call init_fileunits()
+      ! Initialise coupler
+      call coupler%init_begin('cicexx', config_dir=trim(accessom2_config_dir))
+      MPI_COMM_ICE = coupler%localcomm
+      my_task = coupler%my_local_pe
 
 #ifdef PIO
       ! Initialise ParallelIO
-      call ice_pio_init()
+      num_io_procs = 1
+      call ice_pio_init(MPI_COMM_ICE, get_num_procs(), &
+                        num_io_procs, comp_comm, io_comm)
+      MPI_COMM_ICE = comp_comm
 #endif
+
+      ! unit numbers
+      print*, 'HERE 1'
+      call init_fileunits()
 
       ! Initialise libaccessom2
       call accessom2%init('cicexx', config_dir=trim(accessom2_config_dir))
+      print*, 'HERE 2'
 
       ! Tell libaccessom2 about any global configs/state
       call accessom2%set_cpl_field_counts(num_atm_to_ice_fields=num_fields_from_atm, &
                                           num_ice_to_ocean_fields=num_fields_to_ocn, &
                                           num_ocean_to_ice_fields=num_fields_from_ocn)
 
+      print*, 'HERE 3'
       ! Synchronise accessom2 configuration between all models and PEs
       call accessom2%sync_config(coupler)
 
+      print*, 'HERE 4'
       ! Use accessom2 configuration
       call input_data(accessom2%get_forcing_start_date_array(), &
                       accessom2%get_cur_exp_date_array(), &
@@ -150,6 +160,7 @@
                       accessom2%get_ice_ocean_timestep(), &
                       accessom2%get_calendar_type())
 
+      print*, 'HERE 5'
       if (trim(runid) == 'bering') call check_finished_file
       call init_zbgc            ! vertical biogeochemistry namelist
 
@@ -160,23 +171,28 @@
       call ice_timer_start(timer_total)   ! start timing entire run
       call init_grid2           ! grid variables
 
+      print*, 'HERE 6'
 #ifdef AusCOM
      ! initialize message passing, pass in total runtime in seconds and field
      ! coupling timesteps for oasis.
       call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps())
 #endif
+      print*, 'HERE 6.1'
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file
 
+      print*, 'HERE 6.2'
       call get_cpl_timecontrol(accessom2%get_atm_ice_timestep(), &
                                accessom2%get_ice_ocean_timestep())
 
+      print*, 'HERE 6.3'
       if (kdyn == 2) then
          call init_eap (dt_dyn) ! define eap dynamics parameters, variables
       else                      ! for both kdyn = 0 or 1
          call init_evp (dt_dyn) ! define evp dynamics parameters, variables
       endif
 
+      print*, 'HERE 7'
       call init_coupler_flux    ! initialize fluxes exchanged with coupler
 #ifdef popcice
       call sst_sss              ! POP data for CICE initialization
@@ -224,6 +240,7 @@
 #endif
 #endif
 
+      print*, 'HERE 8'
       call init_diags           ! initialize diagnostic output points
       call init_history_therm   ! initialize thermo history variables
       call init_history_dyn     ! initialize dynamic history variables
@@ -265,6 +282,7 @@
       call init_flux_atm        ! initialize atmosphere fluxes sent to coupler
       call init_flux_ocn        ! initialize ocean fluxes sent to coupler
 #endif
+      print*, 'HERE 9'
 
       ! Print out my version
       if (my_task == master_task) then
