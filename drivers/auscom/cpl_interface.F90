@@ -204,8 +204,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
         do j = jlo, jhi
             ! Oasis uses zero-indexing to define the global offset, hence the final - 1
-            part_def(part_idx).global_offset = ((this_block%j_glob(j) - 1) * nx_global) + this_block%i_glob(ilo) - 1
-            part_def(part_idx).block_index = n
+            part_def(part_idx)%global_offset = ((this_block%j_glob(j) - 1) * nx_global) + this_block%i_glob(ilo) - 1
+            part_def(part_idx)%block_index = n
             part_idx = part_idx + 1
         enddo
     enddo
@@ -224,7 +224,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     oasis_part_def(1) = ORANGE
     ! The total number of segments
     oasis_part_def(2) = block_size_y*nblocks
-    oasis_part_def(3::2) = part_def(:).global_offset
+    oasis_part_def(3::2) = part_def(:)%global_offset
     oasis_part_def(4::2) = block_size_x
 
     call oasis_def_partition(part_id, oasis_part_def, err, nx_global * ny_global)
@@ -265,7 +265,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
                          il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
     enddo
     print*, 'NOW HERE 7'
- 
+
     !
     ! 7- PSMILe end of declaration phase
     !
