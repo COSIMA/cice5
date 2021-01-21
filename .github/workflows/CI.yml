@@ -42,6 +42,7 @@ jobs:
           repo: COSIMA/libaccessom2
           workflow: CI.yml
           name: binary_release
+          path: libaccessom2
 
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
