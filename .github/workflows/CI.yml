@@ -23,7 +23,8 @@ jobs:
     env:
       FC: gfortran
       LIBACCESSOM2_ROOT: ${{ github.workspace }}/libaccessom2
-      # OASIS_ROOT: ${{ github.workspace }}/libaccessom2/oasis3-mct/Linux/lib
+      OASIS_ROOT: ${{ github.workspace }}/oasis3-mct/Linux/lib
+      LIBAUSCOM_INCS: ${{ github.workspace }}/oasis3-mct/build/lib/psmile.MPI1/
       platform: ubuntu
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -44,8 +45,18 @@ jobs:
           name: binary_release
           path: libaccessom2
 
-      - name: Untar libaccessom2
-        run: tar -xvf libaccessom2/binary_release.tar
+      - name: Download OASIS3-mct
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          repo: COSIMA/oasis3-mct
+          workflow: CI.yml
+          name: binary_release
+          path: oasis3-mct
+
+      - name: Untar libaccessom2 and OASIS3-mct
+        run: | 
+          tar -xvf libaccessom2/binary_release.tar
+          tar -xvf oasis3-mct/binary_release.tar
 
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
