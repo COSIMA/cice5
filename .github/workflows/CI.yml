@@ -36,13 +36,16 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get install -y csh openmpi-bin libopenmpi-dev libopenmpi2 netcdf-bin libnetcdf-dev libnetcdff-dev libnetcdf13 
 
-      - name: Install libaccessom2
+      - name: Download libaccessom2
         uses: dawidd6/action-download-artifact@v2
         with:
           repo: COSIMA/libaccessom2
           workflow: CI.yml
           name: binary_release
           path: libaccessom2
+
+      - name: Untar libaccessom2
+        run: tar -xvf libaccessom2/binary_release.tar
 
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
