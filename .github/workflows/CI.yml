@@ -55,8 +55,8 @@ jobs:
 
       - name: Untar libaccessom2 and OASIS3-mct
         run: | 
-          tar -xvf libaccessom2/binary_release.tar
-          tar -xvf oasis3-mct/binary_release.tar
+          tar -C libaccessom2 -xvf binary_release.tar
+          tar -C oasis3-mct -xvf binary_release.tar
 
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
