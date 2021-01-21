@@ -39,7 +39,7 @@ jobs:
       - name: Install libaccessom2
         uses: dawidd6/action-download-artifact@v2
         with:
-          repository: COSIMA/libaccessom2
+          repo: COSIMA/libaccessom2
           workflow: CI
           name: binary_release
 
