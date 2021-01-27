@@ -55,15 +55,11 @@ jobs:
 
       - name: Untar libaccessom2
         run: |
-          echo ${GITHUB_WORKSPACE}
-          # tar -C ${GITHUB_WORKSPACE}/libaccessom2 -xvf binary_release.tar
-          tar -xvf ${GITHUB_WORKSPACE}/libaccessom2/binary_release.tar
-          ls -lh ${GITHUB_WORKSPACE}
+          cd ${GITHUB_WORKSPACE}/libaccessom2 && tar -xvf binary_release.tar
 
       - name: Untar OASIS3-mct
         run: | 
-          tar -xvf ${GITHUB_WORKSPACE}/oasis3-mct/binary_release.tar
-          ls -lh ${GITHUB_WORKSPACE}
+          cd ${GITHUB_WORKSPACE}/oasis3-mct/ && tar -xvf binary_release.tar
 
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
