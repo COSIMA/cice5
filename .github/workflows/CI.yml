@@ -54,7 +54,9 @@ jobs:
           path: oasis3-mct
 
       - name: Untar libaccessom2
-        run: tar -C libaccessom2 -xvf binary_release.tar
+        run: |
+          ls -lR
+          tar -C libaccessom2 -xvf binary_release.tar
 
       - name: Untar OASIS3-mct
         run: tar -C oasis3-mct -xvf binary_release.tar
