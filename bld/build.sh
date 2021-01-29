@@ -74,7 +74,9 @@ if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
     setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
     setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
-    setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
+    if ( ! $?OASISDIR ) then
+      setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
+    endif
     setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/ParallelIO/build/include/'
 endif
 
