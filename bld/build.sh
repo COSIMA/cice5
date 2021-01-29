@@ -71,9 +71,9 @@ if ( $IO_TYPE == 'pio' ) then
 endif
 
 if ( $AusCOM == 'yes' ) then
-    setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
+    setenv CPLLIBDIR $LIBACCESSOM2_ROOT/libaccessom2/lib
     setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
-    setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
+    setenv CPLINCDIR $LIBACCESSOM2_ROOT/libaccessom2
     if ( ! $?OASISDIR ) then
       setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
     endif
