@@ -24,7 +24,7 @@ jobs:
       FC: gfortran
       LIBACCESSOM2_ROOT: ${{ github.workspace }}/libaccessom2
       OASIS_ROOT: ${{ github.workspace }}/oasis3-mct/Linux/lib
-      LIBAUSCOM_INCS: ${{ github.workspace }}/oasis3-mct/build/lib/psmile.MPI1/
+      LIBAUSCOM_INCS: -I${{ github.workspace }}/oasis3-mct/build/lib/psmile.MPI1/
       platform: ubuntu
 
     # Steps represent a sequence of tasks that will be executed as part of the job
