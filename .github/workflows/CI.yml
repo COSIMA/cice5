@@ -64,6 +64,7 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
         run: |
+          pwd
           ls -lR
           echo Building 1 degree
           env
