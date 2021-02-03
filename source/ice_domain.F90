@@ -48,7 +48,8 @@
    logical (kind=log_kind), public :: &
       maskhalo_dyn   , & ! if true, use masked halo updates for dynamics
       maskhalo_remap , & ! if true, use masked halo updates for transport
-      maskhalo_bound     ! if true, use masked halo updates for bound_state
+      maskhalo_bound , & ! if true, use masked halo updates for bound_state
+      equal_num_blocks_per_cpu ! if true, all CPUs have the same number of blocks
 
 !-----------------------------------------------------------------------
 !
@@ -113,7 +114,8 @@
                          ns_boundary_type,  &
                          maskhalo_dyn,      &
                          maskhalo_remap,    &
-                         maskhalo_bound
+                         maskhalo_bound,    &
+                         equal_num_blocks_per_cpu
 
 !----------------------------------------------------------------------
 !
@@ -130,6 +132,7 @@
    maskhalo_dyn      = .false.     ! if true, use masked halos for dynamics
    maskhalo_remap    = .false.     ! if true, use masked halos for transport
    maskhalo_bound    = .false.     ! if true, use masked halos for bound_state
+   equal_num_blocks_per_cpu = .false. ! if true, all CPUs have the same number of blocks
 
    call get_fileunit(nu_nml)
    if (my_task == master_task) then
@@ -160,6 +163,7 @@
    call broadcast_scalar(maskhalo_dyn,      master_task)
    call broadcast_scalar(maskhalo_remap,    master_task)
    call broadcast_scalar(maskhalo_bound,    master_task)
+   call broadcast_scalar(equal_num_blocks_per_cpu, master_task)
 
 !----------------------------------------------------------------------
 !
@@ -270,7 +274,7 @@
       max_work_unit=10    ! quantize the work into values from 1,max
 
    integer (int_kind) :: &
-      i,j,n              ,&! dummy loop indices
+      i,j,n,p            ,&! dummy loop indices
       ig,jg              ,&! global indices
       work_unit          ,&! size of quantized work unit
       tblocks_tmp        ,&! total number of blocks
@@ -283,6 +287,10 @@
 
    type (block) :: &
       this_block           ! block information for current block
+
+    ! The number of extra blocks that need to be added so that each PE
+    ! has an equal number.
+    integer (int_kind) :: num_padding_blocks, num_work_blocks
 
 !----------------------------------------------------------------------
 !
@@ -431,6 +439,32 @@
      work_per_block = 0
    end where
    deallocate(nocn)
+
+  if (equal_num_blocks_per_cpu) then
+      ! Make sure that each PE has
+      ! the same number of blocks. This is needed when using parallel NetCDF
+      ! because all parallel writes are synchronous.
+
+      ! First calculate the number of padding blocks needed.
+      num_work_blocks = count(work_per_block /= 0)
+      num_padding_blocks = ceiling(real(num_work_blocks) / real(nprocs))*nprocs - num_work_blocks
+
+      ! Add padding blocks wherever necessary
+      p = 0
+      do n=1, nblocks_tot
+        if (p >= num_padding_blocks) then
+            exit
+        elseif (work_per_block(n) == 0) then
+            work_per_block(n) = 1
+            p = p + 1
+        endif
+      enddo
+
+      if (p /= num_padding_blocks) then
+        call abort_ice("ice: can't assign work to pad blocks")
+      endif
+  endif
+
 
 !----------------------------------------------------------------------
 !

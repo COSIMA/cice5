@@ -22,7 +22,7 @@
       use ice_exit, only: abort_ice
 
 #ifdef ncdf
-      use netcdf      
+      use netcdf
 #endif
 
       implicit none
