@@ -636,6 +636,8 @@ subroutine into_ocn(isteps, scale)
             call pack_coupling_array(iolicefh*scale, work)
         elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
             call pack_coupling_array(iownd*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'nitrate_io') then
+            call pack_coupling_array(ionitrate*scale, work)
         else
             call abort_ice('ice: bad coupling array name '//fields_to_ocn(i))
         endif

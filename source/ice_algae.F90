@@ -466,8 +466,9 @@
 
          ! Uncomment to update ocean concentration
          ! Currently not coupled with ocean biogeochemistry
-         !ocean_bio(i,j,nn) = ocean_bio(i,j,nn) &
-         !                  + flux_bio(i,j,nn)/hmix(i,j)*aicen(i,j)
+         ! HH uncommented to enable ice-ocean BGC coupling for ACCESS-OM2
+         ocean_bio(i,j,nn) = ocean_bio(i,j,nn) &
+                           + flux_bio(i,j,nn)/hmix(i,j)*aicen(i,j)
 
          if (cinit(ij,nn) < c0) then
               write(nu_diag,*) 'sk_bgc < 0 after algal fluxes, ij,nn,cinit,flux_bio',&

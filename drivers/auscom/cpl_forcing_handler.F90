@@ -182,6 +182,7 @@ if ( file_exist(fname) ) then
   call ice_read_nc(ncid_o2i, 1, 'sslx_i',   sslx,   dbug)
   call ice_read_nc(ncid_o2i, 1, 'ssly_i',   ssly,   dbug)
   call ice_read_nc(ncid_o2i, 1, 'pfmice_i', pfmice, dbug)
+  call ice_read_nc(ncid_o2i, 1, 'ssn_i',    ssn, dbug)
   if (my_task == master_task) call ice_close_nc(ncid_o2i)
 else
   print *, 'CICE: (get_time0_o2i_fields_old) not found file *** ',fname
@@ -1266,6 +1267,8 @@ call gather_global(gwork, ssly, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'ssly', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, pfmice, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'pfmice', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, ssn, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'ssn', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
 if (my_task == 0) call ncheck(nf_close(ncid), 'check_o2i_fields: nf_close')
 
