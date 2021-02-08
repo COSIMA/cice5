@@ -162,34 +162,6 @@ endif
 return
 end subroutine get_time0_sstsss_OLD
 
-!===============================================================================
-subroutine get_time0_o2i_fields(fname)
-
-implicit none
-
-character*(*), intent(in) :: fname
- 
-    integer(kind=int_kind) :: ncid_o2i
-    logical :: dbug
-
-dbug = .true.
-if ( file_exist(fname) ) then
-  call ice_open_nc(fname, ncid_o2i)
-  call ice_read_nc(ncid_o2i, 1, 'sst_i',    ssto,   dbug, field_loc_center, field_type_scalar)
-  call ice_read_nc(ncid_o2i, 1, 'sss_i',    ssso,   dbug)
-  call ice_read_nc(ncid_o2i, 1, 'ssu_i',    ssuo,   dbug)
-  call ice_read_nc(ncid_o2i, 1, 'ssv_i',    ssvo,   dbug)
-  call ice_read_nc(ncid_o2i, 1, 'sslx_i',   sslx,   dbug)
-  call ice_read_nc(ncid_o2i, 1, 'ssly_i',   ssly,   dbug)
-  call ice_read_nc(ncid_o2i, 1, 'pfmice_i', pfmice, dbug)
-  if (my_task == master_task) call ice_close_nc(ncid_o2i)
-else
-  print *, 'CICE: (get_time0_o2i_fields_old) not found file *** ',fname
-  stop 'CICE stopped -- Need time0 o2i data file.'
-endif
-
-return
-end subroutine get_time0_o2i_fields
 
 !===============================================================================
 subroutine get_time0_i2o_fields(fname)
