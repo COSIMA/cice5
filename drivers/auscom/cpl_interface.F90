@@ -277,6 +277,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (snow0(nx_block, ny_block, max_blocks));  snow0(:,:,:) = 0
     allocate (runof0(nx_block, ny_block, max_blocks)); runof0(:,:,:) = 0
     allocate (press0(nx_block, ny_block, max_blocks)); press0(:,:,:) = 0
+    allocate (relh0(nx_block, ny_block, max_blocks));  relh0(:,:,:) = 0
 
     allocate (runof(nx_block, ny_block, max_blocks)); runof(:,:,:) = 0
     allocate (calv(nx_block, ny_block, max_blocks)); calv(:,:,:) = 0
@@ -467,11 +468,13 @@ subroutine from_atm(isteps)
     integer(kind=int_kind) :: tag, request, info
     integer(kind=int_kind) :: buf(1)
     real(kind=dbl_kind), dimension(block_size_x*block_size_y*nblocks) :: work
+    logical :: do_relh
 
 #if defined(DEBUG)
     write(il_out,*) '(from_atm) receiving coupling fields at rtime= ', isteps
 #endif
 
+    do_relh = .false.
     call ice_timer_start(timer_from_atm)
 
     do i=1, num_fields_from_atm
@@ -506,6 +509,9 @@ subroutine from_atm(isteps)
             call unpack_coupling_array(work, vwnd0)
         elseif (trim(fields_from_atm(i)) == 'licalvf_i') then
             call unpack_coupling_array(work, calv0)
+        elseif (trim(fields_from_atm(i)) == 'relh_i') then
+                do_relh = .true.
+            call unpack_coupling_array(work, relh0)
         else
             call abort_ice('ice: bad coupling array name '//fields_from_atm(i))
         endif
@@ -518,6 +524,10 @@ subroutine from_atm(isteps)
     !call t2ugrid(vwnd1)
     ! ...and, as we use direct o-i communication and o-i share the same grid, 
     ! no need for any t2u and/or u2t shift before/after i-o coupling!
+
+    if (  do_relh ) then
+      where(tair0/=0.0) qair0 = rh2q(tair0,rhair0,press0)  !In cpl_forcing_handler_mod
+    endif
 
     if ( chk_a2i_fields ) then
       call check_a2i_fields('fields_a2i_in_ice.nc',isteps)
@@ -692,7 +702,7 @@ end subroutine update_halos_from_atm
   subroutine coupler_termination
 !-------------------------------!
 
-  deallocate (tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0, runof0, press0)
+  deallocate (tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0, runof0, press0, relh0)
   deallocate (runof, calv, press)
   deallocate (core_runoff)
   deallocate (ssto, ssso, ssuo, ssvo, sslx, ssly, pfmice)
@@ -775,6 +785,7 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] uwnd0:',  sum(uwnd0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] vwnd0:',  sum(vwnd0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] calv0:',  sum(calv0(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] relh0:',  sum(relh0(isc:iec, jsc:jec, 1))
 
      print*,   '[ice chksum] u_star0:', sum(u_star0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] rough_mom0:', sum(rough_mom0(isc:iec, jsc:jec, 1))

@@ -1339,4 +1339,16 @@ end function file_exist
 
 !============================================================================
 
+elemental function rh2q(temp,rh,press)
+!Convert relative humidity to specific humidity
+implicit none
+real (kind=dbl_kind) :: rh2q
+real (kind=dbl_kind), intent(in) :: temp,rh,press
+real (kind=dbl_kind) :: e_sat
+
+e_sat = 6.11d2*exp((2.5d6/462.52d0)*(1.d0/273.15-1./temp)
+q=0.622*(rh/100.0)*e_sat/(press-0.378*(rh/100)*e_sat)
+end function rh2q
+
+
 end module cpl_forcing_handler
