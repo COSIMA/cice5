@@ -141,16 +141,23 @@
       use ice_broadcast, only: broadcast_array
       use ice_constants, only: c1, rad_to_deg, puny
       use ice_domain_size, only: max_blocks
+      use netcdf
+      use ice_exit, only: abort_ice
 
       integer (kind=int_kind) :: &
          fid_grid, &     ! file id for netCDF grid file
-         fid_kmt         ! file id for netCDF kmt file
+         fid_kmt, &      ! file id for netCDF kmt file
+         varid, &
+         status
 
       character (char_len) :: &
          fieldname       ! field name in netCDF file
 
       real (kind=dbl_kind), dimension(:,:), allocatable :: &
          work_g1, work_g2
+
+      logical :: do_broadcast_array
+
 
       !-----------------------------------------------------------------
       ! Get global ULAT and KMT arrays used for block decomposition.
@@ -159,25 +166,42 @@
       allocate(work_g1(nx_global,ny_global))
       allocate(work_g2(nx_global,ny_global))
 
+      do_broadcast_array = .true.
+
       if (trim(grid_type) == 'displaced_pole' .or. &
           trim(grid_type) == 'tripole' .or. &
           trim(grid_type) == 'regional'     ) then
 
          if (trim(grid_format) == 'nc') then
-
-            call ice_open_nc(grid_file,fid_grid)
-            call ice_open_nc(kmt_file,fid_kmt)
+            ! Read in arrays directly on each PE rather than reading on
+            ! root and then doing a broadcast
+            do_broadcast_array = .false.
 
             fieldname='ulat'
-            call ice_read_global_nc(fid_grid,1,fieldname,work_g1,.true.)
+            call check(nf90_open(grid_file, NF90_NOWRITE, fid_grid), &
+                       'open: '//trim(grid_file))
+
+            call check(nf90_inq_varid(fid_grid, trim(fieldname), &
+                                      varid), &
+                       'inq var: '//trim(fieldname))
+
+            call check(nf90_get_var(fid_grid, varid, work_g1, &
+                                    start=(/1,1,1/), &
+                                    count=(/nx_global,ny_global,1/)), &
+                       'get var: '//trim(fieldname))
+
             fieldname='kmt'
-            call ice_read_global_nc(fid_kmt,1,fieldname,work_g2,.true.)
+            call check(nf90_open(kmt_file, NF90_NOWRITE, fid_kmt), &
+                       'open: '//trim(kmt_file))
 
-            if (my_task == master_task) then
-               call ice_close_nc(fid_grid)
-               call ice_close_nc(fid_kmt)
-            endif
+            call check(nf90_inq_varid(fid_kmt, trim(fieldname),  &
+                                       varid), &
+                       'inq var: '//trim(fieldname))
 
+            call check(nf90_get_var(fid_kmt, varid, work_g2, &
+                                    start=(/1,1,1/), &
+                                    count=(/nx_global,ny_global,1/)), &
+                       'get var: '//trim(fieldname))
          else
 
             call ice_open(nu_grid,grid_file,64) ! ULAT
@@ -200,8 +224,10 @@
 
       endif
 
-      call broadcast_array(work_g1, master_task)   ! ULAT
-      call broadcast_array(work_g2, master_task)   ! KMT
+      if (do_broadcast_array) then
+          call broadcast_array(work_g1, master_task)   ! ULAT
+          call broadcast_array(work_g2, master_task)   ! KMT
+      endif
 
       !-----------------------------------------------------------------
       ! distribute blocks among processors
@@ -222,6 +248,20 @@
       endif
 
       end subroutine init_grid1
+
+      subroutine check(status, msg)
+
+          use netcdf, only: nf90_noerr, nf90_strerror
+          use ice_exit, only: abort_ice
+
+          integer, intent (in) :: status
+          character(len=*), intent (in) :: msg
+
+          if(status /= nf90_noerr) then
+              call abort_ice('ice: NetCDF error '//trim(nf90_strerror(status)//' '//trim(msg)))
+          end if
+
+      end subroutine check
 
 !=======================================================================
 
