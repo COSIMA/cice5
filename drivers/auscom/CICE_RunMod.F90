@@ -115,8 +115,6 @@
       !    last run from ocn and ice model;
       ! initial run needs the pre-processed o2i and i2o fields.
 
-      call get_time0_o2i_fields(trim(input_dir)//'o2i.nc')
-
       call get_time0_i2o_fields(trim(input_dir)//'i2o.nc')
       call get_sicemass(trim(input_dir)//'sicemass.nc')
 
@@ -133,6 +131,16 @@
       ! Shift windstress/ice-ocean stress from T onto U grid before sending into ocn
       call t2ugrid_vector(iostrsu)
       call t2ugrid_vector(iostrsv)
+
+      ! Send ice boundary restart
+      call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
+      call into_ocn(time_sec, 1.0)
+      call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
+
+      ! Receive ocean boundary restart
+      call ocean_wait_timer%start()
+      call from_ocn(time_sec)
+      call ocean_wait_timer%stop()
 
       DO icpl_ai = 1, num_cpl_ai   !begin I <==> A coupling iterations
 
@@ -167,11 +175,6 @@
             call write_boundary_checksums(time_sec)
         endif
 
-        if (time_sec == 0) then
-            call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
-            call into_ocn(time_sec, 1.0)
-            call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
-        endif
         !set i2o fields back to 0 for next i2o coupling period 'sum-up'
         call nullify_i2o_fluxes() 
 
