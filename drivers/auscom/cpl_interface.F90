@@ -41,7 +41,7 @@
 
   implicit none
 
-  public :: prism_init, init_cpl, coupler_termination, get_time0_sstsss, &
+  public :: init_cpl, coupler_termination, get_time0_sstsss, &
             from_atm, into_ocn, from_ocn, il_commlocal
   public :: update_halos_from_ocn, update_halos_from_atm
   public :: write_boundary_checksums
@@ -87,58 +87,6 @@
   type(coupler_type) :: coupler
 
   contains
-
-!======================================================================
-  subroutine prism_init(accessom2_config_dir)
-
-    character(len=*), intent(in) :: accessom2_config_dir
-
-  logical :: mpiflag
-
-  character(len=12) :: chiceout
-  character(len=6) :: chout
-
-  ! NOTE: This function can probably be replaced by coupler%init_begin, but
-  !       let's move slowly for now.
-
-  !-----------------------------------
-  ! 'define' the model global domain:
-  !-----------------------------------
-  nt_cells = nx_global * ny_global
-
-  !-------------------
-  ! Initialize PSMILe.
-  !-------------------
-
-  call coupler%init_begin('cicexx', config_dir=trim(accessom2_config_dir))
-
-  il_commlocal = coupler%localcomm
-
-  !
-  ! Inquire if model is parallel or not and open the process log file
-  !
-
-  call MPI_Comm_Size(il_commlocal, il_nbtotproc, ierror)
-  my_task = coupler%my_local_pe
-
-  il_nbcplproc = il_nbtotproc   !multi-process coupling
-
-  ! Open the process log file
-#if defined(DEBUG)
-  il_out = 85 + my_task
-  write(chout,'(I6.6)')il_out
-  chiceout='iceout'//trim(chout)
-  open(il_out,file=chiceout,form='formatted')
-
-  write(il_out,*) 'Number of processes:', il_nbtotproc
-  write(il_out,*) 'Local process number:', my_task
-  write(il_out,*) 'Local communicator is : ',il_commlocal
-  write(il_out,*) 'Grid layout: nx_global,ny_global= ',nx_global,ny_global
-  write(il_out,*) 'Grid decomposition: nx_block,ny_block,max_blocks= ',&
-                   nx_block,ny_block,max_blocks
-#endif
-
-end subroutine prism_init
 
 !> Sort segments in ascending order using an exchange sort
 subroutine sort_segments(seg_list)

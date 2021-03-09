@@ -5,4 +5,5 @@ tags
 drivers/auscom/version.F90
 ._*
 *.swp
+*.swo
 

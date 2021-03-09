@@ -20,7 +20,7 @@
       use cpl_parameters
       use cpl_parameters, only : read_namelist_parameters, accessom2_config_dir
       use cpl_forcing_handler, only : get_time0_sstsss, get_u_star
-      use cpl_interface , only : prism_init, init_cpl, il_commlocal
+      use cpl_interface , only : init_cpl, il_commlocal
       use cpl_interface, only: coupler
       use cpl_arrays_setup, only : gwork, u_star0
       use ice_gather_scatter
@@ -129,8 +129,8 @@
 
       ! Initialise coupler
       call coupler%init_begin('cicexx', &
-                              config_dir=trim(accessom2_config_dir), &
-                              comm_world=accessom2%get_mpi_comm_comp_world())
+                              accessom2%get_mpi_comm_comp_world(), &
+                              config_dir=trim(accessom2_config_dir))
       MPI_COMM_ICE = coupler%localcomm
       my_task = coupler%my_local_pe
 
@@ -230,7 +230,6 @@
 #endif
 #endif
 
-      print*, 'HERE 8'
       call init_diags           ! initialize diagnostic output points
       call init_history_therm   ! initialize thermo history variables
       call init_history_dyn     ! initialize dynamic history variables
@@ -272,7 +271,6 @@
       call init_flux_atm        ! initialize atmosphere fluxes sent to coupler
       call init_flux_ocn        ! initialize ocean fluxes sent to coupler
 #endif
-      print*, 'HERE 9'
 
       ! Print out my version
       if (my_task == master_task) then
