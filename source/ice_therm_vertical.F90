@@ -686,9 +686,13 @@
                                       ! (m/s/deg^(-m2))
          m2 = 1.36_dbl_kind           ! constant from Maykut & Perovich
                                       ! (unitless)
+
 !#if defined(AusCOM) || defined(ACCICE)
 #ifdef AusCOM
-      cpchr = -cp_ocn*rhow*chio
+      cpchr = -cp_ocn*rhow*chio ! chio defaults to 0.006 ala McPhee and Maykut
+#else
+      ! 0.006 = unitless param for basal heat flux ala McPhee and Maykut
+      cpchr = -cp_ocn*rhow*0.006_dbl_kind
 #endif
 
       do j = 1, ny_block
@@ -738,9 +742,6 @@
             ! Note: Cdn_ocn has already been used for calculating ustar 
             ! (formdrag only) --- David Schroeder (CPOM)
             cpchr = -cp_ocn*rhow*Cdn_ocn(i,j)
-         else ! fbot_xfer_type == 'constant'
-            ! 0.006 = unitless param for basal heat flx ala McPhee and Maykut
-            cpchr = -cp_ocn*rhow*0.006_dbl_kind
          endif
 
          fbot(i,j) = cpchr * deltaT * ustar ! < 0
