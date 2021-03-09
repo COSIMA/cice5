@@ -53,29 +53,13 @@ setenv NICELYR    4       # number of vertical layers in the ice
 setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
 
-if ( $IO_TYPE == 'pio' ) then
-    # Build PIO
-    mkdir -p ParallelIO/build
-    cd ParallelIO/build
-    setenv CC mpicc
-    setenv FC mpifort
-    cmake -DWITH_PNETCDF=OFF \
-          -DPIO_ENABLE_TIMING=OFF \
-          -DNetCDF_C_LIBRARY="${NETCDF}/lib/ompi3/libnetcdf.so" \
-          -DNetCDF_C_INCLUDE_DIR="${NETCDF}/include/" \
-          -DNetCDF_Fortran_LIBRARY="${NETCDF}/lib/ompi3/Intel/libnetcdff.so" \
-          -DNetCDF_Fortran_INCLUDE_DIR="${NETCDF}/include/Intel" \
-          -DCMAKE_INSTALL_PREFIX="${SRCDIR}/ParallelIO/build" ../
-    make && make install
-    cd -
-endif
-
 if ( $AusCOM == 'yes' ) then
     setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
     setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
     setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
     setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
-    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/ParallelIO/build/include/'
+    setenv PIODIR $LIBACCESSOM2_ROOT/build/ParallelIO-prefix/src/ParallelIO-build/src/
+    setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(PIODIR)/flib/'
 endif
 
 ### Setup the version string, this is the git hash of the commit used to build

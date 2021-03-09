@@ -518,6 +518,7 @@
       if (my_task == master_task) then
          if (trim(diag_type) == 'file') then
             write(ice_stdout,*) 'Diagnostic output will be in file ',diag_file
+            call get_fileUnit(nu_diag)
             open (nu_diag, file=diag_file, status='unknown')
          endif
       else

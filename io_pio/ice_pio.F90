@@ -12,12 +12,14 @@
   use ice_domain_size
   use ice_fileunits
   use ice_exit
-  use pio, only: pio_init, pio_initdecomp, pio_createfile, pio_openfile
+  use pio, only: pio_initdecomp, pio_createfile, pio_openfile
   use pio, only: iosystem_desc_t, file_desc_t, io_desc_t
-  use pio, only: pio_set_buffer_size_limit, pio_set_log_level
   use pio, only: pio_clobber, pio_noclobber, pio_write, pio_nowrite
-  use pio, only: pio_iotype_netcdf4p, PIO_REARR_BOX
-  use pio, only: pio_double, pio_real
+  use pio, only: pio_double, pio_real, PIO_DEFAULT
+  use pio, only: pio_iotype_netcdf4p
+
+  use accessom2_mod, only : accessom2_type => accessom2
+  use pio_wrapper_mod, only : pio_wrapper_type => pio_wrapper
 
   implicit none
 
@@ -35,9 +37,8 @@
   public ice_pio_init
   public ice_pio_initfile
   public ice_pio_initdecomp
-  logical :: pio_initialized = .false.
-  integer :: pio_iotype
   type(iosystem_desc_t) :: ice_pio_subsystem
+
 
 !===============================================================================
 
@@ -45,61 +46,16 @@
 
 !===============================================================================
 
-subroutine ice_pio_init(comm, num_total_procs, num_io_procs, new_comp_comm, io_comm)
+subroutine ice_pio_init(accessom2)
 
-    integer, intent(in) :: comm, num_total_procs, num_io_procs
-    integer, intent(out) :: new_comp_comm, io_comm
+    type(accessom2_type), intent(inout) :: accessom2
 
-    integer :: ierr, i, num_comp_procs
-    integer, dimension(1) :: procs_per_component, comp_comm
-    integer, dimension(num_io_procs) :: io_proc_list
-    integer, allocatable, dimension(:, :) :: comp_proc_list
-    type(iosystem_desc_t), dimension(1) :: tmp_ice_pio_subsystem
+    type(pio_wrapper_type) :: pio_wrapper
+    integer :: ierr
 
-    character(*),parameter :: subName = '(ice_pio_init) '
+    pio_wrapper = accessom2%get_pio_wrapper()
+    ice_pio_subsystem = pio_wrapper%pio_subsystem
 
-    if (pio_initialized) then
-        return
-    endif
-
-    pio_iotype = pio_iotype_netcdf4p
-
-    num_comp_procs = num_total_procs - num_io_procs
-    procs_per_component(1) = num_comp_procs
-
-    allocate(comp_proc_list(num_comp_procs, 1))
-    do i=1, num_total_procs
-        if (i <= num_comp_procs) then
-            comp_proc_list(i,1) = i - 1
-        else
-            io_proc_list(i-num_comp_procs) = i - 1
-        endif
-    enddo
-
-    print*, 'num_total_procs: ', num_total_procs
-    print*, 'num_io_procs: ', num_io_procs
-    print*, 'comp_proc_list: ', comp_proc_list(:, 1)
-    print*, 'io_proc_list: ', io_proc_list
-    print*, 'my_task before: ', my_task
-
-    call pio_init(tmp_ice_pio_subsystem,      & ! iosystem
-                  comm,                       & ! MPI communicator
-                  procs_per_component,        & ! number of tasks per component model
-                  comp_proc_list,             & ! list of procs per component
-                  io_proc_list,               & ! list of io procs
-                  PIO_REARR_BOX,              & ! rearranger to use (currently only BOX is supported)
-                  comp_comm,                  & ! comp_comm to be returned
-                  io_comm)                      ! io_comm to be returned
-
-    ice_pio_subsystem = tmp_ice_pio_subsystem(1)
-    new_comp_comm = comp_comm(1)
-
-    print*, 'my_task after: ', my_task
-
-    ! PIO needs to be compiled with --enable-debug to use this
-    ierr = pio_set_log_level(0)
-
-    pio_initialized = .true.
 end subroutine ice_pio_init
 
 
@@ -122,6 +78,10 @@ subroutine ice_pio_initfile(mode, filename, File, clobber, cdf64)
     integer :: status
     character(*),parameter :: subName = '(ice_pio_wopen) '
 
+    print*, 'CICE calling ice_pio_initfile'
+    print*, 'CICE ice_pio_subsystem id = ', ice_pio_subsystem%iosysid
+    print*, 'CICE PIO_DEFAULT is ', PIO_DEFAULT
+
     if (present(mode) .and. present(filename) .and. present(File)) then
 
       if (trim(mode) == 'write') then
@@ -133,18 +93,18 @@ subroutine ice_pio_initfile(mode, filename, File, clobber, cdf64)
             inquire(file=trim(filename),exist=exists)
             if (exists) then
                if (lclobber) then
-                  status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), PIO_clobber)
+                  status = pio_createfile(ice_pio_subsystem, File, pio_iotype_netcdf4p, trim(filename), PIO_clobber)
                   if (my_task == master_task) then
                      write(nu_diag,*) subname,' create file ',trim(filename)
                   end if
                else
-                  status = pio_openfile(ice_pio_subsystem, File, pio_iotype, trim(filename), pio_write)
+                  status = pio_openfile(ice_pio_subsystem, File, pio_iotype_netcdf4p, trim(filename), pio_write)
                   if (my_task == master_task) then
                      write(nu_diag,*) subname,' open file ',trim(filename)
                   end if
                endif
             else
-               status = pio_createfile(ice_pio_subsystem, File, pio_iotype, trim(filename), pio_noclobber)
+               status = pio_createfile(ice_pio_subsystem, File, pio_iotype_netcdf4p, trim(filename), pio_noclobber)
                if (my_task == master_task) then
                   write(nu_diag,*) subname,' create file ',trim(filename)
                end if
@@ -157,7 +117,7 @@ subroutine ice_pio_initfile(mode, filename, File, clobber, cdf64)
       if (trim(mode) == 'read') then
          inquire(file=trim(filename),exist=exists)
          if (exists) then
-            status = pio_openfile(ice_pio_subsystem, File, pio_iotype, trim(filename), pio_nowrite)
+            status = pio_openfile(ice_pio_subsystem, File, pio_iotype_netcdf4p, trim(filename), pio_nowrite)
          else
             if(my_task==master_task) then
                write(nu_diag,*) 'ice_pio_ropen ERROR: file invalid ',trim(filename)
@@ -167,6 +127,8 @@ subroutine ice_pio_initfile(mode, filename, File, clobber, cdf64)
       end if
 
     end if
+
+    print*, 'CICE done calling ice_pio_initfile'
 
 end subroutine ice_pio_initfile
 
@@ -184,6 +146,9 @@ end subroutine ice_pio_initfile
       type(block) :: this_block
 
       integer(kind=int_kind), pointer :: dof2d(:)
+
+      print*, 'CICE calling ice_pio_initdecomp_2d'
+
 
       allocate(dof2d(nx_block*ny_block*nblocks))
 
@@ -225,6 +190,8 @@ end subroutine ice_pio_initfile
       endif
 
       deallocate(dof2d)
+
+        print*, 'CICE done calling ice_pio_initdecomp_2d'
  
    end subroutine ice_pio_initdecomp_2d
 

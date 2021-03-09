@@ -99,18 +99,14 @@
 
 !=======================================================================
 
-!  This routine grabs needed unit numbers. 
-!  nu_diag is set to 6 (stdout) but may be reset later by the namelist. 
-!  nu_nml is obtained separately.
+!  This routine grabs needed unit numbers.
 
       subroutine init_fileunits
-
-         nu_diag = ice_stderr  ! default
 
          ice_IOUnitsInUse = .false.
          ice_IOUnitsInUse(ice_stdin)  = .true. ! reserve unit 5
          ice_IOUnitsInUse(ice_stdout) = .true. ! reserve unit 6
-         ice_IOUnitsInUse(ice_stderr) = .true.
+         ice_IOUnitsInUse(ice_stderr) = .true. ! reserve unit 0
 
          call get_fileunit(nu_grid)
          call get_fileunit(nu_kmt)
@@ -217,11 +213,7 @@
          call release_fileunit(nu_rst_pointer)
          call release_fileunit(nu_history)
          call release_fileunit(nu_hdr)
-#ifndef AusCOM
-         if (nu_diag /= ice_stdout) call release_fileunit(nu_diag)
-#else
-         close(nu_diag)
-#endif
+         call release_fileunit(nu_diag)
 
       end subroutine release_all_fileunits
 

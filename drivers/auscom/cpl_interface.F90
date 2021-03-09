@@ -180,9 +180,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     type(block) :: this_block
 
     ! Send ice grid details to atmosphere. This is used to regrid runoff.
-    print*, 'NOW HERE 1'
     call send_grid_to_atm()
-    print*, 'NOW HERE 2'
 
     ! Make sure this is set correctly before oasis config
     call oasis_set_couplcomm(MPI_COMM_ICE)
@@ -216,8 +214,6 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     ! We keep this sorted.
     call sort_segments(part_def)
 
-    print*, 'NOW HERE 3'
-
     ! Set up the partition definition in OASIS format.
     allocate(oasis_part_def(2 + 2*block_size_y*nblocks))
     ! Partition type
@@ -228,7 +224,6 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     oasis_part_def(4::2) = block_size_x
 
     call oasis_def_partition(part_id, oasis_part_def, err, nx_global * ny_global)
-    print*, 'NOW HERE 4'
 
     ! Define coupling fields
     il_var_nodims(1) = 1 ! rank of coupling field
@@ -245,7 +240,6 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
         call oasis_def_var(varid_fields_to_ocn(i), trim(fields_to_ocn(i)), part_id, &
                            il_var_nodims, PRISM_Out, il_var_shape, PRISM_Real, ierror)
     enddo
-    print*, 'NOW HERE 5'
 
 
     !
@@ -257,21 +251,18 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
       call oasis_def_var(varid_fields_from_atm(i), trim(fields_from_atm(i)), part_id, &
                          il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
     enddo
-    print*, 'NOW HERE 6'
 
     allocate(varid_fields_from_ocn(num_fields_from_ocn))
     do i=1, num_fields_from_ocn
       call oasis_def_var(varid_fields_from_ocn(i), trim(fields_from_ocn(i)), part_id, &
                          il_var_nodims, PRISM_In, il_var_shape, PRISM_Real, ierror)
     enddo
-    print*, 'NOW HERE 7'
 
     !
     ! 7- PSMILe end of declaration phase
     !
     call oasis_enddef(ierror, runtime=runtime_seconds, &
                       coupling_field_timesteps=coupling_field_timesteps)
-    print*, 'NOW HERE 8'
 
     !
     ! Allocate the 'coupling' fields (to be used) for EACH PROCESS:!
