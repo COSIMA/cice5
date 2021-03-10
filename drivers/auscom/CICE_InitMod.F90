@@ -169,7 +169,9 @@
 #ifdef AusCOM
      ! initialize message passing, pass in total runtime in seconds and field
      ! coupling timesteps for oasis.
-      call init_cpl(int(npt*dt), accessom2%get_coupling_field_timesteps())
+      call init_cpl(int(npt*dt), &
+                    accessom2%get_coupling_field_timesteps(), &
+                    accessom2%get_mpi_comm_comp_world())
 #endif
       call init_calendar        ! initialize some calendar stuff
       call init_hist (dt)       ! initialize output history file

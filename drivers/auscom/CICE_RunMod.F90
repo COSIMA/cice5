@@ -126,7 +126,7 @@
       time_sec = 0
       imon = 0
 
-      call from_atm(time_sec)
+      call from_atm(time_sec, accessom2%get_mpi_comm_comp_world())
       call update_halos_from_atm(time_sec)
       ! Shift windstress/ice-ocean stress from T onto U grid before sending into ocn
       call t2ugrid_vector(iostrsu)
@@ -225,7 +225,7 @@
         !endif
         ! ----------------------------------- 
         if (icpl_io == num_cpl_io .and. icpl_ai < num_cpl_ai) then
-          call from_atm(time_sec)
+          call from_atm(time_sec, accessom2%get_mpi_comm_comp_world())
           call update_halos_from_atm(time_sec)
           ! Shift windstress/ice-ocean stress from T onto U grid before sending into ocn
           call t2ugrid_vector(iostrsu)
@@ -236,22 +236,25 @@
             call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
             call into_ocn(time_sec, 1.0)
             call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
-        endif
 
-        if (time_sec < (dt*npt)) then
-          call ocean_wait_timer%start()
-          call from_ocn(time_sec)
-          call ocean_wait_timer%stop()
+              call ocean_wait_timer%start()
+               print*, 'CICE waiting from ocn time_sec = ', time_sec
+              call from_ocn(time_sec)
+               print*, 'CICE done from ocn time_sec = ', time_sec
+              call ocean_wait_timer%stop()
         endif
 
         call coupling_step_timer%stop()
       End Do      !icpl_io
 
+        print*, 'CICE HERE time_sec = ', time_sec
       END DO        !icpl_ai
 
+      print*, 'CICE HERE 11'
       call save_time0_i2o_fields(trim(restart_dir)//'i2o.nc', time_sec) 
       call save_u_star(trim(restart_dir)//'u_star.nc', time_sec)    
       call save_sicemass(trim(restart_dir)//'sicemass.nc', time_sec)    
+      print*, 'CICE HERE 12'
 
    !--------------------------------------------------------------------
    ! end of timestep loop

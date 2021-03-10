@@ -107,10 +107,11 @@ subroutine sort_segments(seg_list)
 
 endsubroutine sort_segments
 
-subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
+subroutine init_cpl(runtime_seconds, coupling_field_timesteps, comm_world)
 
     integer, intent(in) :: runtime_seconds
     integer, dimension(:), intent(in) :: coupling_field_timesteps
+    integer, intent(in) :: comm_world
 
     integer(kind=int_kind) :: jf
 
@@ -128,7 +129,7 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     type(block) :: this_block
 
     ! Send ice grid details to atmosphere. This is used to regrid runoff.
-    call send_grid_to_atm()
+    call send_grid_to_atm(comm_world)
 
     ! Make sure this is set correctly before oasis config
     call oasis_set_couplcomm(MPI_COMM_ICE)
@@ -298,56 +299,59 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
 
 endsubroutine init_cpl
 
-subroutine send_grid_to_atm()
+subroutine send_grid_to_atm(comm_world)
 
-  integer(kind=int_kind) :: tag, buf_int(2)
-  real(kind=dbl_kind), dimension(:), allocatable :: buf_real
+    integer, intent(in) :: comm_world
 
-  integer :: fid
-  real(kind=dbl_kind), dimension(:, :), allocatable :: tlat_global, tlon_global
-  real(kind=dbl_kind), dimension(:, :), allocatable :: mask_global
+    integer(kind=int_kind) :: tag, buf_int(2)
+    real(kind=dbl_kind), dimension(:), allocatable :: buf_real
 
-  if (my_task == master_task) then
-    call ice_open_nc(grid_file, fid)
+    integer :: fid
+    real(kind=dbl_kind), dimension(:, :), allocatable :: tlat_global, tlon_global
+    real(kind=dbl_kind), dimension(:, :), allocatable :: mask_global
 
-    allocate(tlat_global(nx_global, ny_global))
-    allocate(tlon_global(nx_global, ny_global))
-    call ice_open_nc(grid_file, fid)
-    call ice_read_global_nc(fid , 1, 'tlat' , tlat_global, .false.)
-    call ice_read_global_nc(fid , 1, 'tlon' , tlon_global, .false.)
-    call ice_close_nc(fid)
+    if (my_task == master_task) then
 
-    allocate(mask_global(nx_global, ny_global))
-    call ice_open_nc(kmt_file, fid)
-    call ice_read_global_nc(fid , 1, 'kmt' , mask_global, .false.)
-    call ice_close_nc(fid)
+        call ice_open_nc(grid_file, fid)
 
-    ! Send my details to the atm.
-    tag = 4982
-    buf_int(1) = nx_global
-    buf_int(2) = ny_global
-    call MPI_send(buf_int, 2, MPI_INTEGER, coupler%atm_root, tag, &
-                  MPI_COMM_WORLD, ierror)
+        allocate(tlat_global(nx_global, ny_global))
+        allocate(tlon_global(nx_global, ny_global))
+        call ice_open_nc(grid_file, fid)
+        call ice_read_global_nc(fid , 1, 'tlat' , tlat_global, .false.)
+        call ice_read_global_nc(fid , 1, 'tlon' , tlon_global, .false.)
+        call ice_close_nc(fid)
 
-    allocate(buf_real(nx_global*ny_global))
-    buf_real(:) = reshape(tlat_global(:, :), (/ size(tlat_global) /))
-    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
-                  coupler%atm_root, tag, MPI_COMM_WORLD, ierror)
+        allocate(mask_global(nx_global, ny_global))
+        call ice_open_nc(kmt_file, fid)
+        call ice_read_global_nc(fid , 1, 'kmt' , mask_global, .false.)
+        call ice_close_nc(fid)
 
-    buf_real(:) = reshape(tlon_global(:, :), (/ size(tlon_global) /))
-    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
-                  coupler%atm_root, tag, MPI_COMM_WORLD, ierror)
+        ! Send my details to the atm.
+        tag = 4982
+        buf_int(1) = nx_global
+        buf_int(2) = ny_global
+        call MPI_send(buf_int, 2, MPI_INTEGER, coupler%atm_root, tag, &
+                      comm_world, ierror)
 
-    buf_real(:) = reshape(mask_global(:, :), (/ size(mask_global) /))
-    call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
-                  coupler%atm_root, tag, MPI_COMM_WORLD, ierror)
+        allocate(buf_real(nx_global*ny_global))
+        buf_real(:) = reshape(tlat_global(:, :), (/ size(tlat_global) /))
+        call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
+                      coupler%atm_root, tag, comm_world, ierror)
 
-    deallocate(buf_real)
-    deallocate(tlat_global)
-    deallocate(tlon_global)
-    deallocate(mask_global)
+        buf_real(:) = reshape(tlon_global(:, :), (/ size(tlon_global) /))
+        call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
+                      coupler%atm_root, tag, comm_world, ierror)
 
-  endif
+        buf_real(:) = reshape(mask_global(:, :), (/ size(mask_global) /))
+        call MPI_send(buf_real, nx_global*ny_global, MPI_DOUBLE, &
+                      coupler%atm_root, tag, comm_world, ierror)
+
+        deallocate(buf_real)
+        deallocate(tlat_global)
+        deallocate(tlon_global)
+        deallocate(mask_global)
+
+    endif
 
 end subroutine send_grid_to_atm
 
@@ -411,8 +415,8 @@ subroutine pack_coupling_array(input, output)
 
 endsubroutine pack_coupling_array
 
-subroutine from_atm(isteps)
-    integer(kind=int_kind), intent(in) :: isteps
+subroutine from_atm(isteps, comm_world)
+    integer(kind=int_kind), intent(in) :: isteps, comm_world
 
     integer :: i
     integer(kind=int_kind) :: tag, request, info
@@ -479,7 +483,7 @@ subroutine from_atm(isteps)
       request = MPI_REQUEST_NULL
       tag = 5793
       call MPI_Isend(buf, 1, MPI_INTEGER, coupler%atm_root, tag, &
-                     MPI_COMM_WORLD, request, ierror)
+                     comm_world, request, ierror)
     endif
 
     call ice_timer_stop(timer_from_atm)
