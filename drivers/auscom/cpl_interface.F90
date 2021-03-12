@@ -526,7 +526,7 @@ subroutine from_atm(isteps)
     ! no need for any t2u and/or u2t shift before/after i-o coupling!
 
     if (  do_relh ) then
-      where(tair0/=0.0) qair0 = rh2q(tair0,rhair0,press0)  !In cpl_forcing_handler_mod
+      call rh2q(tair0, relh0, press0, qair0)  !In cpl_forcing_handler_mod
     endif
 
     if ( chk_a2i_fields ) then
