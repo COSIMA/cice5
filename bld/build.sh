@@ -116,8 +116,8 @@ setenv NTRAERO 0          # number of aerosol tracers
                           # (up to max_aero in ice_domain_size.F90) 
                           # CESM uses 3 aerosol tracers
 setenv TRBRI   0          # set to 1 for brine height tracer
-setenv NBGCLYR 7          # number of zbgc layers
-setenv TRBGCS  0          # number of skeletal layer bgc tracers 
+setenv NBGCLYR 0          # number of zbgc layers
+setenv TRBGCS  2          # number of skeletal layer bgc tracers 
                           # TRBGCS=0 or 2<=TRBGCS<=9)
 
 ### File unit numbers

@@ -31,7 +31,7 @@ module cpl_arrays_setup
 ! (5) sea surface gradient (zonal)     (m/m)            sslx
 ! (6) sea surface gradient (meridional)(m/m)            ssly
 ! (7) potential ice frm/mlt heatflux (W/m^2)            pfmice
-! (8) sea surface nitrate (mmol/m^3)                    nitrateo
+! (8) sea surface nitrate (mmol/m^3)                    ssn
 !
 ! D> ice==>ocn
 !             
@@ -71,7 +71,7 @@ module cpl_arrays_setup
 !
 ! BGC tracers
 !
-!(19) nitrate in sea ice                                nitratei
+!(19) nitrate in sea ice                                ionit
 !
 !
 
@@ -102,7 +102,7 @@ real(kind=dbl_kind), dimension(:,:,:), allocatable :: &
     core_runoff
 
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: &   !from ocn
-    ssto,  ssso,   ssuo,   ssvo,   sslx,  ssly,  pfmice, nitrateo 
+    ssto,  ssso,   ssuo,   ssvo,   sslx,  ssly,  pfmice, ssn 
 real(kind=dbl_kind), dimension(:,:), allocatable :: gwork
     !global domain work array, used for coupling data passing and global data output. 
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: vwork  
@@ -110,11 +110,11 @@ real(kind=dbl_kind), dimension(:,:,:), allocatable :: vwork
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to ocn (time averaged)
     iostrsu, iostrsv, iorain, iosnow, iostflx, iohtflx, ioswflx &
    ,ioqflux, ioshflx, iolwflx, iorunof, iopress, ioaice &
-   ,iomelt, ioform, iolicefw, iolicefh, iownd, ionitrate
+   ,iomelt, ioform, iolicefw, iolicefh, iownd, ionit
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to ocn (temporary)
     tiostrsu, tiostrsv, tiorain, tiosnow, tiostflx, tiohtflx, tioswflx &
    ,tioqflux, tioshflx, tiolwflx, tiorunof, tiopress, tioaice &
-   ,tiomelt, tioform, tiolicefw, tiolicefh, tiownd, tionitrate
+   ,tiomelt, tioform, tiolicefw, tiolicefh, tiownd, tionit
 
 ! other stuff 
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: & 

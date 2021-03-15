@@ -23,6 +23,7 @@ module cpl_forcing_handler
     use cpl_netcdf_setup
     use cpl_arrays_setup
     use ice_calendar, only: dt
+    use ice_zbgc_shared, only: ocean_bio,nlt_bgc_N,nlt_bgc_C,nlt_bgc_NO
 
 implicit none
 
@@ -47,6 +48,7 @@ subroutine nullify_i2o_fluxes()
     iomelt(:,:,:)  = 0.0
     ioform(:,:,:)  = 0.0
     iownd(:,:,:)  = 0.0
+    ionit(:,:,:)  = 0.0
     iolicefw(:,:,:)  = 0.0
     iolicefh(:,:,:)  = 0.0
 
@@ -72,6 +74,7 @@ subroutine tavg_i2o_fluxes
     iomelt (:,:,:) = iomelt (:,:,:) + tiomelt (:,:,:)*coef_ic
     ioform (:,:,:) = ioform (:,:,:) + tioform (:,:,:)*coef_ic
     iownd (:,:,:)  = iownd (:,:,:) + tiownd (:,:,:)*coef_ic
+    ionit (:,:,:)  = ionit (:,:,:) + tionit (:,:,:)*coef_ic
     iolicefw (:,:,:) = iolicefw (:,:,:) + tiolicefw (:,:,:)*coef_ic
     iolicefh (:,:,:) = iolicefh (:,:,:) + tiolicefh (:,:,:)*coef_ic
 
@@ -242,6 +245,8 @@ implicit none
                 ioform = vwork
             elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
                 iownd = vwork
+            elseif (trim(fields_to_ocn(i)) == 'nit_io') then
+                ionit = vwork
             elseif (trim(fields_to_ocn(i)) == 'licefw_io') then
                 iolicefw = vwork
             elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
@@ -360,6 +365,7 @@ if (maxval(sst).gt.200) then
     sst = sst - 273.15
 endif
 sss(:,:,:)     = ssso(:,:,:)
+ocean_bio(:,:,nlt_bgc_NO,:)     = ssn(:,:,:)
 ss_tltx(:,:,:) = sslx(:,:,:)
 ss_tlty(:,:,:) = ssly(:,:,:)
 !frzmlt(:,:,:)  = pfmice(:,:,:) * frazil_factor / dt_cpl_io   !W/m^2 as required by cice.
@@ -430,6 +436,8 @@ implicit none
             vwork = iolicefh
         elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
             vwork = iownd
+        elseif (trim(fields_to_ocn(i)) == 'nit_io') then
+            vwork = ionit
         else
             call abort_ice('ice: bad save array name '//trim(fields_to_ocn(i)))
         endif
@@ -795,7 +803,8 @@ tioswflx = swabs_ocn
   tioform(:,:,:) = min(0.0,fresh(:,:,:))
 !16 10m wind. To mask or not to mask?
   tiownd(:,:,:) = sqrt(uatm(:,:,:)**2 + vatm(:,:,:)**2)
- 
+!17? sea surface nitrate updated after ice-water flux
+  tionit(:,:,:) = ocean_bio(:,:,nlt_bgc_NO,:)
 
 return
 end subroutine get_i2o_fluxes
@@ -1222,6 +1231,8 @@ call gather_global(gwork, scale*ioform,  master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'ioform',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, scale*iownd,  master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'iownd',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, scale*ionit,  master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'ionit',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
 if (my_task == 0) call ncheck(nf_close(ncid), 'check_i2o_fields: nf_close')
 
