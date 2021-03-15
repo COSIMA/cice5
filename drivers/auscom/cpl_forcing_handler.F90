@@ -24,6 +24,8 @@ module cpl_forcing_handler
     use cpl_arrays_setup
     use ice_calendar, only: dt
 
+    use  sat_vapor_pres_mod, only: escomp, descomp !RASF not sure why descomp is needed but it is like this in surface_flux_mod
+
 implicit none
 
 contains
@@ -1338,5 +1340,22 @@ inquire (file=trim(file_name), exist=file_exist)
 end function file_exist
 
 !============================================================================
+
+subroutine rh2q(temp,rh,press,q)
+!Convert relative humidity to specific humidity
+implicit none
+real (kind=dbl_kind), intent(in), dimension(:,:,:) :: temp,rh,press
+real (kind=dbl_kind), intent(inout), dimension(:,:,:) :: q
+real (kind=dbl_kind),allocatable,dimension(:,:,:) :: e_sat
+
+allocate(e_sat,mold=temp)
+!Make sure temp is in range
+call escomp(max(temp,200.0_dbl_kind),e_sat)
+!e_sat = 6.11d2*exp((2.5d6/462.52d0)*(1.d0/273.15-1./temp)
+where (press /= 0.0_dbl_kind ) q = 0.622_dbl_kind*(rh/100.0_dbl_kind)*e_sat/(press-0.378_dbl_kind*(rh/100.0_dbl_kind)*e_sat)
+deallocate(e_sat)
+
+end subroutine rh2q
+
 
 end module cpl_forcing_handler
