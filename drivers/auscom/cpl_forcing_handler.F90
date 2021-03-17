@@ -1350,7 +1350,7 @@ real (kind=dbl_kind),allocatable,dimension(:,:,:) :: e_sat
 
 allocate(e_sat,mold=temp)
 !Make sure temp is in range
-call escomp(max(temp,400.0_dbl_kind),e_sat)
+call escomp(max(temp,350.0_dbl_kind),e_sat)
 !e_sat = 6.11d2*exp((2.5d6/462.52d0)*(1.d0/273.15-1./temp)
 where (press /= 0.0_dbl_kind ) q = 0.622_dbl_kind*(rh/100.0_dbl_kind)*e_sat/(press-0.378_dbl_kind*(rh/100.0_dbl_kind)*e_sat)
 deallocate(e_sat)
