@@ -11,7 +11,7 @@
 
       use ice_kinds_mod
       use ice_zbgc_shared ! everything
-      use cpl_arrays_setup, only: ssn
+      use cpl_arrays_setup, only: ssn, ssalg
 
       implicit none 
 
@@ -621,7 +621,8 @@
             if (tr_bgc_DMSPp_sk) ocean_bio(i,j,nlt_bgc_DMSPp,iblk) = dmsp  (i,j,iblk)
             if (tr_bgc_DMSPd_sk) ocean_bio(i,j,nlt_bgc_DMSPd,iblk) = dmsp  (i,j,iblk)
             if (tr_bgc_DMS_sk)   ocean_bio(i,j,nlt_bgc_DMS  ,iblk) = dms   (i,j,iblk)
-            if (tr_bgc_N_sk)     ocean_bio(i,j,nlt_bgc_N    ,iblk) = algalN(i,j,iblk)
+            !if (tr_bgc_N_sk)     ocean_bio(i,j,nlt_bgc_N    ,iblk) = algalN(i,j,iblk)
+            if (tr_bgc_N_sk)     ocean_bio(i,j,nlt_bgc_N    ,iblk) = ssalg (i,j,iblk)
          enddo
          enddo
 
