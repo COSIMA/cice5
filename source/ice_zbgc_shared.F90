@@ -126,7 +126,7 @@
          thinS     = 0.05_dbl_kind     ! minimum ice thickness for brine
 
       real (kind=dbl_kind), public :: & 
-         dz_ocean1  = 2.03035_dbl_kind,  & ! first ocean layer thickness (m)
+         dz_ocean1  = 2.3035_dbl_kind,  & ! first ocean layer thickness (m)
          phi_snow ,  &  ! porosity of snow
          flood_frac     ! fraction of ocean/meltwater that floods
 
