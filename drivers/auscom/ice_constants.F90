@@ -158,9 +158,11 @@
         c25  = 25.0_dbl_kind, &
 	c30  = 30.0_dbl_kind, &
         c100 = 100.0_dbl_kind, &
+        c114 = 114.0_dbl_kind, &
         c180 = 180.0_dbl_kind, &
         c360 = 360.0_dbl_kind, &
         c365 = 365.0_dbl_kind, &
+        c373 = 373.0_dbl_kind, &
 	c400 = 400.0_dbl_kind, &
         c3600= 3600.0_dbl_kind, &
         c1000= 1000.0_dbl_kind, &
@@ -233,7 +235,8 @@
 !ars599: 26032014: change to public
       real (kind=dbl_kind), parameter, public :: &
         rvgas = 461.50_dbl_kind         ,&! gas constant for water vapour
-        rdgas = 287.04_dbl_kind           ! gas constant for dry air 
+        rdgas = 287.04_dbl_kind         ,&! gas constant for dry air
+        esref = 611.00_dbl_kind           ! saturation vapor pressure at 273.15K
 #endif
 !=======================================================================
 

@@ -24,9 +24,6 @@ module cpl_forcing_handler
     use cpl_arrays_setup
     use ice_calendar, only: dt
 
-! For use in rh2q if using lookup table approach:
-!    use  sat_vapor_pres_mod, only: escomp, descomp !RASF not sure why descomp is needed but it is like this in surface_flux_mod
-
 implicit none
 
 contains
@@ -1351,15 +1348,16 @@ real (kind=dbl_kind),allocatable,dimension(:,:,:) :: e_sat
 
 allocate(e_sat,mold=temp)
 
-! Look-up table approach (consistent with internals):
-! Make sure temp is in range.
-! From sat_vapor_pres_mod.F90, tcmin = -160C and tcmax=100C
-! call escomp(min(max(temp,114.0_dbl_kind),373.0_dbl_kind),e_sat)
+! Reference:
+! Wallance and Hobbs (2006) Atmospheric Science: An introductory
+! survey. Second edition. Vol 92 in the International Geophysics
+! Series, Elsevier.
 
-! Simple approach (for use with simple pre-processing):
-e_sat = 6.11d2*exp((2.5d6/462.52d0)*(1.d0/273.15-1./min(max(temp,114.0_dbl_kind),373.0_dbl_kind)))
+! Calculate saturated vapor pressure using Clausius-Clapeyron:
+e_sat = esref*exp((Lvap/rvgas)*(c1/Tffresh-c1/min(max(temp,c114),c373))
 
-where (press /= 0.0_dbl_kind ) q = 0.622_dbl_kind*(rh/100.0_dbl_kind)*e_sat/(press-0.378_dbl_kind*(rh/100.0_dbl_kind)*e_sat)
+! Calculate specific humidity from relative:
+where (press /= c0 ) q = d622*(rh/c100)*e_sat/(press-d378*(rh/c100)*e_sat)
 deallocate(e_sat)
 
 end subroutine rh2q
