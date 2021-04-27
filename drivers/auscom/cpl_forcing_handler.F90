@@ -24,7 +24,8 @@ module cpl_forcing_handler
     use cpl_arrays_setup
     use ice_calendar, only: dt
 
-    use  sat_vapor_pres_mod, only: escomp, descomp !RASF not sure why descomp is needed but it is like this in surface_flux_mod
+! For use in rh2q if using lookup table approach:
+!    use  sat_vapor_pres_mod, only: escomp, descomp !RASF not sure why descomp is needed but it is like this in surface_flux_mod
 
 implicit none
 
