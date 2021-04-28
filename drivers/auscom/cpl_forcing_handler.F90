@@ -1357,7 +1357,7 @@ allocate(e_sat,mold=temp)
 e_sat = esref*exp((Lvap/rvgas)*(c1/Tffresh-c1/min(max(temp,c114),c373)))
 
 ! Calculate specific humidity from relative:
-where (press /= c0 ) q = d622*(rh/c100)*e_sat/(press-d378*(rh/c100)*e_sat)
+where (press /= c0 ) q = rtgas*(rh/c100)*e_sat/(press-(c1-rtgas)*(rh/c100)*e_sat)
 deallocate(e_sat)
 
 end subroutine rh2q

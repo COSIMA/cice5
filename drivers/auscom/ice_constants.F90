@@ -236,7 +236,8 @@
       real (kind=dbl_kind), parameter, public :: &
         rvgas = 461.50_dbl_kind         ,&! gas constant for water vapour
         rdgas = 287.04_dbl_kind         ,&! gas constant for dry air
-        esref = 611.00_dbl_kind           ! saturation vapor pressure at 273.15K
+        esref = 611.00_dbl_kind         ,&! saturation vapor pressure at 273.15K
+        rtgas = rdgas/rvgas               ! ratio of gas constants
 #endif
 !=======================================================================
 
