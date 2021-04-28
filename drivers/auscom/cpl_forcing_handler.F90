@@ -1354,7 +1354,7 @@ allocate(e_sat,mold=temp)
 ! Series, Elsevier.
 
 ! Calculate saturated vapor pressure using Clausius-Clapeyron:
-e_sat = esref*exp((Lvap/rvgas)*(c1/Tffresh-c1/min(max(temp,c114),c373))
+e_sat = esref*exp((Lvap/rvgas)*(c1/Tffresh-c1/min(max(temp,c114),c373)))
 
 ! Calculate specific humidity from relative:
 where (press /= c0 ) q = d622*(rh/c100)*e_sat/(press-d378*(rh/c100)*e_sat)
