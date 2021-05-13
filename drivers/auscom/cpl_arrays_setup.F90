@@ -21,6 +21,7 @@ module cpl_arrays_setup
 ! (9) pressure            (Pa)                          press0
 ! (10)runof               (kg/m^2/s)                    runof0 
 ! (11)calving               (kg/m^2/s)                  calv0 
+! (12)rel humidity          (kg/kg%)                    relh0 
 !
 ! B> ocn==>ice 
 !                          
@@ -94,7 +95,7 @@ implicit none
 
 ! Fields in
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: &   !from atm
-    tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0 & !(for ice)
+    tair0, swflx0, lwflx0, uwnd0, vwnd0, qair0, rain0, snow0, relh0 & !(for ice)
    ,runof0, press0, calv0                                      !(for ocn)    
 
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: runof, calv, press

@@ -1367,4 +1367,28 @@ end function file_exist
 
 !============================================================================
 
+subroutine rh2q(temp,rh,press,q)
+!Convert relative humidity to specific humidity
+implicit none
+real (kind=dbl_kind), intent(in), dimension(:,:,:) :: temp,rh,press
+real (kind=dbl_kind), intent(inout), dimension(:,:,:) :: q
+real (kind=dbl_kind),allocatable,dimension(:,:,:) :: e_sat
+
+allocate(e_sat,mold=temp)
+
+! Reference:
+! Wallance and Hobbs (2006) Atmospheric Science: An introductory
+! survey. Second edition. Vol 92 in the International Geophysics
+! Series, Elsevier.
+
+! Calculate saturated vapor pressure using Clausius-Clapeyron:
+e_sat = esref*exp((Lvap/rvgas)*(c1/Tffresh-c1/min(max(temp,c114),c373)))
+
+! Calculate specific humidity from relative:
+where (press /= c0 ) q = rtgas*(rh/c100)*e_sat/(press-(c1-rtgas)*(rh/c100)*e_sat)
+deallocate(e_sat)
+
+end subroutine rh2q
+
+
 end module cpl_forcing_handler
