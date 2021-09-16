@@ -23,7 +23,7 @@ module cpl_forcing_handler
     use cpl_netcdf_setup
     use cpl_arrays_setup
     use ice_calendar, only: dt
-    use ice_zbgc_shared, only: ocean_bio,nlt_bgc_N,nlt_bgc_NO
+    use ice_zbgc_shared, only: ocean_bio,flux_bio,nlt_bgc_N,nlt_bgc_NO
 
 implicit none
 
@@ -812,9 +812,9 @@ tioswflx = swabs_ocn
 !16 10m wind. To mask or not to mask?
   tiownd(:,:,:) = sqrt(uatm(:,:,:)**2 + vatm(:,:,:)**2)
 !17? sea surface nitrate updated after ice-water flux
-  tionit(:,:,:) = ocean_bio(:,:,nlt_bgc_NO,:)
+  tionit(:,:,:) = flux_bio(:,:,nlt_bgc_NO,:)*aice(:,:,:)
 !18 sea surface algae/phyto/nitrogen updated after ice-water flux
-  tioalg(:,:,:) = ocean_bio(:,:,nlt_bgc_N,:)
+  tioalg(:,:,:) = flux_bio(:,:,nlt_bgc_N,:)*aice(:,:,:)
 
 return
 end subroutine get_i2o_fluxes

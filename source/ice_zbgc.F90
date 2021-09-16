@@ -57,7 +57,7 @@
          restore_bgc, skl_bgc, &
          tr_bgc_C_sk, tr_bgc_chl_sk, tr_bgc_Am_sk, tr_bgc_Sil_sk, &
          tr_bgc_DMSPp_sk, tr_bgc_DMSPd_sk, tr_bgc_DMS_sk, &
-         restart_bgc, restart_hbrine, phi_snow, bgc_flux_type, dz_ocean1
+         restart_bgc, restart_hbrine, phi_snow, bgc_flux_type
 
       !-----------------------------------------------------------------
       ! default values
@@ -80,7 +80,6 @@
       restart_hbrine  = .false.  ! hbrine restart
       phi_snow        = p5       ! snow porosity
       bgc_flux_type   = 'Jin2006'! type of ocean-ice poston velocity ('constant')
-      dz_ocean1       = 2.3035 ! HH first layer thickness of ocean
 
       !-----------------------------------------------------------------
       ! read from input file
@@ -182,7 +181,6 @@
       call broadcast_scalar(tr_bgc_DMSPp_sk,    master_task)
       call broadcast_scalar(tr_bgc_DMSPd_sk,    master_task)
       call broadcast_scalar(tr_bgc_DMS_sk,      master_task)
-      call broadcast_scalar(dz_ocean1,          master_task)
 
       if (skl_bgc) then
 
@@ -206,7 +204,6 @@
          write(nu_diag,1010) ' tr_bgc_DMSPp_sk           = ', tr_bgc_DMSPp_sk
          write(nu_diag,1010) ' tr_bgc_DMSPd_sk           = ', tr_bgc_DMSPd_sk
          write(nu_diag,1010) ' tr_bgc_DMS_sk             = ', tr_bgc_DMS_sk
-         write(nu_diag,1010) ' dz_ocean1                 = ', dz_ocean1
         
       endif   ! master_task
 
@@ -726,7 +723,6 @@
                                          nbtrcr,                        &
                                          flux_bion(:,:,1:nbtrcr),       &
                                          ocean_bio(:,:,1:nbtrcr, iblk), &
-                                         dz_ocean1                    , &
                                          aicen    (:,:,        n,iblk), & 
                                          meltbn   (:,:,        n,iblk), &
                                          congeln  (:,:,        n,iblk), &

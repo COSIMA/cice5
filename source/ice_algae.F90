@@ -198,7 +198,7 @@
                                       indxi,    indxj,     &
                                       nbtrcr,              &
                                       flux_bio, ocean_bio, &
-                                      dz_ocean1,     aicen,     &
+                                      aicen,     &
                                       meltb,    congel,    &
                                       fswthru,  first_ice, &
                                       trcrn,    grow_Cn)
@@ -215,7 +215,6 @@
          indxi, indxj    ! compressed indices for cells with aicen > puny
 
       real (kind=dbl_kind), intent(in) :: &
-         dz_ocean1, &  ! first ocean layer thickness (m)
          dt         ! time step 
 
       logical (kind=log_kind), dimension (nx_block,ny_block), &
@@ -466,9 +465,8 @@
 
          ! Uncomment to update ocean concentration
          ! Currently not coupled with ocean biogeochemistry
-         ! HH uncommented to enable ice-ocean BGC coupling for ACCESS-OM2
-         ocean_bio(i,j,nn) = ocean_bio(i,j,nn) &
-                           + flux_bio(i,j,nn)/dz_ocean1*aicen(i,j)
+         !ocean_bio(i,j,nn) = ocean_bio(i,j,nn) &
+         !                  + flux_bio(i,j,nn)/hmix(i,j)*aicen(i,j)
 
          if (cinit(ij,nn) < c0) then
               write(nu_diag,*) 'sk_bgc < 0 after algal fluxes, ij,nn,cinit,flux_bio',&
