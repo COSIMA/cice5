@@ -811,11 +811,10 @@ tioswflx = swabs_ocn
   tioform(:,:,:) = min(0.0,fresh(:,:,:))
 !16 10m wind. To mask or not to mask?
   tiownd(:,:,:) = sqrt(uatm(:,:,:)**2 + vatm(:,:,:)**2)
-!17? sea surface nitrate updated after ice-water flux
-  tionit(:,:,:) = flux_bio(:,:,nlt_bgc_NO,:)*aice(:,:,:)
-!18 sea surface algae/phyto/nitrogen updated after ice-water flux
-  tioalg(:,:,:) = flux_bio(:,:,nlt_bgc_N,:)*aice(:,:,:)
-
+!17 ice-water nitrate flux (mmol/m2/s)
+  tionit(:,:,:) = flux_bio(:,:,nlt_bgc_NO,:)
+!18 ice-to-ocean algal flux (mmol/m2/2)
+  tioalg(:,:,:) = flux_bio(:,:,nlt_bgc_N,:)
 return
 end subroutine get_i2o_fluxes
 
