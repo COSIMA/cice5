@@ -37,12 +37,17 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get install -y csh openmpi-bin libopenmpi-dev libopenmpi2 netcdf-bin libnetcdf-dev libnetcdff-dev libnetcdf13 
 
+      - name: Set OS version
+        run: | 
+          echo "Release: ${{ steps.system-info.outputs.release }}"
+          echo "os_version=${{ steps.system-info.outputs.release }}" >> $GITHUB_ENV
+      
       - name: Download libaccessom2
         uses: dawidd6/action-download-artifact@v2
         with:
           repo: COSIMA/libaccessom2
           workflow: CI.yml
-          name: binary_release
+          name: binary_release_${{ env.os_version }}
           path: libaccessom2
 
       - name: Download OASIS3-mct
