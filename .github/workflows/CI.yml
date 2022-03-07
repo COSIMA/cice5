@@ -53,7 +53,7 @@ jobs:
 
       - name: Untar OASIS3-mct
         run: | 
-          tar -xvf binary_release.tar.gz`
+          tar -xvf binary_release.tar.gz
 
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
