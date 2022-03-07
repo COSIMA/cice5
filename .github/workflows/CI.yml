@@ -17,8 +17,12 @@ on:
 jobs:
   # This workflow contains a single job called "build"
   build:
+    strategy:
+      fail-fast: true
+    matrix:
+        os: [ ubuntu-18.04, ] 
     # The type of runner that the job will run on
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
     
     env:
       FC: gfortran
