@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: true
     matrix:
-        os: [ ubuntu-18.04, ] 
+        os: [ ubuntu-18.04 ] 
     # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
     
