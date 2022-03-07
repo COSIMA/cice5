@@ -386,10 +386,13 @@ implicit none
     integer(kind=int_kind), intent(in) :: nstep
     integer(kind=int_kind) :: ncid
     integer(kind=int_kind) :: i, ll, ilout
-
     if (my_task == 0) then 
         call create_ncfile(fname, ncid, nx_global, ny_global, ll=1, ilout=il_out)
         call write_nc_1Dtime(real(nstep), 1, 'time', ncid)
+
+        do i=1, num_fields_to_ocn
+          call define_nc2D(ncid, fields_to_ocn(i), 2)
+        enddo
     endif
 
     do i=1, num_fields_to_ocn

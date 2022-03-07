@@ -195,10 +195,10 @@ subroutine write_nc2D(ncid, vname, vin, prcn, nx, ny, istep, ilout)
 implicit none
 
 integer(kind=int_kind), intent(in) :: ncid
-integer(kind=int_kind), intent(in) :: prcn	!precision choice (1/2: signle/double)
+integer(kind=int_kind), intent(in) :: prcn      !precision choice (1/2: single/double)
 character(len=*), intent(in) :: vname
 integer(kind=int_kind), intent(in) :: nx, ny
-integer(kind=int_kind), intent(in) :: istep	!position in the time dim (No of record) 
+integer(kind=int_kind), intent(in) :: istep     !position in the time dim (No of record) 
 !!!integer(kind=int_kind), intent(in), optional :: ilout 
 integer(kind=int_kind), optional :: ilout
 real(kind=dbl_kind), dimension(nx,ny), intent(in) :: vin
@@ -215,11 +215,11 @@ if (ncstatus/=nf_noerr) then
   call ncheck(nf_redef(ncid), 'write_nc2D: nf_redef')
   if (prcn == 1) then
     call ncheck(nf_def_var(ncid,trim(vname),nf_real, 3, &
-                           (/pLonDimId, pLatDimId, timeDimId/),varid), &
+                           [pLonDimId, pLatDimId, timeDimId], varid), &
                 'write_nc2D: nf_def_var')
   else
     call ncheck(nf_def_var(ncid,trim(vname),nf_double, 3, &
-                           (/pLonDimId, pLatDimId, timeDimId/),varid), &
+                           [pLonDimId, pLatDimId, timeDimId], varid), &
                 'write_nc2D: nf_def_var')
   endif
   call ncheck(nf_enddef(ncid), 'write_nc2D: nf_enddef')
@@ -235,14 +235,42 @@ end if
 select case(prcn)
   case (1)
     vtmp = real(vin) !dbl precision to single precision
-    call ncheck(nf_put_vara_real(ncid,varid,(/1,1,istep/),(/nx,ny,1/),vtmp), &
+    call ncheck(nf_put_vara_real(ncid, varid, [1,1,istep], [nx,ny,1], vtmp), &
                 'write_nc2D: nf_put_vara_real')
   case default    !case (2)
-    call ncheck(nf_put_vara_double(ncid,varid,(/1,1,istep/),(/nx,ny,1/),vin), &
+    call ncheck(nf_put_vara_double(ncid, varid, [1,1,istep], [nx,ny,1], vin), &
                 'write_nc2D: nf_put_vara_real')
 end select
 
 return
 end subroutine write_nc2D
+
+subroutine define_nc2d(ncid, vname, prcn)
+! Define 2d variable
+
+implicit none
+
+integer(kind=int_kind), intent(in) :: ncid
+integer(kind=int_kind), intent(in) :: prcn   !precision choice (1/2: single/double)
+character(len=*), intent(in) :: vname
+integer :: varid, ncstatus
+
+ncstatus=nf_inq_varid(ncid,vname,varid)
+if (ncstatus/=nf_noerr) then
+  call ncheck(nf_redef(ncid), 'write_nc2D: nf_redef')
+  if (prcn == 1) then
+    call ncheck(nf_def_var(ncid,trim(vname),nf_real, 3, &
+                           [pLonDimId, pLatDimId, timeDimId],varid), &
+                'write_nc2D: nf_def_var')
+  else
+    call ncheck(nf_def_var(ncid,trim(vname),nf_double, 3, &
+                           [pLonDimId, pLatDimId, timeDimId],varid), &
+                'write_nc2D: nf_def_var')
+  endif
+  !end of the definition phase. Make sure the buffering is kept.
+  call ncheck(nf__enddef(ncid,1028,512,512,512), 'create_ncfile: nf__enddef')
+end if
+end subroutine define_nc2d
+
 
 end module cpl_netcdf_setup
