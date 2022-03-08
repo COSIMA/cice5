@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        gfortran: [ 7.5, 9.4, 10.3 ]
+        gfortran: [ 10.3 ]
 
     # The type of runner that the job will run on
     runs-on: ubuntu-18.04
