@@ -30,7 +30,7 @@ jobs:
       OASISDIR: ${{ github.workspace }}/oasis3-mct/build/lib
       LIBAUSCOM_INCS: -I${{ github.workspace }}/oasis3-mct/build/lib/psmile.MPI1/
       platform: ubuntu
-      FC: gfortran-{{ matrix.gfortran }}
+      FC: gfortran-${{ matrix.gfortran }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
