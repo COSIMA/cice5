@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        gfortran: [ 10.3 ]
+        gcc_v: [ 10.3 ]
 
     # The type of runner that the job will run on
     runs-on: ubuntu-18.04
@@ -30,7 +30,8 @@ jobs:
       OASISDIR: ${{ github.workspace }}/oasis3-mct/build/lib
       LIBAUSCOM_INCS: -I${{ github.workspace }}/oasis3-mct/build/lib/psmile.MPI1/
       platform: ubuntu
-      FC: gfortran-${{ matrix.gfortran }}
+      FC: gfortran
+      GCC_V: ${{ matrix.gcc_v }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -41,6 +42,13 @@ jobs:
       # Install dependencies
       - name: Install dependencies
         run: sudo apt-get install -y csh openmpi-bin libopenmpi-dev libopenmpi2 netcdf-bin libnetcdf-dev libnetcdff-dev libnetcdf13 
+
+      - name: Install GFortran Linux
+      run: |
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${GCC_V} 100 \
+        --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-${GCC_V}
+        which gfortran-${GCC_V}
+        which gfortran
 
       - name: Download libaccessom2
         run: | 
