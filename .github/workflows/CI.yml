@@ -18,12 +18,13 @@ jobs:
   # This workflow contains a single job called "build"
   build:
 
+    strategy:
+      matrix:
+        gfortran: [ 7.5, 9.4, 10.3 ]
+
     # The type of runner that the job will run on
     runs-on: ubuntu-18.04
     
-    matrix:
-      gfortran: [ 7.5, 9.4, 10.3 ]
-
     env:
       LIBACCESSOM2_ROOT: ${{ github.workspace }}/libaccessom2
       OASISDIR: ${{ github.workspace }}/oasis3-mct/build/lib
