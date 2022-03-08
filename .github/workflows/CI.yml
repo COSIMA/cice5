@@ -62,4 +62,5 @@ jobs:
           ls -lR
           echo Building 1 degree
           env
+          gfortran -v
           bld/build.sh $platform auscom 360x300
