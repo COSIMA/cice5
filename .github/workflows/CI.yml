@@ -41,7 +41,7 @@ jobs:
       
       # Install dependencies
       - name: Install dependencies
-        run: sudo apt-get install -y csh openmpi-bin libopenmpi-dev libopenmpi2 netcdf-bin libnetcdf-dev libnetcdff-dev libnetcdf13 
+        run: sudo apt-get install -y csh openmpi-bin libopenmpi-dev libopenmpi3 netcdf-bin libnetcdf-dev libnetcdff-dev libnetcdf15 
 
       - name: Install GFortran Linux
         run: |
