@@ -624,7 +624,7 @@
 ! Function : w1 (see Gaussian function psi in Tsamados et al 2013)
 
       FUNCTION w1(a)
-      double precision, intent(in) :: a
+      real (kind=dbl_kind), intent(in) :: a
 
       real (kind=dbl_kind) :: w1
 
@@ -643,7 +643,7 @@
 ! Function : w2 (see Gaussian function psi in Tsamados et al 2013)
 
       FUNCTION w2(a)
-      double precision, intent(in) :: a
+      real (kind=dbl_kind), intent(in) :: a
 
       real (kind=dbl_kind) :: w2
 
