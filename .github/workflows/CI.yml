@@ -65,6 +65,7 @@ jobs:
 
       - name: Untar OASIS3-mct
         run: | 
+          mkdir oasis3-mct
           tar -xvf --one-top-level=oasis3-mct binary_release.tar.gz
 
       # Runs a set of commands using the runners shell
