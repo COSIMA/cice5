@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        gcc_v: [ 9, 10 ]
+        gcc_v: [ 10 ]
 
     # The type of runner that the job will run on
     runs-on: ubuntu-18.04
