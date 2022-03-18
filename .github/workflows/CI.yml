@@ -59,14 +59,11 @@ jobs:
           tar -zvxf binary_release_20.04.tar.gz
           echo "libaccessom2_dir=${{ github.workspace }}/libaccessom2" >> $GITHUB_ENV
 
-      - name: Download OASIS3-mct
-        run: | 
-          wget https://github.com/COSIMA/oasis3-mct/releases/latest/download/binary_release.tar.gz
-
       - name: Untar OASIS3-mct
         run: | 
           mkdir oasis3-mct
-          cd oasis3-mct && tar -xvf binary_release.tar.gz
+          wget https://github.com/COSIMA/oasis3-mct/releases/latest/download/binary_release.tar.gz
+          cd oasis3-mct && tar -xvf ../binary_release.tar.gz
 
       # Runs a set of commands using the runners shell
       - name: Build 1 degree
