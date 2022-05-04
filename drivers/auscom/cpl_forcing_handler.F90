@@ -23,6 +23,7 @@ module cpl_forcing_handler
     use cpl_netcdf_setup
     use cpl_arrays_setup
     use ice_calendar, only: dt
+    use ice_zbgc_shared, only: ocean_bio,flux_bio,nlt_bgc_N,nlt_bgc_NO
 
 implicit none
 
@@ -47,6 +48,8 @@ subroutine nullify_i2o_fluxes()
     iomelt(:,:,:)  = 0.0
     ioform(:,:,:)  = 0.0
     iownd(:,:,:)  = 0.0
+    ionit(:,:,:)  = 0.0
+    ioalg(:,:,:)  = 0.0
     iolicefw(:,:,:)  = 0.0
     iolicefh(:,:,:)  = 0.0
 
@@ -72,6 +75,8 @@ subroutine tavg_i2o_fluxes
     iomelt (:,:,:) = iomelt (:,:,:) + tiomelt (:,:,:)*coef_ic
     ioform (:,:,:) = ioform (:,:,:) + tioform (:,:,:)*coef_ic
     iownd (:,:,:)  = iownd (:,:,:) + tiownd (:,:,:)*coef_ic
+    ionit (:,:,:)  = ionit (:,:,:) + tionit (:,:,:)*coef_ic
+    ioalg (:,:,:)  = ioalg (:,:,:) + tioalg (:,:,:)*coef_ic
     iolicefw (:,:,:) = iolicefw (:,:,:) + tiolicefw (:,:,:)*coef_ic
     iolicefh (:,:,:) = iolicefh (:,:,:) + tiolicefh (:,:,:)*coef_ic
 
@@ -182,6 +187,8 @@ if ( file_exist(fname) ) then
   call ice_read_nc(ncid_o2i, 1, 'sslx_i',   sslx,   dbug)
   call ice_read_nc(ncid_o2i, 1, 'ssly_i',   ssly,   dbug)
   call ice_read_nc(ncid_o2i, 1, 'pfmice_i', pfmice, dbug)
+  call ice_read_nc(ncid_o2i, 1, 'ssn_i',    ssn, dbug)
+  call ice_read_nc(ncid_o2i, 1, 'ssalg_i',    ssalg, dbug)
   if (my_task == master_task) call ice_close_nc(ncid_o2i)
 else
   print *, 'CICE: (get_time0_o2i_fields_old) not found file *** ',fname
@@ -241,6 +248,10 @@ implicit none
                 ioform = vwork
             elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
                 iownd = vwork
+            elseif (trim(fields_to_ocn(i)) == 'nit_io') then
+                ionit = vwork
+            elseif (trim(fields_to_ocn(i)) == 'alg_io') then
+                ioalg = vwork
             elseif (trim(fields_to_ocn(i)) == 'licefw_io') then
                 iolicefw = vwork
             elseif (trim(fields_to_ocn(i)) == 'licefh_io') then
@@ -359,6 +370,8 @@ if (maxval(sst).gt.200) then
     sst = sst - 273.15
 endif
 sss(:,:,:)     = ssso(:,:,:)
+ocean_bio(:,:,nlt_bgc_NO,:)     = ssn(:,:,:)
+ocean_bio(:,:,nlt_bgc_N,:)     = ssalg(:,:,:)
 ss_tltx(:,:,:) = sslx(:,:,:)
 ss_tlty(:,:,:) = ssly(:,:,:)
 !frzmlt(:,:,:)  = pfmice(:,:,:) * frazil_factor / dt_cpl_io   !W/m^2 as required by cice.
@@ -432,6 +445,10 @@ implicit none
             vwork = iolicefh
         elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
             vwork = iownd
+        elseif (trim(fields_to_ocn(i)) == 'nit_io') then
+            vwork = ionit
+        elseif (trim(fields_to_ocn(i)) == 'alg_io') then
+            vwork = ioalg
         else
             call abort_ice('ice: bad save array name '//trim(fields_to_ocn(i)))
         endif
@@ -797,8 +814,10 @@ tioswflx = swabs_ocn
   tioform(:,:,:) = min(0.0,fresh(:,:,:))
 !16 10m wind. To mask or not to mask?
   tiownd(:,:,:) = sqrt(uatm(:,:,:)**2 + vatm(:,:,:)**2)
- 
-
+!17 ice-water nitrate flux (mmol/m2/s)
+  tionit(:,:,:) = flux_bio(:,:,nlt_bgc_NO,:)
+!18 ice-to-ocean algal flux (mmol/m2/2)
+  tioalg(:,:,:) = flux_bio(:,:,nlt_bgc_N,:)
 return
 end subroutine get_i2o_fluxes
 
@@ -1224,6 +1243,10 @@ call gather_global(gwork, scale*ioform,  master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'ioform',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, scale*iownd,  master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'iownd',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, scale*ionit,  master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'ionit',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, scale*ioalg,  master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'ioalg',  gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
 if (my_task == 0) call ncheck(nf_close(ncid), 'check_i2o_fields: nf_close')
 
@@ -1269,6 +1292,10 @@ call gather_global(gwork, ssly, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'ssly', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 call gather_global(gwork, pfmice, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'pfmice', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, ssn, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'ssn', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
+call gather_global(gwork, ssalg, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'ssalg', gwork, 2, nx_global,ny_global,currstep,ilout=il_out)
 
 if (my_task == 0) call ncheck(nf_close(ncid), 'check_o2i_fields: nf_close')
 

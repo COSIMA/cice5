@@ -198,7 +198,7 @@
                                       indxi,    indxj,     &
                                       nbtrcr,              &
                                       flux_bio, ocean_bio, &
-                                      hmix,     aicen,     &
+                                      aicen,     &
                                       meltb,    congel,    &
                                       fswthru,  first_ice, &
                                       trcrn,    grow_Cn)
@@ -222,7 +222,6 @@
          first_ice  ! initialized values should be used
 
       real (kind=dbl_kind), dimension (nx_block,ny_block), intent(in) :: &
-         hmix   , & ! mixed layer depth (m)
          aicen  , & ! ice area 
          meltb  , & ! bottom ice melt (m)
          congel , & ! bottom ice growth (m)

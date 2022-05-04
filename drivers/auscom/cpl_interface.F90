@@ -292,6 +292,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (sslx(nx_block, ny_block, max_blocks));  sslx(:,:,:) = 0
     allocate (ssly(nx_block, ny_block, max_blocks));  ssly(:,:,:) = 0
     allocate (pfmice(nx_block, ny_block, max_blocks));  pfmice(:,:,:) = 0
+    allocate (ssn(nx_block, ny_block, max_blocks));  ssn(:,:,:) = 0
+    allocate (ssalg(nx_block, ny_block, max_blocks));  ssalg(:,:,:) = 0
 
     allocate (iostrsu(nx_block, ny_block, max_blocks)); iostrsu(:,:,:) = 0
     allocate (iostrsv(nx_block, ny_block, max_blocks)); iostrsv(:,:,:) = 0
@@ -313,6 +315,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (iolicefh (nx_block, ny_block, max_blocks)); iolicefh(:,:,:) = 0
 
     allocate (iownd (nx_block, ny_block, max_blocks)); iownd(:,:,:) = 0
+    allocate (ionit (nx_block, ny_block, max_blocks)); ionit(:,:,:) = 0
+    allocate (ioalg (nx_block, ny_block, max_blocks)); ioalg(:,:,:) = 0
 
     allocate (tiostrsu(nx_block, ny_block, max_blocks)); tiostrsu(:,:,:) = 0
     allocate (tiostrsv(nx_block, ny_block, max_blocks)); tiostrsv(:,:,:) = 0
@@ -332,6 +336,8 @@ subroutine init_cpl(runtime_seconds, coupling_field_timesteps)
     allocate (tioform(nx_block, ny_block, max_blocks));  tioform(:,:,:) = 0
 
     allocate (tiownd (nx_block, ny_block, max_blocks)); tiownd(:,:,:) = 0
+    allocate (tionit (nx_block, ny_block, max_blocks)); tionit(:,:,:) = 0
+    allocate (tioalg (nx_block, ny_block, max_blocks)); tioalg(:,:,:) = 0
 
     allocate (tiolicefw(nx_block, ny_block, max_blocks));  tiolicefw(:,:,:) = 0
     allocate (tiolicefh(nx_block, ny_block, max_blocks));  tiolicefh(:,:,:) = 0
@@ -581,6 +587,10 @@ subroutine from_ocn(isteps)
             call unpack_coupling_array(work, ssly)
         elseif (trim(fields_from_ocn(i)) == 'pfmice_i') then
             call unpack_coupling_array(work, pfmice)
+        elseif (trim(fields_from_ocn(i)) == 'ssn_i') then
+            call unpack_coupling_array(work, ssn)
+        elseif (trim(fields_from_ocn(i)) == 'ssalg_i') then
+            call unpack_coupling_array(work, ssalg)
         else
             call abort_ice('ice: bad coupling array name '//fields_from_ocn(i))
         endif
@@ -646,6 +656,10 @@ subroutine into_ocn(isteps, scale)
             call pack_coupling_array(iolicefh*scale, work)
         elseif (trim(fields_to_ocn(i)) == 'wnd10_io') then
             call pack_coupling_array(iownd*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'nit_io') then
+            call pack_coupling_array(ionit*scale, work)
+        elseif (trim(fields_to_ocn(i)) == 'alg_io') then
+            call pack_coupling_array(ioalg*scale, work)
         else
             call abort_ice('ice: bad coupling array name '//fields_to_ocn(i))
         endif
@@ -712,6 +726,7 @@ end subroutine update_halos_from_atm
               tioqflux, tiolwflx, tioshflx, tiorunof, tiolicefw, tiolicefh, tiopress) 
   deallocate (iomelt, ioform, tiomelt, tioform)
   deallocate (iownd, tiownd)
+  deallocate (ionit, tionit, ssn, ioalg, tioalg, ssalg)
   deallocate (gwork, vwork, sicemass)
   !  
   ! PSMILe termination 
@@ -762,6 +777,8 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] iomelt:', sum(iomelt(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ioform:', sum(ioform(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iownd:', sum(iownd(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ionit:', sum(ionit(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ioalg:', sum(ioalg(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iorunof:', sum(iorunof(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iolicefw:', sum(iolicefw(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] iolicefh:', sum(iolicefh(isc:iec, jsc:jec, 1))
@@ -773,6 +790,8 @@ subroutine write_boundary_checksums(time)
      print*,   '[ice chksum] sslx:', sum(sslx(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] ssly:', sum(ssly(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] pfmice:', sum(pfmice(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ssn:', sum(ssn(isc:iec, jsc:jec, 1))
+     print*,   '[ice chksum] ssalg:', sum(ssalg(isc:iec, jsc:jec, 1))
 
      print*,   '[ice chksum] swflx0:', sum(swflx0(isc:iec, jsc:jec, 1))
      print*,   '[ice chksum] lwflx0:', sum(lwflx0(isc:iec, jsc:jec, 1))

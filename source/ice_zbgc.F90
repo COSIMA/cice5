@@ -11,6 +11,7 @@
 
       use ice_kinds_mod
       use ice_zbgc_shared ! everything
+      use cpl_arrays_setup, only: ssn, ssalg
 
       implicit none 
 
@@ -612,7 +613,7 @@
          ! Define ocean tracer concentration
          do j = 1, ny_block
          do i = 1, nx_block
-            if (tr_bgc_Nit_sk)   ocean_bio(i,j,nlt_bgc_NO   ,iblk) = nit   (i,j,iblk)
+            if (tr_bgc_Nit_sk)   ocean_bio(i,j,nlt_bgc_NO   ,iblk) = ssn   (i,j,iblk)
             if (tr_bgc_chl_sk)   ocean_bio(i,j,nlt_bgc_chl  ,iblk) = algalN(i,j,iblk)*R_chl2N
             if (tr_bgc_Am_sk)    ocean_bio(i,j,nlt_bgc_NH   ,iblk) = amm   (i,j,iblk)
             if (tr_bgc_C_sk)     ocean_bio(i,j,nlt_bgc_C    ,iblk) = algalN(i,j,iblk)*R_C2N
@@ -620,7 +621,8 @@
             if (tr_bgc_DMSPp_sk) ocean_bio(i,j,nlt_bgc_DMSPp,iblk) = dmsp  (i,j,iblk)
             if (tr_bgc_DMSPd_sk) ocean_bio(i,j,nlt_bgc_DMSPd,iblk) = dmsp  (i,j,iblk)
             if (tr_bgc_DMS_sk)   ocean_bio(i,j,nlt_bgc_DMS  ,iblk) = dms   (i,j,iblk)
-            if (tr_bgc_N_sk)     ocean_bio(i,j,nlt_bgc_N    ,iblk) = algalN(i,j,iblk)
+            !if (tr_bgc_N_sk)     ocean_bio(i,j,nlt_bgc_N    ,iblk) = algalN(i,j,iblk)
+            if (tr_bgc_N_sk)     ocean_bio(i,j,nlt_bgc_N    ,iblk) = ssalg (i,j,iblk)
          enddo
          enddo
 
@@ -721,7 +723,6 @@
                                          nbtrcr,                        &
                                          flux_bion(:,:,1:nbtrcr),       &
                                          ocean_bio(:,:,1:nbtrcr, iblk), &
-                                         hmix     (:,:,          iblk), &
                                          aicen    (:,:,        n,iblk), & 
                                          meltbn   (:,:,        n,iblk), &
                                          congeln  (:,:,        n,iblk), &
