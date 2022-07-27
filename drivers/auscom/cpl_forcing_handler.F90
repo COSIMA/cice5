@@ -23,7 +23,7 @@ module cpl_forcing_handler
     use cpl_netcdf_setup
     use cpl_arrays_setup
     use ice_calendar, only: dt
-    use ice_zbgc_shared, only: ocean_bio,flux_bio,nlt_bgc_N,nlt_bgc_NO
+    use ice_zbgc_shared, only: ocean_bio, flux_bio, nlt_bgc_N, nlt_bgc_NO, skl_bgc
 
 implicit none
 
@@ -187,8 +187,10 @@ if ( file_exist(fname) ) then
   call ice_read_nc(ncid_o2i, 1, 'sslx_i',   sslx,   dbug)
   call ice_read_nc(ncid_o2i, 1, 'ssly_i',   ssly,   dbug)
   call ice_read_nc(ncid_o2i, 1, 'pfmice_i', pfmice, dbug)
-  call ice_read_nc(ncid_o2i, 1, 'ssn_i',    ssn, dbug)
-  call ice_read_nc(ncid_o2i, 1, 'ssalg_i',    ssalg, dbug)
+  if ( skl_bgc ) then
+    call ice_read_nc(ncid_o2i, 1, 'ssn_i',    ssn,    dbug)
+    call ice_read_nc(ncid_o2i, 1, 'ssalg_i',  ssalg,  dbug)
+  endif
   if (my_task == master_task) call ice_close_nc(ncid_o2i)
 else
   print *, 'CICE: (get_time0_o2i_fields_old) not found file *** ',fname
