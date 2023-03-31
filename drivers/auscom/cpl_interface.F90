@@ -707,7 +707,7 @@ subroutine update_halos_from_atm(time)
   call ice_HaloUpdate(qair0, halo_info, field_loc_center, field_type_scalar)
   call ice_HaloUpdate(uwnd0, halo_info, field_loc_center, field_type_vector)
   call ice_HaloUpdate(vwnd0, halo_info, field_loc_center, field_type_vector)
-  call ice_HaloUpdate(calv0, halo_info, field_loc_center, field_type_vector)
+  call ice_HaloUpdate(calv0, halo_info, field_loc_center, field_type_scalar)
   call ice_timer_stop(timer_from_atm_halos)
 
 end subroutine update_halos_from_atm
