@@ -32,8 +32,6 @@ if ($debug == 'unit_testing') then
     setenv UNIT_TESTING yes
 endif
 
-source $CBLD/config.$platform.$driver.$resolution
-
 ### Specialty code
 setenv CAM_ICE  no        # set to yes for CAM runs (single column)
 setenv SHRDIR   csm_share # location of CCSM shared code
@@ -53,6 +51,8 @@ setenv NICELYR    4       # number of vertical layers in the ice
 setenv NSNWLYR    1       # number of vertical layers in the snow
 setenv NICECAT    5       # number of ice thickness categories
 
+source $CBLD/config.$platform.$driver.$resolution
+
 if ( $IO_TYPE == 'pio' ) then
     # Build PIO
     mkdir -p ParallelIO/build
@@ -71,10 +71,12 @@ if ( $IO_TYPE == 'pio' ) then
 endif
 
 if ( $AusCOM == 'yes' ) then
-    setenv CPLLIBDIR $LIBACCESSOM2_ROOT/build/lib
+    setenv CPLLIBDIR $LIBACCESSOM2_ROOT/libaccessom2/lib
     setenv CPLLIBS '-L$(CPLLIBDIR)/ -laccessom2'
-    setenv CPLINCDIR $LIBACCESSOM2_ROOT/build
-    setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
+    setenv CPLINCDIR $LIBACCESSOM2_ROOT/libaccessom2
+    if ( ! $?OASISDIR ) then
+      setenv OASISDIR $LIBACCESSOM2_ROOT/oasis3-mct/Linux/build/lib/
+    endif
     setenv CPL_INCS '-I$(CPLINCDIR)/include -I$(OASISDIR)/psmile.MPI1 -I$(OASISDIR)/mct -I$(SRCDIR)/ParallelIO/build/include/'
 endif
 

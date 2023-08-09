@@ -1,0 +1,76 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the action will run. 
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+
+    strategy:
+      matrix:
+        gcc_v: [ 10 ]
+
+    # The type of runner that the job will run on
+    runs-on: ubuntu-20.04
+    
+    env:
+      LIBACCESSOM2_ROOT: ${{ github.workspace }}
+      OASISDIR: ${{ github.workspace }}/oasis3-mct/build/lib
+      LIBAUSCOM_INCS: -I${{ github.workspace }}/oasis3-mct/build/lib/psmile.MPI1/
+      platform: ubuntu
+      FC: gfortran
+      GCC_V: ${{ matrix.gcc_v }}
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout code 
+        uses: actions/checkout@v2
+      
+      # Install dependencies
+      - name: Install dependencies
+        run: sudo apt-get install -y csh openmpi-bin libopenmpi-dev libopenmpi3 netcdf-bin libnetcdf-dev libnetcdff-dev libnetcdf15 
+
+      - name: Install GFortran Linux
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${GCC_V} 100 \
+          --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-${GCC_V}
+          which gfortran-${GCC_V}
+          which gfortran
+
+      - name: Download libaccessom2
+        run: | 
+          wget https://github.com/COSIMA/libaccessom2/releases/latest/download/binary_release_20.04.tar.gz
+
+      - name: Untar libaccessom2
+        run: |
+          tar -zvxf binary_release_20.04.tar.gz
+          echo "libaccessom2_dir=${{ github.workspace }}/libaccessom2" >> $GITHUB_ENV
+
+      - name: Untar OASIS3-mct
+        run: | 
+          mkdir oasis3-mct
+          wget https://github.com/COSIMA/oasis3-mct/releases/latest/download/binary_release.tar.gz
+          cd oasis3-mct && tar -xvf ../binary_release.tar.gz
+
+      # Runs a set of commands using the runners shell
+      - name: Build 1 degree
+        run: |
+          pwd
+          ls -lR
+          echo Building 1 degree
+          env
+          # ${FC} -v
+          bld/build.sh $platform auscom 360x300

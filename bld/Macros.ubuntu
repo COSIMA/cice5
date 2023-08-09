@@ -1,0 +1,85 @@
+#==============================================================================
+# Makefile macros for Ubuntu 10.04 Linux w/ repository OpenMPI and libnetcdf-dev
+# Geophysical Institute, University of Alaska Fairbanks
+#==============================================================================
+
+INCLDIR    := -I.
+SLIBS      :=
+ULIBS      := 
+CPP        := cpp
+CPPFLAGS   := -P -traditional
+CPPDEFS    := -DLINUX
+CFLAGS     := -c -O2
+ifeq ($(COMMDIR), mpi)
+   FC         := mpifort
+else
+   FC         := gfortran
+endif
+FIXEDFLAGS := -132
+FREEFLAGS  := 
+# work-around for gcc to ensure that denormailzed numbers are 
+# flushed to zero: -march=pentium4 -msse2 -mfpmath=sse
+FFLAGS     := -O2 -w -fconvert=big-endian -fdefault-real-8 -std=legacy
+MOD_SUFFIX := mod
+LD         := $(FC)
+LDFLAGS    := $(FFLAGS) -v
+
+ifeq ($(DITTO), yes)
+   CPPDEFS :=  $(CPPDEFS) -DREPRODUCIBLE
+endif
+
+ifeq ($(IO_TYPE), netcdf)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf
+   INCLDIR := $(INCLDIR) -I/usr/include
+   SLIBS   := $(SLIBS) -lnetcdf -lnetcdff
+endif
+
+CPPDEFS :=  $(CPPDEFS) -DNXGLOB=$(NXGLOB) -DNYGLOB=$(NYGLOB) \
+            -DNUMIN=$(NUMIN) -DNUMAX=$(NUMAX) \
+            -DTRAGE=$(TRAGE) -DTRFY=$(TRFY) -DTRLVL=$(TRLVL) \
+            -DTRPND=$(TRPND) -DNTRAERO=$(NTRAERO) -DTRBRI=$(TRBRI) \
+            -DNBGCLYR=$(NBGCLYR) -DTRBGCS=$(TRBGCS) \
+            -DNICECAT=$(NICECAT) -DNICELYR=$(NICELYR) \
+            -DNSNWLYR=$(NSNWLYR) \
+            -DBLCKX=$(BLCKX) -DBLCKY=$(BLCKY) -DMXBLCKS=$(MXBLCKS)
+
+ifeq ($(COMMDIR), mpi)
+   SLIBS   :=  $(SLIBS) -lmpi
+endif
+
+ifeq ($(BARRIERS), yes)
+   CPPDEFS :=  $(CPPDEFS) -Dgather_scatter_barrier
+endif
+
+ifeq ($(IO_TYPE), netcdf)
+   CPPDEFS :=  $(CPPDEFS) -Dncdf
+   INCLDIR := $(INCLDIR) -I$(NETCDF_ROOT)/include
+   SLIBS   := $(SLIBS) -L$(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
+endif
+
+ifeq ($(AusCOM), yes)
+   CPPDEFS := $(CPPDEFS) -DAusCOM -Dcoupled
+   INCLDIR := $(INCLDIR) $(CPL_INCS) $(LIBAUSCOM_INCS)
+   SLIBS   := $(SLIBS) $(CPLLIBS)
+endif
+
+ifeq ($(UNIT_TESTING), yes)
+   CPPDEFS := $(CPPDEFS) -DUNIT_TESTING
+endif
+ifeq ($(ACCESS), yes)
+   CPPDEFS := $(CPPDEFS) -DACCESS
+endif
+# standalone CICE with AusCOM mods
+ifeq ($(ACCICE), yes)
+   CPPDEFS := $(CPPDEFS) -DACCICE
+endif
+# no MOM just CICE+UM
+ifeq ($(NOMOM), yes)
+   CPPDEFS := $(CPPDEFS) -DNOMOM
+endif
+ifeq ($(OASIS3_MCT), yes)
+   CPPDEFS := $(CPPDEFS) -DOASIS3_MCT
+endif
+
+### note this file does not include PIO capability
+### see Macros.Linux.LANL.conejo
