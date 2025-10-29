@@ -1,32 +1,33 @@
 MODULE cpl_forcing_handler
 !
-! It contains subroutines handling coupling fields. They are
-!
-! nullify_i2o_fluxes: 
-! tavg_i2o_fluxes:
-! ...............
-! ...............
+! It contains subroutines handling coupling fields. 
 !
 use ice_blocks
 use ice_forcing
 use ice_read_write
 use ice_domain_size
 use ice_domain,    only : distrb_info, nblocks 
-use ice_flux                 !forcing data definition (Tair, Qa, uocn, etc.)
-use ice_state,     only : aice, aicen, trcr   !ice concentration and tracers
+use ice_flux            !forcing data definition (Tair, Qa, uocn, etc.)
+                        !Tn_top, keffn_top ...(for multilayer configuration)   
+!use ice_state,     only : aice, aicen, trcr, trcrn, nt_hpnd   !ice concentration and tracers
+use ice_state,     only : aice, aicen, trcr !!!, trcrn, nt_hpnd, nt_Tsfc   !ice concentration and tracers
 use ice_state,     only: uvel, vvel, vsnon, vicen
 use ice_gather_scatter
-!ars599: 11042014: use all ice_constants
-!use ice_constants, only : gravit, Lvap, Lsub
+use ice_broadcast
 use ice_constants
 use ice_grid,      only : tmask, to_ugrid
 use ice_communicate, only : my_task, master_task
 !use ice_ocean,     only : cprho
 use ice_exit,      only : abort_ice
+use ice_shortwave, only : apeffn
+use ice_grid, only: tarea
+use ice_calendar, only: month
 
 use cpl_parameters
 use cpl_netcdf_setup
 use cpl_arrays_setup
+
+use ice_calendar, only: month
 
 implicit none
 
@@ -35,7 +36,7 @@ real (kind=dbl_kind), dimension (nx_block,ny_block,max_blocks) :: &
 
 contains
 
-!===============================================================================
+!=================================================
 subroutine get_core_runoff(fname, vname, nrec)
 ! read in the remapped core runoff data (S.Marsland) which will be used to replace
 ! the ncep2 runoff sent from matm via coupler 
@@ -63,7 +64,7 @@ endif
 return
 end subroutine get_core_runoff
 
-!===============================================================================
+!=================================================
 subroutine get_time0_sstsss(fname, nmonth)
 
 ! This routine is to be used only once at the beginning at an exp.
@@ -103,7 +104,7 @@ endif
 return
 end subroutine get_time0_sstsss
 
-!===============================================================================
+!=================================================
 ! temporary use ...
 subroutine read_access_a2i_data(fname,nrec,istep) 
 
@@ -161,7 +162,7 @@ call check_a2i_fields(istep)
 
 end subroutine read_access_a2i_data
 
-!=============================================================================
+!=================================================
 subroutine read_restart_i2a(fname, sec) !'i2a.nc', 0)
 
 ! read ice to atm coupling fields from restart file, and send to atm module
@@ -195,8 +196,11 @@ if ( file_exist(fname) ) then
   call ice_read_nc(ncid, 1, 'icethk04',   ia_thikn(:,:,4,:),   dbug)
   call ice_read_nc(ncid, 1, 'icethk05',   ia_thikn(:,:,5,:),   dbug)
   call ice_read_nc(ncid, 1, 'isst_ia',    ia_sst,   dbug)
-  call ice_read_nc(ncid, 1, 'uvel_ia',    ia_uvel,   dbug)
-  call ice_read_nc(ncid, 1, 'vvel_ia',    ia_vvel,   dbug)
+  call ice_read_nc(ncid, 1, 'uvel_ia',    ia_uvel,  dbug)
+  call ice_read_nc(ncid, 1, 'vvel_ia',    ia_vvel,  dbug)
+  call ice_read_nc(ncid, 1, 'co2_i2',     ia_co2,   dbug)
+  call ice_read_nc(ncid, 1, 'co2fx_i2',   ia_co2fx, dbug)
+
   if (my_task == master_task) then
     call ice_close_nc(ncid)
     write(il_out,*) '(read_restart_i2a) has read in 18 i2a fields.'
@@ -211,8 +215,7 @@ else
 endif
 end subroutine read_restart_i2a
 
-
-!=============================================================================
+!=================================================
 subroutine read_restart_i2asum(fname, sec) !'i2a.nc', 0)
 
 ! read ice to atm coupling fields from restart file, and send to atm module
@@ -245,12 +248,15 @@ if ( file_exist(fname) ) then
   call ice_read_nc(ncid, 1, 'mthikn3',   mthikn(:,:,3,:),   dbug)
   call ice_read_nc(ncid, 1, 'mthikn4',   mthikn(:,:,4,:),   dbug)
   call ice_read_nc(ncid, 1, 'mthikn5',   mthikn(:,:,5,:),   dbug)
-  call ice_read_nc(ncid, 1, 'msst',    msst,   dbug)
-  call ice_read_nc(ncid, 1, 'mssu',    mssu,   dbug)
-  call ice_read_nc(ncid, 1, 'mssv',    mssv,   dbug)
-  call ice_read_nc(ncid, 1, 'muvel',    muvel,   dbug)
-  call ice_read_nc(ncid, 1, 'mvvel',    mvvel,   dbug)
-  call ice_read_nc(ncid, 1, 'maiu',    maiu,   dbug)
+  call ice_read_nc(ncid, 1, 'msst',      msst,   dbug)
+  call ice_read_nc(ncid, 1, 'mssu',      mssu,   dbug)
+  call ice_read_nc(ncid, 1, 'mssv',      mssv,   dbug)
+  call ice_read_nc(ncid, 1, 'muvel',     muvel,  dbug)
+  call ice_read_nc(ncid, 1, 'mvvel',     mvvel,  dbug)
+  call ice_read_nc(ncid, 1, 'maiu',      maiu,   dbug)
+  !
+  !call ice_read_nc(ncid, 1, 'maice_ia', maice_ia,          dbug)
+
   if (my_task == master_task) then
     call ice_close_nc(ncid)
     write(il_out,*) '(read_restart_i2asum) has read in 21 i2a fields.'
@@ -265,7 +271,7 @@ else
 endif
 end subroutine read_restart_i2asum
 
-!==============================================================================
+!=================================================
 subroutine put_restart_i2a(fname, sec)
 ! call this subroutine after called get_restart_oi2
 ! it uses ocn_sst etc to calculate average ocn fields which will be used to send 
@@ -293,7 +299,7 @@ integer :: sec
 
 end subroutine put_restart_i2a
 
-!===============================================================================
+!=================================================
 subroutine get_restart_o2i(fname)
 
 ! To be called at beginning of each run trunk to read in restart o2i fields
@@ -335,7 +341,7 @@ endif
 return
 end subroutine get_restart_o2i
 
-!===============================================================================
+!=================================================
 subroutine get_restart_mice(fname)
 
 ! Called at beginning of the run to get 'last' IO cpl int T-M ice variables 
@@ -352,9 +358,15 @@ logical :: dbug
 dbug = .true.
 if ( file_exist(fname) ) then
   if (my_task==0) then
-    write(il_out,*) '(get_restart_mice) reading in mice variables......'
+    write(il_out,*) '(get_restart_mice) opening file: ', fname
   endif
+
   call ice_open_nc(fname, ncid_o2i)
+  call ice_read_nc(ncid_o2i, 1, 'maicen1',   maicen_saved(:,:,1,:), dbug)
+  call ice_read_nc(ncid_o2i, 1, 'maicen2',   maicen_saved(:,:,2,:), dbug)
+  call ice_read_nc(ncid_o2i, 1, 'maicen3',   maicen_saved(:,:,3,:), dbug)
+  call ice_read_nc(ncid_o2i, 1, 'maicen4',   maicen_saved(:,:,4,:), dbug)
+  call ice_read_nc(ncid_o2i, 1, 'maicen5',   maicen_saved(:,:,5,:), dbug)
   call ice_read_nc(ncid_o2i, 1, 'maice',     maice,     dbug)
   call ice_read_nc(ncid_o2i, 1, 'mstrocnxT', mstrocnxT, dbug)
   call ice_read_nc(ncid_o2i, 1, 'mstrocnyT', mstrocnyT, dbug)
@@ -363,6 +375,7 @@ if ( file_exist(fname) ) then
   call ice_read_nc(ncid_o2i, 1, 'mfhocn',    mfhocn,    dbug)
   call ice_read_nc(ncid_o2i, 1, 'mfswthru',  mfswthru,  dbug)
   call ice_read_nc(ncid_o2i, 1, 'msicemass', msicemass, dbug)
+  write(il_out,*) '(get_restart_mice) ALL variables read in! '
 
   if (my_task == master_task) then
     call ice_close_nc(ncid_o2i)
@@ -379,7 +392,83 @@ endif
 return
 end subroutine get_restart_mice
 
-!===============================================================================
+
+!=================================================
+subroutine get_lice_discharge(fname)
+
+! Called at beginning of each run trunk to read in land ice discharge mask or iceberg
+! (off Antarctica and Greenland).
+
+implicit none
+
+character(len=*), intent(in) :: fname
+character*80 :: myvar = 'ficeberg'
+integer(kind=int_kind) :: ncid_i2o, im, k, i, j
+logical :: dbug = .true. 
+
+call ice_open_nc(trim(fname), ncid_i2o)
+
+write(il_out,*) '(get_lice_discharge) opened datafile: ', trim(fname)
+write(il_out,*) '(get_lice_discharge) ncid_i2o= ', ncid_i2o
+
+if (iceberg .lt. 1 .or. iceberg .gt. 4) then
+  write(il_out,*) '(get_lice_discharge) in ESM only supports iceberg = 1,2,3,4) '
+  call abort_ice('CICE stopped: ESM only supports iceberg = 1,2,3,4. Please set it to 1,2,3,4')
+else
+  call gather_global(gtarea, tarea, master_task, distrb_info)
+  select case (iceberg)
+    case (1); myvar = 'FICEBERG_AC2'
+    case (2); myvar = 'FICEBERG_GC3'
+    case (3); myvar = 'FICEBERG_AC2_AVE'
+    case (4); myvar = 'FICEBERG_GC3_AVE'
+  end select
+  write(il_out,*)'(get_lice_discharge), iceberg = ', iceberg
+  write(il_out,'(a,a)') '(get_lice_discharge) reading in iceberg data, myvar= ',trim(myvar)
+  do im = 1, 12
+    write(il_out,*) '(get_lice_discharge) reading in data, month= ',im
+    call ice_read_nc(ncid_i2o, im, trim(myvar), vwork, dbug)
+
+    ! Restrict iceberg fluxes to ocean points
+    where (tmask)
+      vwork = vwork
+    else where
+      vwork = c0
+    end where
+
+    call gather_global(gwork, vwork, master_task, distrb_info)
+
+    if ( my_task == master_task ) then 
+      gicebergfw(:,:,im) = gwork(:,:)
+
+      ticeberg_s(im) = 0.0
+      do j = 1, iceberg_je_s  !1, ny_global/2 (iceberg_je_s smaller than ny_global/2 thus saves time)
+        do i = 1, nx_global
+          ticeberg_s(im) = ticeberg_s(im) + gtarea(i,j) * gwork(i,j)
+        enddo
+      enddo
+      ticeberg_n(im) = 0.0
+      do j = iceberg_js_n, ny_global  !ny_global/2 + 1, ny_global !(iceberg_js_n bigger than ny_global/2 +1)
+        do i = 1, nx_global
+          ticeberg_n(im) = ticeberg_n(im) + gtarea(i,j) * gwork(i,j)
+        enddo
+      enddo
+
+      write(il_out, *) '(get_lice_discharge) check: im, ticeberg_s, ticeberg_n = ',im, ticeberg_s(im), ticeberg_n(im)
+    endif
+
+  enddo
+
+endif
+if (my_task == master_task) then
+  call ice_close_nc(ncid_i2o)
+endif
+
+return
+
+end subroutine get_lice_discharge
+
+
+!=================================================
 subroutine get_restart_i2o(fname)
 
 ! To be called at beginning of each run trunk to read in restart i2o fields
@@ -417,11 +506,14 @@ if ( file_exist(fname) ) then
     case ('form_io');  io_form  = vwork
     case ('co2_i1');  io_co2  = vwork
     case ('wnd_i1');  io_wnd  = vwork
+!2 more added 20171024:
+    case ('lice_fw');  io_licefw = vwork
+    case ('lice_ht');  io_liceht = vwork
     end select
   enddo
   if (my_task == master_task) then
     call ice_close_nc(ncid_i2o)
-    write(il_out,*) '(get_time0_i2o_fields) has read in 11 i2o fields.'
+    write(il_out,*) '(get_time0_i2o_fields) has read in 19 i2o fields.'
   endif
 else
   if (my_task==0) then
@@ -434,8 +526,11 @@ endif
 return
 end subroutine get_restart_i2o
 
-!===============================================================================
+!=================================================
 subroutine set_sbc_ice
+!-------------------------
+!This routine is NOT used! 
+!-------------------------
 !
 ! Set coupling fields (in units of GMB, from UM and MOM4) needed for CICE
 !
@@ -446,6 +541,9 @@ subroutine set_sbc_ice
 !-------------------------------------------------------------------------------
 
 implicit none
+
+real :: r1_S0
+real, dimension(nx_block,ny_block,nblocks) :: zzs
 
 integer :: i,j,k,cat
 
@@ -470,6 +568,8 @@ do i = 1, nx_block
     else
       do cat = 1, ncat
         flatn_f(i,j,cat,k) = um_lhflx(i,j,k) * maicen(i,j,cat,k)/maice(i,j,k)
+        !???: flatn_f(i,j,cat,k) = um_iceevp(i,j,cat,k) * Lsub 
+        !flatn_f(i,j,cat,k) = - um_iceevp(i,j,cat,k) * Lsub
       enddo
     endif
   enddo
@@ -488,6 +588,10 @@ fsnow = max(maice * um_snow, 0.0)
 
 !(15) rainfall
 frain = max(maice * um_rain, 0.0)
+
+!BX-20160718: "save" the ice concentration "maice" used here for scaling-up frain etc in
+!ice_step for "consistency"--
+!maice_saved = maice 
 
 !*** Fields from MOM4 (SSU/V and sslx/y are on U points): 
 
@@ -519,8 +623,17 @@ ss_tltx = ocn_sslx
 !(7) surface slope ssly
 ss_tlty = ocn_ssly
 
-!(as per S.O.) make sure Tf if properly initialized
+!(as per S.O.) make sure Tf is properly initialized
 Tf (:,:,:) = -depressT*sss(:,:,:)  ! freezing temp (C)
+!
+!B: May use different formula for Tf such as TEOS-10 formulation: 
+!
+!r1_S0 = 0.875/35.16504
+!zzs(:,:,:) = sqrt(abs(sss(:,:,:)) * r1_S0)
+!Tf(:,:,:) = ((((1.46873e-03 * zzs(:,:,:) - 9.64972e-03) * zzs(:,:,:) + &
+!               2.28348e-02) * zzs(:,:,:) - 3.12775e-02) * zzs(:,:,:) + &
+!               2.07679e-02) * zzs(:,:,:) - 5.87701e-02
+!Tf(:,:,:) = Tf(:,:,:) * sss(:,:,:) ! - 7.53e-4 * 5.0 !!!5.0 is depth in meters
 
 end subroutine set_sbc_ice
 
@@ -533,28 +646,36 @@ subroutine get_sbc_ice
 !    for the "nsbc = 5" case.
 !
 ! It should be called after calling "from_atm" and "from_ocn". 
-!
-! *** This routine is used/called within ice time loop (itap) 
-! *** in case "set_sbc_ice" call (outside the itap loop) fails
-! *** which is unfortunately the case the moment (Jan2010) !
 !-------------------------------------------------------------------------------
 
 implicit none
+
+real :: r1_S0
+real, dimension(nx_block,ny_block,nblocks) :: zzs
 
 integer :: i,j,k,cat
 
 ! Fields from UM (all on T cell center):
 
 !(1) windstress taux:
-strax = um_taux * aice      !*tmask ?   
+strax = um_taux * aice
 
 !(2) windstress tauy:
-stray = um_tauy * aice      !*tmask ?
+stray = um_tauy * aice
 
 !(3) surface downward latent heat flux (==> multi_category)
 do j = 1, ny_block
 do i = 1, nx_block
   do k = 1, nblocks
+    ! Notes from ACCESS-CM2:
+      !BX 20160826: as in NEMO sbccpl.F90, there is no "open water field" um_lhflx involved: 
+      !    qla_ice(:,:,1:jpl) = - frcv(jpr_ievp)%z3(:,:,1:jpl) * lsub 
+      !-------------------------------------------------------------------------------------
+    ! CM2 Uses this, as um_lhflx is not available:
+    !      do cat = 1, ncat
+    !        flatn_f(i,j,cat,k) = - um_iceevp(i,j,cat,k) * Lsub
+    !      enddo
+
     if (aice(i,j,k)==0.0) then
       do cat = 1, ncat
         flatn_f(i,j,cat,k) = 0.0
@@ -577,19 +698,8 @@ do cat = 1, ncat
   fsurfn_f   (:,:,cat,:) = um_tmlt(:,:,cat,:) + um_bmlt(:,:,cat,:)
 enddo
 
-!!! 20130419: Martin Dix's investigation suggests that frain and fsnow should NOT be scaled by 
-!!!           aice here. This scaling would caused double-scaling with "fresh" calculation.. 
-!(14) snowfall
-!!!fsnow = max(aice * um_snow,0.0)
-!fsnow = max(um_snow,0.0)            !no more scaling as per M.D.!
-!(15) rainfall
-!!!frain = max(aice * um_rain,0.0)
-!frain = max(um_rain,0.0)            !no more scaling as per M.D.!
-!!! 20130420: I dug deeper and checked all the associated steps of "fresh" calculation, found
-!!!           the original weighting is CORRECT! so back to *aice:
 fsnow = max(aice * um_snow,0.0)
 frain = max(aice * um_rain,0.0)  
-!!!------------------------------------------------------------------------------------------
 
 ! Fields from MOM4 (SSU/V and sslx/y are on U points): 
 
@@ -621,12 +731,21 @@ ss_tltx = ocn_sslx
 ss_tlty = ocn_ssly
 
 ! * (as per S. O'Farrel) make sure Tf if properly initialized
-sss = ocn_sss
+!----- should use eos formula to calculate Tf for "consistency" with GCx ----!
 Tf (:,:,:) = -depressT*sss(:,:,:)  ! freezing temp (C)
-
+!
+!B: May use different formula for Tf such as TEOS-10 formulation: 
+!
+!r1_S0 = 0.875/35.16504
+!zzs(:,:,:) = sqrt(abs(sss(:,:,:)) * r1_S0)
+!Tf(:,:,:) = ((((1.46873e-03 * zzs(:,:,:) - 9.64972e-03) * zzs(:,:,:) + &
+!               2.28348e-02) * zzs(:,:,:) - 3.12775e-02) * zzs(:,:,:) + &
+!               2.07679e-02) * zzs(:,:,:) - 5.87701e-02
+!Tf(:,:,:) = Tf(:,:,:) * sss(:,:,:) ! - 7.53e-4 * 5.0 !!!5.0 is depth in meters
+!
 end subroutine get_sbc_ice
 
-!===============================================================================
+!=================================================
 subroutine save_restart_o2i(fname, nstep)
 
 ! output the last o2i forcing data received in cice by the end of the run, 
@@ -670,7 +789,7 @@ if (my_task == 0) call ncheck( nf_close(ncid) )
 return
 end subroutine save_restart_o2i
 
-!==============================================================================
+!=================================================
 subroutine save_restart_i2asum(fname, nstep)
 ! output the last i2a forcing data in cice at the end of the run,
 ! to be read in at the beginning of next run by cice and sent to atm
@@ -682,7 +801,7 @@ integer(kind=int_kind), intent(in) :: nstep
 integer(kind=int_kind) :: ncid
 integer(kind=int_kind) :: jf, jfs, ll, ilout
 
-integer(kind=int_kind), parameter :: sumfldin  = 21
+integer(kind=int_kind), parameter :: sumfldin  = 46     !21
 character(len=8), dimension(sumfldin) :: sumfld
 
 sumfld(1)='msst'
@@ -720,20 +839,20 @@ do jf = 1, sumfldin
     case('mvvel'); vwork = mvvel
     case('maiu'); vwork = maiu
     case('maicen1'); vwork = maicen(:,:,1,:)
-    case('maicen2'); vwork =maicen(:,:,2,:)
-    case('maicen3'); vwork =maicen(:,:,3,:)
-    case('maicen4'); vwork =maicen(:,:,4,:)
-    case('maicen5'); vwork =maicen(:,:,5,:)
-    case('mthikn1'); vwork =mthikn(:,:,1,:)
-    case('mthikn2'); vwork =mthikn(:,:,2,:)
-    case('mthikn3'); vwork =mthikn(:,:,3,:)
-    case('mthikn4'); vwork =mthikn(:,:,4,:)
-    case('mthikn5'); vwork =mthikn(:,:,5,:)
-    case('msnown1'); vwork =msnown(:,:,1,:)
-    case('msnown2'); vwork =msnown(:,:,2,:)
-    case('msnown3'); vwork =msnown(:,:,3,:)
-    case('msnown4'); vwork =msnown(:,:,4,:)
-    case('msnown5'); vwork =msnown(:,:,5,:)
+    case('maicen2'); vwork = maicen(:,:,2,:)
+    case('maicen3'); vwork = maicen(:,:,3,:)
+    case('maicen4'); vwork = maicen(:,:,4,:)
+    case('maicen5'); vwork = maicen(:,:,5,:)
+    case('mthikn1'); vwork = mthikn(:,:,1,:)
+    case('mthikn2'); vwork = mthikn(:,:,2,:)
+    case('mthikn3'); vwork = mthikn(:,:,3,:)
+    case('mthikn4'); vwork = mthikn(:,:,4,:)
+    case('mthikn5'); vwork = mthikn(:,:,5,:)
+    case('msnown1'); vwork = msnown(:,:,1,:)
+    case('msnown2'); vwork = msnown(:,:,2,:)
+    case('msnown3'); vwork = msnown(:,:,3,:)
+    case('msnown4'); vwork = msnown(:,:,4,:)
+    case('msnown5'); vwork = msnown(:,:,5,:)
     end select
     call gather_global(gwork, vwork, master_task, distrb_info)
   if (my_task == 0) then
@@ -746,7 +865,7 @@ if (my_task == 0) call ncheck( nf_close(ncid) )
 
 end subroutine save_restart_i2asum
 
-!===============================================================================
+!=================================================
 subroutine save_restart_mice(fname, nstep)
 
 ! output ice variable averaged over the last IO cpl int of this run, 
@@ -765,6 +884,28 @@ if (my_task == 0) then
   call write_nc_1Dtime(real(nstep), 1, 'time', ncid)
 endif
 
+! maicen_saved appears to be the same as maicen in CICE5-UM7.3 
+!B: 20170825 ==> add maicen_saved for atm_icefluxes_back2GBM calculation!
+!        note maicen_saved is the last ia interval mean.  
+vwork(:,:,:) = maicen_saved(:,:,1,:)
+call gather_global(gwork, vwork, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'maicen1', gwork, 2, il_im, il_jm, 1, ilout=il_out)
+vwork(:,:,:) = maicen_saved(:,:,2,:)
+call gather_global(gwork, vwork, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'maicen2', gwork, 2, il_im, il_jm, 1, ilout=il_out)
+vwork(:,:,:) = maicen_saved(:,:,3,:)
+call gather_global(gwork, vwork, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'maicen3', gwork, 2, il_im, il_jm, 1, ilout=il_out)
+vwork(:,:,:) = maicen_saved(:,:,4,:)
+call gather_global(gwork, vwork, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'maicen4', gwork, 2, il_im, il_jm, 1, ilout=il_out)
+vwork(:,:,:) = maicen_saved(:,:,5,:)
+call gather_global(gwork, vwork, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'maicen5', gwork, 2, il_im, il_jm, 1, ilout=il_out)
+!b.
+
+!The following fields are actually the ice state of last timestep 
+!(no time-averaging is required in each timestep io coupling, see time_average_fields_4_i2o)
 vwork = maice
 call gather_global(gwork, vwork, master_task, distrb_info)
 if (my_task == 0) call write_nc2D(ncid, 'maice', gwork, 2, il_im, il_jm, 1, ilout=il_out)
@@ -795,10 +936,8 @@ if (my_task == 0) call ncheck( nf_close(ncid) )
 return
 end subroutine save_restart_mice
 
-!===============================================================================
+!=================================================
 subroutine get_i2a_fields
-
-implicit none
 
 ! all fields (except for vector) obtained here are all on T cell center
 
@@ -806,12 +945,13 @@ implicit none
 ia_sst(:,:,:) = msst(:,:,:)
 
 !(2-3) ice/ocn combined surface velocity 
-!CH: should use "aiu", not aice!
 ia_uvel(:,:,:) = mssu(:,:,:) * (1. - maiu(:,:,:)) + muvel(:,:,:) * maiu(:,:,:) 
 ia_vvel(:,:,:) = mssv(:,:,:) * (1. - maiu(:,:,:)) + mvvel(:,:,:) * maiu(:,:,:)
 
 !(4-8) ice concentration
 ia_aicen(:,:,:,:) = maicen(:,:,:,:)
+!BX: save it for use in atm_icefluxes_back2GBM ---
+maicen_saved = maicen
 
 !(9-13) ice thickness
 ia_thikn(:,:,:,:) = mthikn(:,:,:,:)
@@ -819,21 +959,29 @@ ia_thikn(:,:,:,:) = mthikn(:,:,:,:)
 !(14-18) snow thickness
 ia_snown(:,:,:,:) = msnown(:,:,:,:)
 
+!(19-20) co2 flux stuff
 ia_co2 = mco2
 ia_co2fx = mco2fx
 
 return
 end subroutine get_i2a_fields
 
-!===============================================================================
+!=================================================
 subroutine get_i2o_fields
 
 ! All fluxes should be in GBM units before passing into coupler.
 ! e.g.,  io_htflx(:,:,:) = fhocn_gbm(:,:,:)	
 
 implicit none
-
 real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: pice
+integer (kind=int_kind) :: i,j,k
+
+real (kind=dbl_kind) :: &
+        trunoff_s  = c0, &
+        trunoff_n  = c0, &
+        r_s = c1, &
+        r_n = c1, &
+        r_runoff= c1        !=(1-min(r_max_iceberg. r_s(or r_n))
 
 ! Fields obtained here are all at T cell center. before being sent to MOM4, vector 
 ! (Taux, Tauy) should be shifted on to U point as required
@@ -844,17 +992,16 @@ real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: pice
 !    have already been 'weighted' using aice (when calculated in "evp_finish". 
 !    But, this weight has been removed in strocnx/yT (see "evp_finish"), therfore 
 !    we need put it on again here. 
-io_strsu = um_taux * (1. - maice) - mstrocnxT * maice
-io_strsv = um_tauy * (1. - maice) - mstrocnyT * maice
+io_strsu = um_taux * (c1 - maice) - mstrocnxT * maice
+io_strsv = um_tauy * (c1 - maice) - mstrocnyT * maice
 
 !(3) freshwater flux to ocean: rainfall (+ ice melting water flux ?)
-io_rain = um_rain * (1. - maice)
-!!CH: confirmed:
-!!if (ice_fwflux) io_rain = io_rain + mfresh	!always .t.
-!!NOTE mfresh is now splitted into melt (14) and form (15) and passed into ocn seperately.
+io_rain = um_rain * (c1 - maice)
+!202412: fixing watermass loss from ocean by adding a small, constant fwflux into rain--
+io_rain = io_rain + add_lprec
 
 !(4) freshwater flux to ocean: snowfall
-io_snow = um_snow * (1. - maice)
+io_snow = um_snow * (c1 - maice)
 
 !(5) salt flux to ocean
 io_stflx = mfsalt
@@ -865,66 +1012,139 @@ io_htflx = mfhocn
 !(7) short wave radiation 
 !(CH: the (1-aice) weight should not be here 'cos all fluxes passed in from
 !     UM have already been aice-weighted when they are calculated there!!!) 
-!io_swflx = um_swflx * (1. - maice) + mfswthru
+!io_swflx = um_swflx * (c1 - maice) + mfswthru
 io_swflx = um_swflx + mfswthru
-!!!20100616: test for more swflx
-!!!io_swflx = 1.064 * um_swflx + mfswthru
 
 !(8) latent heat flux (positive out of ocean as required by MOM4)
 io_qflux = um_evap * Lvap        !Note it's already weighted in UM for open sea.
-!20101210: NOT sure about the ice weghting in UM, 'cos the ice area does see
-!          non-zero (positive) evap.
-if (imsk_evap) then
-  io_qflux = um_evap * Lvap * (1. - maice)
-endif
 
 !(9) sensible heat flux (positive out of ocean as required by MOM4)
-!io_shflx = um_shflx * (1. - maice)
 io_shflx = um_shflx
 
 !(10) net long wave radiation positive down
-!io_lwflx = um_lwflx * (1. - maice)
 io_lwflx = um_lwflx
 
-!(11) runoff (!check the incoming field! pattern? remapping ok? conserved? ...) 
-io_runof = um_runoff 
-! CHECK with SM about the annual cycle of core-runoff! (we only have annual mean)
+!(11) runoff 
+!*** mask off "extra/useless" runoff on dry points ***
+where (tmask)
+  io_runof = um_runoff
+else where
+  um_runoff = c0
+end where
 
+call gather_global(grunoff, io_runof, master_task, distrb_info)
+
+if (my_task == master_task) then
+
+  trunoff_s = c0
+  do j = 1, runoff_je_s
+    do i = 1, nx_global
+      trunoff_s = trunoff_s + gtarea(i,j) * grunoff(i,j)
+      grunoff(i,j) = grunoff(i,j) * (c1 - iceberg_rate_s)  !do deduction
+    enddo
+  enddo
+  trunoff_n = c0
+  do j = runoff_js_n, runoff_je_n
+    do i = runoff_is_n, runoff_ie_n
+      trunoff_n = trunoff_n + gtarea(i,j) * grunoff(i,j)
+      grunoff(i,j) = grunoff(i,j) * (c1 - iceberg_rate_n)  !do deduction
+    enddo
+  enddo
+  !Now global runoff has been "updated" (deduction done for iceberg).
+endif
+
+!distributed the resultant runoff and iceberg fluxes: 
+call scatter_global(vwork, grunoff, master_task, distrb_info, &
+                                  field_loc_center, field_type_scalar)
+io_runof(:,:,:) = vwork(:,:,:)
+
+!2 new flux items associated with the iceberg discharged into ocean
+!(18) water flux due to land ice melt off Antarctica and Greenland (kg/m^2/s)
+!(19) heat  flux due to land ice melt off Antarctica and Greenland
+
+!XXXXXX 
+IF (my_task == master_task) THEN
+
+  gwork(:,:) = c0
+  do i = 1, nx_global
+    do j = 1, iceberg_je_s
+      gwork(i, j) = gicebergfw(i, j, month) * iceberg_rate_s * trunoff_s / ticeberg_s(month)
+    enddo
+    do j = iceberg_js_n, ny_global
+      gwork(i, j) = gicebergfw(i, j, month) * iceberg_rate_n * trunoff_n / ticeberg_n(month)
+    enddo
+  enddo
+  !Now global iceberg has been defined (using the deduction from runoff)
+
+ENDIF
+!XXXXXX
+
+call scatter_global(vwork, gwork, master_task, distrb_info, &
+                    field_loc_center, field_type_scalar)
+io_licefw(:,:,:) = vwork(:,:,:)         !i2o field No 18.
+
+!Also count in the latent heat carried with the runoff part, as done below, thus allowing
+!for (rough) consistency of energy exchange no matter what iceberg_rate_s/n are used.
+!Warning: the follow approach would lose all the runoff LH, if runoff_lh=.false., in no-iceberg case 
+
+if (my_task == master_task) then
+  if ( runoff_lh ) then
+
+    do i = 1, nx_global
+      do j = 1, runoff_je_s
+        gwork(i,j) = gwork(i,j) + grunoff(i,j)
+      enddo
+    enddo
+    do i = runoff_is_n, runoff_ie_n
+      do j = runoff_js_n, runoff_je_n
+        gwork(i,j) = gwork(i,j) + grunoff(i,j)
+      enddo
+    enddo
+  else
+  !If runoff with latent heat flux crashes the model in no-iceberg case, due probably to too big LH(?)
+  !all the LH carried by runoff is applied to iceberg areas.
+    do i = 1, nx_global
+      do j = 1, iceberg_je_s
+        gwork(i,j) = gwork(i,j)/max(iceberg_rate_s, 0.0001_dbl_kind) !get the whole runoff LH onto iceberg
+      enddo
+      do j = iceberg_js_n, ny_global
+        gwork(i,j) = gwork(i,j)/max(iceberg_rate_n, 0.0001_dbl_kind)
+      enddo
+    enddo
+  endif
+endif
+
+call scatter_global(vwork, gwork, master_task, distrb_info, &
+                    field_loc_center, field_type_scalar)
+io_liceht = - vwork * Lfresh * iceberg_lh       !FW converted into LH flux (W/m^2).
+                                                !!i2o field No 19.
 !(12) pressure
 pice = gravit * msicemass
 !----------------------------------------------------------------------------
 !sicemass = rho_ice x hi + rho_snow x hs (in m)
-!
-! Should we set limit to the ovelying ice pressure as suggested in MOM4 code?
-!(see ocean_sbc.F90) if yes, we may use following 
-!pice(i,j) = min(pice(i,j), gravit*rhow*max_ice_thickness) 
-! (note  rhow = 1026 kg/m^3 here, but mom4 instead uses rho0 = 1035 kg/m^3)
-! No, let mom4 handle it (see ocean_sbc.F90)
-!
-!as GFDL SIS, we use patm 'anormaly' and then add in the ice/snow pressure! 
-!29/11/2007
-!----------------------------------------------------------------------------
 if (ice_pressure_on) then
   io_press = pice * maice
 endif
 if (air_pressure_on) then
    !as GFDL SIS, we use patm anormaly, i.e., taking off 1.e5 Pa !
-   io_press(:,:,:) = io_press(:,:,:) + um_press(:,:,:) - 1.0e5 
+   io_press(:,:,:) = io_press(:,:,:) + um_press(:,:,:) - 1.0e5_dbl_kind 
 endif
 !(13) ice concentration
 io_aice = maice
 !(14) ice melt fwflux 
-io_melt = max(0.0,mfresh(:,:,:)) 
+io_melt = max(c0,mfresh(:,:,:)) 
 !(15) ice form fwflux
-io_form = min(0.0,mfresh(:,:,:))
+io_form = min(c0,mfresh(:,:,:))
 
+!(16) CO2
 io_co2 = um_co2
+!(17) 10m winnspeed
 io_wnd = um_wnd
 
 return
 end subroutine get_i2o_fields
 
-!===============================================================================
+!=================================================
 subroutine initialize_mice_fields_4_i2o
 
 implicit none
@@ -941,7 +1161,7 @@ msicemass = 0.
 return
 end subroutine initialize_mice_fields_4_i2o
 
-!===============================================================================
+!=================================================
 subroutine initialize_mice_fields_4_i2a
 
 implicit none
@@ -957,7 +1177,7 @@ msnown = 0.
 return
 end subroutine initialize_mice_fields_4_i2a
 
-!===============================================================================
+!=================================================
 subroutine initialize_mocn_fields_4_i2a
 
 implicit none
@@ -971,92 +1191,51 @@ mco2fx = 0.
 return
 end subroutine initialize_mocn_fields_4_i2a
 
-!===============================================================================
+!=================================================
 subroutine time_average_ocn_fields_4_i2a
 
 implicit none
 
-msst(:,:,:) = msst(:,:,:) + ocn_sst(:,:,:) * coef_cpl
-mssu(:,:,:) = mssu(:,:,:) + ocn_ssu(:,:,:) * coef_cpl
-mssv(:,:,:) = mssv(:,:,:) + ocn_ssv(:,:,:) * coef_cpl
-mco2(:,:,:) = mco2(:,:,:) + ocn_co2(:,:,:) * coef_cpl
-mco2fx(:,:,:) = mco2fx(:,:,:) + ocn_co2fx(:,:,:) * coef_cpl
+msst(:,:,:) = msst(:,:,:) + ocn_sst(:,:,:) * coef_ai
+mssu(:,:,:) = mssu(:,:,:) + ocn_ssu(:,:,:) * coef_ai
+mssv(:,:,:) = mssv(:,:,:) + ocn_ssv(:,:,:) * coef_ai
+mco2(:,:,:) = mco2(:,:,:) + ocn_co2(:,:,:) * coef_ai
+mco2fx(:,:,:) = mco2fx(:,:,:) + ocn_co2fx(:,:,:) * coef_ai
 
 return
 end subroutine time_average_ocn_fields_4_i2a
 
-!===============================================================================
-!dhb599-20131002: resuming the old 'approach' (used before 20130420) which sets
-!do_scale_fluxes = .t. and thus the "flatn_f/Lsub" terms is NOT used as part of
-!'fresh' and passed into ocean...since the 'evaporation out of ice surface' is
-!going into atmosphere, not supposed to change the ocean water volume!
-!-------------------------------------------------------------------------------
-
+!=================================================
 subroutine time_average_fields_4_i2o
-
+!now for each timestep io coupling, so no time-averaging is required. 
 implicit none
 
-maice(:,:,:)     = maice(:,:,:)     + aice(:,:,:)     * coef_io
-mstrocnxT(:,:,:) = mstrocnxT(:,:,:) + strocnxT(:,:,:) * coef_io
-mstrocnyT(:,:,:) = mstrocnyT(:,:,:) + strocnyT(:,:,:) * coef_io
-!20130420: possible bug due to missing term "flatn_f/Lsub" in the last update for fresh
-!          use scale_fluxes=.f. to avoid flux scaling by /aice
-!          meaning fluxes are all grid-box-mean by the end of ice_step. 
-!mfresh(:,:,:)    = mfresh(:,:,:)    + fresh_gbm(:,:,:) * coef_io
-!mfsalt(:,:,:)    = mfsalt(:,:,:)    + fsalt_gbm(:,:,:) * coef_io
-!mfhocn(:,:,:)    = mfhocn(:,:,:)    + fhocn_gbm(:,:,:) * coef_io
-!mfswthru(:,:,:)  = mfswthru(:,:,:)  + fswthru_gbm(:,:,:)  * coef_io
-mfresh(:,:,:)    = mfresh(:,:,:)    + fresh(:,:,:) * coef_io
-mfsalt(:,:,:)    = mfsalt(:,:,:)    + fsalt(:,:,:) * coef_io
-mfhocn(:,:,:)    = mfhocn(:,:,:)    + fhocn(:,:,:) * coef_io
-mfswthru(:,:,:)  = mfswthru(:,:,:)  + fswthru(:,:,:)  * coef_io
-!---------------------------------------------------------------------------------------
-!---------------------------------------------------------------------------------------
-msicemass(:,:,:) = msicemass(:,:,:) + sicemass(:,:,:) * coef_io
+maice(:,:,:)     = aice(:,:,:)
+mstrocnxT(:,:,:) = strocnxT(:,:,:) 
+mstrocnyT(:,:,:) = strocnyT(:,:,:) 
+mfresh(:,:,:)    = fresh(:,:,:) 
+mfsalt(:,:,:)    = fsalt(:,:,:) 
+mfhocn(:,:,:)    = fhocn(:,:,:) 
+mfswthru(:,:,:)  = fswthru(:,:,:)
+msicemass(:,:,:) = sicemass(:,:,:)
 
 return
 end subroutine time_average_fields_4_i2o
 
-!===============================================================================
-subroutine time_average_fields_4_i2o_20130420
-
-implicit none
-
-maice(:,:,:)     = maice(:,:,:)     + aice(:,:,:)     * coef_io
-mstrocnxT(:,:,:) = mstrocnxT(:,:,:) + strocnxT(:,:,:) * coef_io
-mstrocnyT(:,:,:) = mstrocnyT(:,:,:) + strocnyT(:,:,:) * coef_io
-!20130420: possible bug due to missing term "flatn_f/Lsub" in the last update
-!for fresh
-!          use scale_fluxes=.f. to avoid flux scaling by /aice
-!          meaning fluxes are all grid-box-mean by the end of ice_step. 
-!mfresh(:,:,:)    = mfresh(:,:,:)    + fresh_gbm(:,:,:) * coef_io
-!mfsalt(:,:,:)    = mfsalt(:,:,:)    + fsalt_gbm(:,:,:) * coef_io
-!mfhocn(:,:,:)    = mfhocn(:,:,:)    + fhocn_gbm(:,:,:) * coef_io
-!mfswthru(:,:,:)  = mfswthru(:,:,:)  + fswthru_gbm(:,:,:)  * coef_io
-mfresh(:,:,:)    = mfresh(:,:,:)    + fresh(:,:,:) * coef_io
-mfsalt(:,:,:)    = mfsalt(:,:,:)    + fsalt(:,:,:) * coef_io
-mfhocn(:,:,:)    = mfhocn(:,:,:)    + fhocn(:,:,:) * coef_io
-mfswthru(:,:,:)  = mfswthru(:,:,:)  + fswthru(:,:,:)  * coef_io
-!---------------------------------------------------------------------------------------
-msicemass(:,:,:) = msicemass(:,:,:) + sicemass(:,:,:) * coef_io
-
-return
-end subroutine time_average_fields_4_i2o_20130420
-
-!===============================================================================
+!=================================================
 subroutine time_average_fields_4_i2a
 
 implicit none
 
 ! ice fields:
-muvel(:,:,:) = muvel(:,:,:) + uvel(:,:,:) * coef_ia
-mvvel(:,:,:) = mvvel(:,:,:) + vvel(:,:,:) * coef_ia
-maicen(:,:,:,:) = maicen(:,:,:,:) + aicen(:,:,:,:) * coef_ia  !T cat. ice concentration
-mthikn(:,:,:,:) = mthikn(:,:,:,:) + vicen(:,:,:,:) * coef_ia  !T cat. ice thickness
-msnown(:,:,:,:) = msnown(:,:,:,:) + vsnon(:,:,:,:) * coef_ia  !T cat. snow thickness
+muvel(:,:,:) = muvel(:,:,:) + uvel(:,:,:) * coef_ai
+mvvel(:,:,:) = mvvel(:,:,:) + vvel(:,:,:) * coef_ai
+maicen(:,:,:,:) = maicen(:,:,:,:) + aicen(:,:,:,:) * coef_ai  !T cat. ice concentration
+mthikn(:,:,:,:) = mthikn(:,:,:,:) + vicen(:,:,:,:) * coef_ai  !T cat. ice thickness
+msnown(:,:,:,:) = msnown(:,:,:,:) + vsnon(:,:,:,:) * coef_ai  !T cat. snow thickness
 
 call to_ugrid(aice, aiiu)
-maiu(:,:,:)  = maiu(:,:,:) + aiiu(:,:,:) * coef_ia            !U cell ice concentraction
+maiu(:,:,:)  = maiu(:,:,:) + aiiu(:,:,:) * coef_ai            !U cell ice concentraction
 
 !ocn fields:
 !must be done after calling from_ocn so as to get the most recently updated ocn fields,
@@ -1065,7 +1244,7 @@ maiu(:,:,:)  = maiu(:,:,:) + aiiu(:,:,:) * coef_ia            !U cell ice concen
 return
 end subroutine time_average_fields_4_i2a
 
-!===============================================================================
+!=================================================
 subroutine check_i2a_fields(nstep)
 
 implicit none
@@ -1125,7 +1304,7 @@ if (my_task == 0) call ncheck(nf_close(ncid))
 return
 end subroutine check_i2a_fields
 
-!============================================================================
+!=================================================
 subroutine check_a2i_fields(nstep)
 
 implicit none
@@ -1192,7 +1371,7 @@ if (my_task == 0) call ncheck(nf_close(ncid))
 return
 end subroutine check_a2i_fields
 
-!============================================================================
+!=================================================
 subroutine check_i2o_fields(nstep, scale)
 
 implicit none
@@ -1252,6 +1431,11 @@ do jf = nsend_i2a + 1, jpfldout
       vwork = scale * io_co2
     case('wnd_i1')
       vwork = scale * io_wnd
+    !202407: 2 more fields added:
+    case('lice_fw')
+      vwork = scale * io_licefw
+    case('lice_ht')
+      vwork = scale * io_liceht      
   end select
 
   call gather_global(gwork, vwork, master_task, distrb_info)
@@ -1267,7 +1451,7 @@ if (my_task == 0) call ncheck(nf_close(ncid))
 return
 end subroutine check_i2o_fields
 
-!============================================================================
+!=================================================
 subroutine check_o2i_fields(nstep)
 
 implicit none
@@ -1351,7 +1535,204 @@ if (my_task == 0) call ncheck(nf_close(ncid))
 return
 end subroutine check_frzmlt_sst
 
-!============================================================================
+!=================================================
+subroutine check_i2o_uvfluxes(ncfilenm)
+
+!this is temporarily used to check i2o fields (uflux, vflux and maice) 
+!for debug purpose
+
+implicit none
+
+character*(*), intent(in) :: ncfilenm
+integer(kind=int_kind) :: ncid,currstep, ilout, ll
+data currstep/0/
+save currstep
+
+currstep=currstep+1
+
+if (my_task == 0 .and. .not. file_exist(ncfilenm) ) then
+  call create_ncfile(ncfilenm,ncid,il_im,il_jm,ll=1,ilout=il_out)
+endif
+
+if (my_task == 0) then
+  write(il_out,*) 'opening ncfile at nstep ', ncfilenm,  currstep
+  call ncheck( nf_open(ncfilenm, nf_write,ncid) )
+  call write_nc_1Dtime(real(currstep),currstep,'time',ncid)
+end if
+
+call gather_global(gwork, maice, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'maice', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, um_taux, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'um_taux', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, um_tauy, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'um_tauy', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, mstrocnxT, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'mstrocnxT', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, mstrocnyT, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'mstrocnyT', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+if (my_task == 0) call ncheck(nf_close(ncid))
+
+return
+end subroutine check_i2o_uvfluxes
+
+!=================================================
+subroutine check_ice_fields(ncfilenm)
+!this is temporarily used to check ice fields immediately after ice_step 
+!for debug purpose
+
+implicit none
+
+character*(*), intent(in) :: ncfilenm
+integer(kind=int_kind) :: ncid,currstep, ilout, ll
+data currstep/0/
+save currstep
+
+currstep=currstep+1
+
+if (my_task == 0 .and. .not. file_exist(ncfilenm) ) then
+  call create_ncfile(ncfilenm,ncid,il_im,il_jm,ll=1,ilout=il_out)
+endif
+
+if (my_task == 0) then
+  write(il_out,*) 'opening ncfile at nstep ', ncfilenm,  currstep
+  call ncheck( nf_open(ncfilenm, nf_write,ncid) )
+  call write_nc_1Dtime(real(currstep),currstep,'time',ncid)
+end if
+
+call gather_global(gwork, aice, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'aice', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, aicen(:,:,1,:), master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'aicen1', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, aicen(:,:,2,:), master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'aicen2', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, aicen(:,:,3,:), master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'aicen3', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, aicen(:,:,4,:), master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'aicen4', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, aicen(:,:,5,:), master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'aicen5', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+if (my_task == 0) call ncheck(nf_close(ncid))
+
+return
+end subroutine check_ice_fields
+
+!=================================================
+subroutine check_ice_sbc_fields(ncfilenm)
+
+!this is temporarily used to check ice_sbc fields got from get_ice_sbc 
+!for debug purpose
+
+implicit none
+
+real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: v3d
+
+character*(*), intent(in) :: ncfilenm
+integer(kind=int_kind) :: ncid,currstep, ilout, ll
+data currstep/0/
+save currstep
+
+v3d = 0.0
+
+currstep=currstep+1
+
+if (my_task == 0 .and. .not. file_exist(ncfilenm) ) then
+  call create_ncfile(ncfilenm,ncid,il_im,il_jm,ll=1,ilout=il_out)
+endif
+
+if (my_task == 0) then
+  write(il_out,*) 'opening ncfile at nstep ', ncfilenm,  currstep
+  call ncheck( nf_open(ncfilenm, nf_write,ncid) )
+  call write_nc_1Dtime(real(currstep),currstep,'time',ncid)
+end if
+
+call gather_global(gwork, aice, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'aice', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, strax, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'strax', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, stray, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'stray', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+v3d(:,:,:) = flatn_f(:,:,1,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'flatn_f1', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = flatn_f(:,:,2,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'flatn_f2', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = flatn_f(:,:,3,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'flatn_f3', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = flatn_f(:,:,4,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'flatn_f4', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = flatn_f(:,:,5,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'flatn_f5', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+v3d(:,:,:) = fcondtopn_f(:,:,1,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fcondtopn_f1', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = fcondtopn_f(:,:,2,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fcondtopn_f2', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = fcondtopn_f(:,:,3,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fcondtopn_f3', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = fcondtopn_f(:,:,4,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fcondtopn_f4', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = fcondtopn_f(:,:,5,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fcondtopn_f5', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+v3d(:,:,:) = fsurfn_f(:,:,1,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fsurfn_f1', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = fsurfn_f(:,:,2,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fsurfn_f2', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = fsurfn_f(:,:,3,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fsurfn_f3', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = fsurfn_f(:,:,4,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fsurfn_f4', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+v3d(:,:,:) = fsurfn_f(:,:,5,:)
+call gather_global(gwork, v3d, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fsurfn_f5', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+call gather_global(gwork, fsnow, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'fsnow', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, frain, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'frain', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+!from ocen:
+call gather_global(gwork, frzmlt, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'frzmlt', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, sst, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'sst', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, sss, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'sss', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, uocn, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'uocn', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, vocn, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'vocn', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+call gather_global(gwork, ss_tltx, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'ss_tltx', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, ss_tlty, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'ss_tlty', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+call gather_global(gwork, Tf, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'Tf', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+if (my_task == 0) call ncheck(nf_close(ncid))
+
+return
+end subroutine check_ice_sbc_fields
+
+!=================================================
 subroutine check_sstsss(ncfilenm)
 
 !this is used to check cice sst/sss : temporary use (20091019)
@@ -1385,8 +1766,102 @@ if (my_task == 0) call ncheck(nf_close(ncid))
 return
 end subroutine check_sstsss
 
+!=================================================
+subroutine check_iceberg_fields(ncfilenm)
 
-!============================================================================
+!this is used to check land ice fields
+
+implicit none
+
+character*(*), intent(in) :: ncfilenm
+integer(kind=int_kind) :: ncid,currstep, ilout, ll
+data currstep/0/
+save currstep
+
+currstep=currstep+1
+
+if (my_task == 0 .and. .not. file_exist(ncfilenm) ) then
+  call create_ncfile(ncfilenm,ncid,il_im,il_jm,ll=1,ilout=il_out)
+endif
+
+if (my_task == 0) then
+  write(il_out,*) 'opening ncfile at nstep ', ncfilenm,  currstep
+  call ncheck( nf_open(ncfilenm, nf_write,ncid) )
+  call write_nc_1Dtime(real(currstep),currstep,'time',ncid)
+end if
+
+call gather_global(gwork, io_licefw, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'io_licefw', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+call gather_global(gwork, io_liceht, master_task, distrb_info)
+if (my_task == 0) call write_nc2D(ncid, 'io_liceht', gwork, 1, il_im,il_jm,currstep,ilout=il_out)
+
+if (my_task == 0) call ncheck(nf_close(ncid))
+
+return
+
+end subroutine check_iceberg_fields
+
+!=================================================
+subroutine check_landice_fields_1(ncfilenm)
+
+!this is used to check land ice fields
+
+implicit none
+
+character*(*), intent(in) :: ncfilenm
+integer(kind=int_kind) :: ncid,currstep, ilout, ll
+data currstep/0/
+save currstep
+
+currstep=currstep+1
+
+if (my_task == 0 .and. .not. file_exist(ncfilenm) ) then
+  call create_ncfile(ncfilenm,ncid,il_im,il_jm,ll=1,ilout=il_out)
+endif
+
+if (my_task == 0) then
+  write(il_out,*) 'opening ncfile at nstep ', ncfilenm,  currstep
+  call ncheck( nf_open(ncfilenm, nf_write,ncid) )
+  call write_nc_1Dtime(real(currstep),currstep,'time',ncid)
+end if
+
+if (my_task == 0) call ncheck(nf_close(ncid))
+
+return
+
+end subroutine check_landice_fields_1
+
+!=================================================
+subroutine check_landice_fields_2(ncfilenm)
+
+!this is used to check land ice fields
+
+implicit none
+
+character*(*), intent(in) :: ncfilenm
+integer(kind=int_kind) :: ncid,currstep, ilout, ll
+data currstep/0/
+save currstep
+
+currstep=currstep+1
+
+if (my_task == 0 .and. .not. file_exist(ncfilenm) ) then
+  call create_ncfile(ncfilenm,ncid,il_im,il_jm,ll=1,ilout=il_out)
+endif
+
+if (my_task == 0) then
+  write(il_out,*) 'opening ncfile at nstep ', ncfilenm,  currstep
+  call ncheck( nf_open(ncfilenm, nf_write,ncid) )
+  call write_nc_1Dtime(real(currstep),currstep,'time',ncid)
+end if
+
+if (my_task == 0) call ncheck(nf_close(ncid))
+
+return
+
+end subroutine check_landice_fields_2
+
+!=================================================
 function file_exist (file_name)
 !
 character(len=*), intent(in) :: file_name
@@ -1400,6 +1875,6 @@ inquire (file=trim(file_name), exist=file_exist)
 
 end function file_exist
 
-!============================================================================
+!=================================================
 
 end module cpl_forcing_handler

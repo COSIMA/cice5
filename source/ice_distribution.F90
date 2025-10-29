@@ -50,6 +50,7 @@
                              ! 'slenderX1' (NPX x 1)
                              ! 'slenderX2' (NPX x 2)
 
+!ars599: 04042016: should we keep or not? Refer to fn: create_distrb_cart
 !ars599: 26032014: will call from cpl_interface
 !	from function create_distrb_cart
 !	so change to public

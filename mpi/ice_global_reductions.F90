@@ -24,6 +24,9 @@
 
    implicit none
    private
+#ifdef ACCESS
+   save
+#endif
 
    include 'mpif.h'
 

@@ -57,10 +57,8 @@
          Cdn_atm_ratio   ! ratio drag atm / neutral drag atm
 !ars599: 24092014 (CODE: petteri)
       ! tuning parameters, set in namelist
-#ifdef AusCOM
       real (kind=dbl_kind), public :: &
          iceruf    ! ice surface roughness (m)
-#endif
 
 !=======================================================================
 
@@ -768,7 +766,7 @@
       real (kind=dbl_kind), parameter :: &
          ocnruf   = 0.000327_dbl_kind, & ! ocean surface roughness (m)
 !ars599: 24092014 (CODE: petteri)
-#ifdef AusCOM
+#if defined(AusCOM) && !defined(ACCESS)
          ocnrufi  = c1/ocnruf    ! inverse ocean roughness
 #else
          ocnrufi  = c1/ocnruf, & ! inverse ocean roughness
@@ -922,7 +920,7 @@
             sca = c1 - exp(-sHGB*distrdg(i,j)/tmp1) ! see Eq. 9
             ctecar = cra*p5
 !ars599: 24092014 (CODE: petteri)
-#ifdef AusCOM
+#if defined(AusCOM) && !defined(ACCESS)
           Cdn_atm_rdg(i,j) = ai * ctecar*tmp1/distrdg(i,j)*sca* &
                      (log(tmp1/iceruf)/log(zref/iceruf))**c2
 #else
@@ -956,7 +954,7 @@
             ctecwk = crw*p5
 
 !ars599: 24092014 (CODE: petteri)
-#ifdef AusCOM
+#if defined(AusCOM) && !defined(ACCESS)
           Cdn_ocn_keel(i,j) = ctecwk*ai*tmp1/dkeel(i,j)*scw* &
                      (log(tmp1/iceruf)/log(zref/iceruf))**c2  
 #else

@@ -176,6 +176,7 @@
                                 faero_atm, faero_ocn)
 
       use ice_domain_size, only: max_ntrcr, nilyr, nslyr, n_aero, max_aero
+      use ice_itd, only: hs_min
       use ice_state, only: nt_aero 
       use ice_shortwave, only: hi_ssl, hs_ssl
 

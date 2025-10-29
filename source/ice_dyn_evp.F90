@@ -505,8 +505,12 @@
       call u2tgrid_vector(strocnxT)    ! shift
       call u2tgrid_vector(strocnyT)
 
-      call ice_timer_stop(timer_dynamics)    ! dynamics
+      call ice_HaloUpdate(strocnxT, halo_info, &
+                              field_loc_center,  field_type_vector)
+      call ice_HaloUpdate(strocnyT, halo_info, &
+                              field_loc_center,  field_type_vector)
 
+       call ice_timer_stop(timer_dynamics)    ! dynamics
       end subroutine evp
 
 !=======================================================================

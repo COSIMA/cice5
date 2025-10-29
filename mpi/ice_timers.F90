@@ -57,7 +57,12 @@
       timer_cplsend,          &! send to coupled
       timer_sndrcv,           &! time between send to receive
 #endif
-#ifdef AusCOM
+#ifdef ACCESS
+      timer_from_atm,         &
+      timer_into_atm,         &
+      timer_from_ocn,         &
+      timer_into_ocn,         &
+#elif defined(AusCOM)
       timer_from_ocn,          &! 
       timer_waiting_ocn,       &!
       timer_into_ocn,          &! 
@@ -69,6 +74,7 @@
       timer_runoff_remap,      &!
 #endif
 
+#endif
       timer_bound,            &! boundary updates
       timer_bgc                ! biogeochemistry
 !      timer_tmp               ! for temporary timings
@@ -191,7 +197,12 @@
    call get_ice_timer(timer_cplsend,  'Cpl-Send', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_sndrcv,   'Snd->Rcv', nblocks,distrb_info%nprocs)
 #endif
-#ifdef AusCOM
+#ifdef ACCESS
+   call get_ice_timer(timer_from_atm, 'Cpl_fromA', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_into_atm, 'Cpl_toA',   nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_from_ocn, 'Cpl_fromO', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_into_ocn, 'Cpl_toO',   nblocks,distrb_info%nprocs)
+#elif defined(AusCOM)
    call get_ice_timer(timer_from_ocn,   'from_ocn', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_waiting_ocn,   'waiting_ocn', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_into_ocn,   'into_ocn', nblocks,distrb_info%nprocs)

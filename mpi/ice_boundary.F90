@@ -593,7 +593,6 @@ contains
 !   check to see if they need to be re-sized
 !
 !-----------------------------------------------------------------------
-
    maxTmp = maxval(sendCount)
    maxSizeSend = global_maxval(maxTmp, dist)
    maxTmp = maxval(recvCount)
@@ -1192,7 +1191,6 @@ contains
          elseif (mask(icel,jcel,abs(nblock)) /= 0) then
             tmpflag = .true.
          endif
-
          if (tmpflag) then
             scnt = scnt + 1
             if (scnt == 1) then
@@ -1224,7 +1222,6 @@ contains
          elseif (mask(icel,jcel,abs(nblock)) /= 0) then
             tmpflag = .true.
          endif
-
          if (tmpflag) then
             scnt = scnt + 1
             if (scnt == 1) then
@@ -1589,7 +1586,6 @@ contains
               bufTripoleR8(i   ,halo%tripoleRows) = xavg
               bufTripoleR8(iDst,halo%tripoleRows) = isign*xavg
            end do
-
         case default
            call abort_ice( &
               'ice_HaloUpdate2DR8: Unknown field location')
@@ -1984,7 +1980,6 @@ contains
               bufTripoleR4(i   ,halo%tripoleRows) = xavg
               bufTripoleR4(iDst,halo%tripoleRows) = isign*xavg
            end do
-
         case default
            call abort_ice( &
               'ice_HaloUpdate2DR4: Unknown field location')
@@ -2379,7 +2374,6 @@ contains
               bufTripoleI4(i   ,halo%tripoleRows) = xavg
               bufTripoleI4(iDst,halo%tripoleRows) = isign*xavg
            end do
-
         case default
            call abort_ice( &
               'ice_HaloUpdate2DI4: Unknown field location')
@@ -3748,7 +3742,6 @@ contains
 !-----------------------------------------------------------------------
 
    if (nxGlobal > 0) then
-
       select case (fieldKind)
       case (field_type_scalar)
          isign =  1
@@ -3880,7 +3873,6 @@ contains
            call abort_ice( &
               'ice_HaloUpdate3DI4: Unknown field location')
         end select
-
       endif
 
       !*** copy out of global tripole buffer into local
@@ -4268,7 +4260,6 @@ contains
 !-----------------------------------------------------------------------
 
    if (nxGlobal > 0) then
-
       select case (fieldKind)
       case (field_type_scalar)
          isign =  1
@@ -4408,7 +4399,6 @@ contains
            call abort_ice( &
               'ice_HaloUpdate4DR8: Unknown field location')
         end select
-
       endif
 
       !*** copy out of global tripole buffer into local
@@ -4797,7 +4787,6 @@ contains
 !-----------------------------------------------------------------------
 
    if (nxGlobal > 0) then
-
       select case (fieldKind)
       case (field_type_scalar)
          isign =  1
@@ -4937,7 +4926,6 @@ contains
            call abort_ice( &
               'ice_HaloUpdate4DR4: Unknown field location')
         end select
-
       endif
 
       !*** copy out of global tripole buffer into local
@@ -5467,7 +5455,6 @@ contains
            call abort_ice( &
               'ice_HaloUpdate4DI4: Unknown field location')
         end select
-
       endif
 
       !*** copy out of global tripole buffer into local
@@ -5824,7 +5811,6 @@ contains
             iSrc = iSrc - ioffset
             jSrc = jSrc - joffset
             if (iSrc == 0) iSrc = nxGlobal
-
             !*** for center and Eface, do not need to replace
             !*** top row of physical domain, so jSrc should be
             !*** out of range and skipped

@@ -43,6 +43,8 @@
                                Sswabsn, Iswabsn
       use ice_state, only: aice, aicen
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_sw
+      use ice_grid, only: tmask
+      use ice_calendar, only: istep1
 
       real (kind=dbl_kind), intent(in) :: &
          dt      ! time step
@@ -164,18 +166,25 @@
       use ice_blocks, only: block, get_block, nx_block, ny_block
       use ice_calendar, only: yday, istep1
       use ice_communicate, only: my_task
+#ifdef ACCESS
+      use ice_coupling, only: set_sfcflux
+#else
+      use ice_flux, only: set_sfcflux
+#endif
       use ice_domain, only: blocks_ice
       use ice_domain_size, only: ncat, nilyr
       use ice_exit, only: abort_ice
       use ice_fileunits, only: nu_diag
       use ice_flux, only: frzmlt, sst, Tf, strocnxT, strocnyT, rside, &
           meltsn, melttn, meltbn, congeln, snoicen, dsnown, uatm, vatm, &
-          wind, rhoa, potT, Qa, zlvl, strax, stray, flatn, fsensn, fsurfn, fcondtopn, &
+          wind, rhoa, potT, Qa, zlvl, strax, stray, flatn, fsensn, fsurfn,  &
+          fcondtopn, fcondbotn, fcondbot, &
+          ice_freeboardn, ice_freeboard, snowfracn, &
           flw, fsnow, fpond, sss, mlt_onset, frz_onset, faero_atm, faero_ocn, &
           frain, Tair, coszen, strairxT, strairyT, fsurf, fcondtop, fsens, &
           flat, fswabs, flwout, evap, Tref, Qref, Uref, fresh, fsalt, fhocn, &
           fswthru, meltt, melts, meltb, meltl, congel, snoice, &
-          set_sfcflux, merge_fluxes
+          merge_fluxes, evap_ice, evap_snow
       use ice_firstyear, only: update_FYarea
       use ice_grid, only: lmask_n, lmask_s, TLAT, TLON
       use ice_itd, only: hi_min
@@ -218,6 +227,8 @@
          fswabsn     , & ! shortwave absorbed by ice          (W/m^2)
          flwoutn     , & ! upward LW at surface               (W/m^2)
          evapn       , & ! flux of vapor, atmos to ice   (kg m-2 s-1)
+         evapn_ice   , & ! flux of vapor, atmos to ice   (kg m-2 s-1)
+         evapn_snow  , & ! flux of vapor, atmos to snow   (kg m-2 s-1)
          freshn      , & ! flux of water, ice to ocean     (kg/m^2/s)
          fsaltn      , & ! flux of salt, ice to ocean      (kg/m^2/s)
          fhocnn      , & ! fbot corrected for leftover energy (W/m^2)
@@ -445,8 +456,8 @@
             endif   ! calc_Tsfc or calc_strair
 
             if (.not.(calc_strair)) then
-!#ifndef CICE_IN_NEMO
-#ifndef AusCOM
+
+#if !defined(AusCOM) || defined(ACCESS)
 ! Here we follow the CICE_in_NEMO treatment for wind stress:
 ! Do not do the following here as wind stress is supplied on T grid
 ! (but u grid in NEMO) grid and multipied by ice concentration and 
@@ -526,10 +537,13 @@
                                 Sswabsn(:,:,:,n,iblk),                    &
                                 Iswabsn(:,:,:,n,iblk),                    &
                                 fsurfn(:,:,n,iblk),                       &
-                                fcondtopn(:,:,n,iblk),                    &
+                                fcondtopn(:,:,n,iblk), fcondbotn(:,:,n,iblk),   &
                                 fsensn(:,:,n,iblk),  flatn(:,:,n,iblk),   &
                                 flwoutn,                                  &
-                                evapn,               freshn,              &
+                                ice_freeboardn,                           &
+                                evapn,                                    &
+                                evapn_ice,           evapn_snow,          &
+                                freshn,                                   & 
                                 fsaltn,              fhocnn,              &
                                 melttn(:,:,n,iblk),  meltsn(:,:,n,iblk),  &
                                 meltbn(:,:,n,iblk),                       &
@@ -683,18 +697,24 @@
                             strairxn,           strairyn,             &
                             Cdn_atm_ratio_n,                          &
                             fsurfn(:,:,n,iblk), fcondtopn(:,:,n,iblk),&
+                            fcondbotn(:,:,n,iblk),               &
                             fsensn(:,:,n,iblk), flatn(:,:,n,iblk),    &
                             fswabsn,            flwoutn,              &
                             evapn,                                    &
+                            evapn_ice,          evapn_snow,           &
+                            ice_freeboardn(:,:,n,iblk),               &
                             Trefn,              Qrefn,                &
                             freshn,             fsaltn,               &
                             fhocnn,             fswthrun(:,:,n,iblk), &
                             strairxT(:,:,iblk), strairyT  (:,:,iblk), &
                             Cdn_atm_ratio(:,:,iblk),                  &
                             fsurf   (:,:,iblk), fcondtop  (:,:,iblk), &
+                            fcondbot(:,:,iblk),                       &
                             fsens   (:,:,iblk), flat      (:,:,iblk), &
                             fswabs  (:,:,iblk), flwout    (:,:,iblk), &
                             evap    (:,:,iblk),                       &
+                            evap_ice(:,:,iblk), evap_snow (:,:,iblk), &
+                            ice_freeboard(:,:,iblk),                  &
                             Tref    (:,:,iblk), Qref      (:,:,iblk), &
                             fresh   (:,:,iblk), fsalt     (:,:,iblk), &
                             fhocn   (:,:,iblk), fswthru   (:,:,iblk), &
@@ -708,6 +728,9 @@
 
          enddo                  ! ncat
 
+         Ti_bot(:,:,iblk) = Tbot(:,:) * aice(:,:,iblk)
+         Tsnic(:,:,iblk) = c0
+
       !-----------------------------------------------------------------
       ! Calculate ponds from the topographic scheme
       !-----------------------------------------------------------------
@@ -715,7 +738,7 @@
          if (tr_pond_topo) then
             call compute_ponds_topo(nx_block, ny_block,                        &
                                     ilo, ihi, jlo, jhi,                        &
-                                    dt,                                        &
+                                    dt,snowfracn(:,:,:,iblk),                  &
                                     aice (:,:,iblk), aicen(:,:,:,iblk),        &
                                     vice (:,:,iblk), vicen(:,:,:,iblk),        &
                                     vsno (:,:,iblk), vsnon(:,:,:,iblk),        &
@@ -1004,7 +1027,7 @@
 
       use ice_blocks, only: nx_block, ny_block
       use ice_domain, only: nblocks
-      use ice_flux, only: daidtt, dvidtt, dagedtt
+      use ice_flux, only: daidtt, dvidtt, dvsdtt, dagedtt
       use ice_grid, only: tmask
       use ice_itd, only: aggregate
       use ice_state, only: aicen, trcrn, vicen, vsnon, ntrcr, &
@@ -1053,6 +1076,7 @@
          do i = 1, nx_block
             daidtt(i,j,iblk) = (aice(i,j,iblk) - daidtt(i,j,iblk)) / dt
             dvidtt(i,j,iblk) = (vice(i,j,iblk) - dvidtt(i,j,iblk)) / dt
+            dvsdtt(i,j,iblk) = (vsno(i,j,iblk) - dvsdtt(i,j,iblk)) / dt
             if (tr_iage) then
                if (trcr(i,j,nt_iage,iblk) > c0) &
                   dagedtt(i,j,iblk)= (trcr(i,j,nt_iage,iblk)-dagedtt(i,j,iblk)-dt)/dt
@@ -1085,7 +1109,7 @@
       use ice_dyn_evp, only: evp
       use ice_dyn_eap, only: eap
       use ice_dyn_shared, only: kdyn
-      use ice_flux, only: daidtd, dvidtd, init_history_dyn, dagedtd
+      use ice_flux, only: daidtd, dvidtd, dvsdtd, init_history_dyn, dagedtd
       use ice_grid, only: tmask
       use ice_itd, only: aggregate
       use ice_state, only: nt_qsno, trcrn, vsnon, aicen, vicen, ntrcr, &
@@ -1183,6 +1207,7 @@
          do j = jlo,jhi
          do i = ilo,ihi
             dvidtd(i,j,iblk) = (vice(i,j,iblk) - dvidtd(i,j,iblk)) /dt
+            dvsdtd(i,j,iblk) = (vsno(i,j,iblk) - dvsdtd(i,j,iblk)) /dt
             daidtd(i,j,iblk) = (aice(i,j,iblk) - daidtd(i,j,iblk)) /dt
             if (tr_iage) &
                dagedtd(i,j,iblk)= (trcr(i,j,nt_iage,iblk)-dagedtd(i,j,iblk))/dt
@@ -1374,13 +1399,11 @@
                                Sswabsn, Iswabsn, shortwave, &
                                albicen, albsnon, albpndn, &
                                alvdrn, alidrn, alvdfn, alidfn, &
-                               run_dedd, shortwave_ccsm3, apeffn, &
-                               snowfracn
-
+                               run_dedd, shortwave_ccsm3, apeffn
+!ars599: 27032014: 22042015 need ifdef
 #ifdef AusCOM
       use ice_shortwave, only : ocn_albedo2D
 #endif
-
       use ice_state, only: aicen, vicen, vsnon, trcrn, nt_Tsfc, &
                            nt_apnd, nt_ipnd, nt_hpnd, tr_pond_topo 
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_sw

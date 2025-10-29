@@ -177,31 +177,19 @@
             ! root and then doing a broadcast
             do_broadcast_array = .false.
 
+            call ice_open_nc(grid_file,fid_grid)
+            call ice_open_nc(kmt_file,fid_kmt)
+
             fieldname='ulat'
-            call check(nf90_open(grid_file, NF90_NOWRITE, fid_grid), &
-                       'open: '//trim(grid_file))
-
-            call check(nf90_inq_varid(fid_grid, trim(fieldname), &
-                                      varid), &
-                       'inq var: '//trim(fieldname))
-
-            call check(nf90_get_var(fid_grid, varid, work_g1, &
-                                    start=(/1,1,1/), &
-                                    count=(/nx_global,ny_global,1/)), &
-                       'get var: '//trim(fieldname))
-
+            call ice_read_global_nc(fid_grid,1,fieldname,work_g1,.true.)
             fieldname='kmt'
-            call check(nf90_open(kmt_file, NF90_NOWRITE, fid_kmt), &
-                       'open: '//trim(kmt_file))
+            call ice_read_global_nc(fid_kmt,1,fieldname,work_g2,.true.)
 
-            call check(nf90_inq_varid(fid_kmt, trim(fieldname),  &
-                                       varid), &
-                       'inq var: '//trim(fieldname))
+            if (my_task == master_task) then
+               call ice_close_nc(fid_grid)
+               call ice_close_nc(fid_kmt)
+            endif
 
-            call check(nf90_get_var(fid_kmt, varid, work_g2, &
-                                    start=(/1,1,1/), &
-                                    count=(/nx_global,ny_global,1/)), &
-                       'get var: '//trim(fieldname))
          else
 
             call ice_open(nu_grid,grid_file,64) ! ULAT
@@ -249,19 +237,19 @@
 
       end subroutine init_grid1
 
-      subroutine check(status, msg)
+      ! subroutine check(status, msg)
 
-          use netcdf, only: nf90_noerr, nf90_strerror
-          use ice_exit, only: abort_ice
+      !     use netcdf, only: nf90_noerr, nf90_strerror
+      !     use ice_exit, only: abort_ice
 
-          integer, intent (in) :: status
-          character(len=*), intent (in) :: msg
+      !     integer, intent (in) :: status
+      !     character(len=*), intent (in) :: msg
 
-          if(status /= nf90_noerr) then
-              call abort_ice('ice: NetCDF error '//trim(nf90_strerror(status)//' '//trim(msg)))
-          end if
+      !     if(status /= nf90_noerr) then
+      !         call abort_ice('ice: NetCDF error '//trim(nf90_strerror(status)//' '//trim(msg)))
+      !     end if
 
-      end subroutine check
+      ! end subroutine check
 
 !=======================================================================
 

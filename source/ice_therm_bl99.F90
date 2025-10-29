@@ -16,7 +16,9 @@
       use ice_domain_size, only: nilyr, nslyr, max_ntrcr, n_aero, ncat
       use ice_constants
       use ice_fileunits, only: nu_diag
-      use ice_therm_shared, only: conduct, calc_Tsfc, ferrmax, l_brine, hfrazilmin
+      use ice_therm_shared, only: calculate_ki_from_Tin, &
+         conduct, calc_Tsfc, ferrmax, l_brine, hfrazilmin
+
       implicit none
       save
 
@@ -66,8 +68,10 @@
                                       flwoutn,  fsurfn,   &
                                       fcondtopn,fcondbot, &
                                       einit,    l_stop,   &
-                                      istop,    jstop)
+                                      istop,    jstop,    &
+				      enum)
 
+      use ice_itd, only: hs_min
       use ice_therm_shared, only: surface_heat_flux, dsurface_heat_flux_dTsf
 
       integer (kind=int_kind), intent(in) :: &
@@ -145,7 +149,11 @@
       ! local variables
 
       integer (kind=int_kind), parameter :: &
-         nitermax = 500, & ! max number of iterations in temperature solver
+#ifdef ACCESS
+         nitermax = 100, & ! max number of iterations in temperature solver
+#else
+         nitermax = 500, &
+#endif
          nmat = nslyr + nilyr + 1  ! matrix dimension
 
       real (kind=dbl_kind), parameter :: &
@@ -179,6 +187,12 @@
          avg_Tsi     , & ! = 1. if new snow/ice temps avg'd w/starting temps
          enew            ! new energy of melting after temp change (J m-2)
 
+      real (kind=dbl_kind), dimension (icells), intent(out) :: &
+         enum            ! Energy that, for numerical reasons, we don't want to use.
+	 
+      real (kind=dbl_kind), dimension (icells) :: &	 
+         enew_icells     ! debugging!
+
       real (kind=dbl_kind), dimension (icells) :: &
          dTsf_prev   , & ! dTsf from previous iteration
          dTi1_prev   , & ! dTi1 from previous iteration
@@ -197,6 +211,7 @@
          Tmlts           ! melting temp, -depressT * salinity
 
       real (kind=dbl_kind), dimension (icells,nslyr) :: &
+         dqmat_sn    , &    ! snow enthalpy difference before & after limiting
          Tsn_init    , & ! zTsn at beginning of time step
          Tsn_start   , & ! zTsn at start of iteration
          etas            ! dt / (rho * cp * h) for snow layers
@@ -230,6 +245,19 @@
       logical (kind=log_kind) , dimension (icells,nilyr) :: &
          reduce_kh        ! reduce conductivity when T exceeds Tmlt
 
+      real (kind=dbl_kind), dimension (nx_block,ny_block) :: &
+         fcondtopn_reduction, & ! desired decrease in cond. forcing if 
+                                ! top layer temp is being forced above
+				                    ! melting.  Extra energy goes into ocean
+         fcondtopn_force        ! Resulting value of fcondtopn passed to
+	                             ! tridiag matrix solver  
+
+      logical (kind=log_kind) , dimension (icells) :: &
+         Top_T_was_reset_last_time  ! keep track of whether top layer temp was reset
+                                    ! in the previous iteration.  For use in limiting
+
+      real (kind=dbl_kind), dimension(icells) :: enew_save
+
       !-----------------------------------------------------------------
       ! Initialize
       !-----------------------------------------------------------------
@@ -237,6 +265,13 @@
       all_converged   = .false.
 
       do ij = 1, icells
+         ! Set variables involved in tracking limiting of top layer temp
+         i = indxi(ij)
+         j = indxj(ij)
+         fcondtopn_reduction(i,j) = c0
+         fcondtopn_force(i,j) = fcondtopn(i,j)
+         enum(ij) = c0
+         Top_T_was_reset_last_time(ij) = .false.
 
          converged (ij) = .false.
          l_snow    (ij) = .false.
@@ -251,6 +286,7 @@
          dt_rhoi_hlyr(ij) = dt / (rhoi*hilyr(ij))  ! hilyr > 0
          if (hslyr(ij) > hs_min/real(nslyr,kind=dbl_kind)) &
             l_snow(ij) = .true.
+         enew_icells(ij) = c0
       enddo                     ! ij
 
       do k = 1, nslyr
@@ -297,43 +333,44 @@
       ! NOTE: This option is not available if the atmosphere model
       !       has already computed fsurf.  (Unless we adjust fsurf here)
       !-----------------------------------------------------------------
-!mclaren: Should there be an if calc_Tsfc statement here then?? 
+      if (calc_Tsfc) then
 
 #ifdef CCSMCOUPLED
-      frac = c1
-      dTemp = p01
-#else
-      frac = 0.9_dbl_kind
-      dTemp = 0.02_dbl_kind
-#endif
-      do k = 1, nilyr
-         do ij = 1, icells
-            i = indxi(ij)
-            j = indxj(ij)
+         frac = c1
+         dTemp = p01
+   #else
+         frac = 0.9_dbl_kind
+         dTemp = 0.02_dbl_kind
+   #endif
+         do k = 1, nilyr
+            do ij = 1, icells
+               i = indxi(ij)
+               j = indxj(ij)
 
-            Iswabs_tmp = c0 ! all Iswabs is moved into fswsfc
+               Iswabs_tmp = c0 ! all Iswabs is moved into fswsfc
 
-            if (Tin_init(ij,k) <= Tmlts(ij,k) - dTemp) then
-               if (l_brine) then
-                  ci = cp_ice - Lfresh * Tmlts(ij,k) / (Tin_init(ij,k)**2)
-                  Iswabs_tmp = min(Iswabs(i,j,k), &
-                     frac*(Tmlts(ij,k)-Tin_init(ij,k))*ci/dt_rhoi_hlyr(ij))
-               else
-                  ci = cp_ice
-                  Iswabs_tmp = min(Iswabs(i,j,k), &
-                                   frac*(-Tin_init(ij,k))*ci/dt_rhoi_hlyr(ij))
+               if (Tin_init(ij,k) <= Tmlts(ij,k) - dTemp) then
+                  if (l_brine) then
+                     ci = cp_ice - Lfresh * Tmlts(ij,k) / (Tin_init(ij,k)**2)
+                     Iswabs_tmp = min(Iswabs(i,j,k), &
+                        frac*(Tmlts(ij,k)-Tin_init(ij,k))*ci/dt_rhoi_hlyr(ij))
+                  else
+                     ci = cp_ice
+                     Iswabs_tmp = min(Iswabs(i,j,k), &
+                                    frac*(-Tin_init(ij,k))*ci/dt_rhoi_hlyr(ij))
+                  endif
                endif
-            endif
-            if (Iswabs_tmp < puny) Iswabs_tmp = c0
+               if (Iswabs_tmp < puny) Iswabs_tmp = c0
 
-            dswabs = min(Iswabs(i,j,k) - Iswabs_tmp, fswint(i,j))
+               dswabs = min(Iswabs(i,j,k) - Iswabs_tmp, fswint(i,j))
 
-            fswsfc(i,j)   = fswsfc(i,j) + dswabs
-            fswint(i,j)   = fswint(i,j) - dswabs
-            Iswabs(i,j,k) = Iswabs_tmp
+               fswsfc(i,j)   = fswsfc(i,j) + dswabs
+               fswint(i,j)   = fswint(i,j) - dswabs
+               Iswabs(i,j,k) = Iswabs_tmp
 
+            enddo
          enddo
-      enddo
+      endif
 
 #ifdef CCSMCOUPLED
       frac = 0.9_dbl_kind
@@ -520,6 +557,8 @@
                                    spdiag,   rhs)
 
          else
+            ! See if we need to reduce fcondtopn anywhere
+            fcondtopn_force = fcondtopn - fcondtopn_reduction
             call get_matrix_elements_know_Tsfc &
                                   (nx_block, ny_block,         &
                                    isolve,   icells,           &
@@ -531,7 +570,11 @@
                                    etai,     etas,             &
                                    sbdiag,   diag,             &
                                    spdiag,   rhs,              &
+#ifdef ACCESS
+                                   fcondtopn_force)
+#else
                                    fcondtopn)
+#endif
          endif  ! calc_Tsfc
 
       !-----------------------------------------------------------------
@@ -650,12 +693,15 @@
 
          endif   ! calc_Tsfc
 
+         dqmat_sn(:,:) = c0
          do k = 1, nslyr
 !DIR$ CONCURRENT !Cray
 !cdir nodep      !NEC
 !ocl novrec      !Fujitsu
             do ij = 1, isolve
                m = indxij(ij)
+	       i = indxii(ij)
+	       j = indxjj(ij)
 
       !-----------------------------------------------------------------
       ! Reload zTsn from matrix solution
@@ -666,7 +712,35 @@
                else
                   zTsn(m,k) = c0
                endif
+#ifdef ACCESS
+               if ((l_brine) .and. zTsn(m,k)>c0) then
+	       
+! Alex West: return this energy to the ocean
+	       
+		  dqmat_sn(m,k) = (zTsn(m,k)*cp_ice - Lfresh)*rhos - zqsn(m,k)
+		  
+		  ! Alex West: If this is the second time in succession that Tsn(1) has been
+		  ! reset, tell the solver to reduce the forcing at the top, and
+		  ! pass the difference to the array enum where it will eventually
+		  ! go into the ocean
+		  ! This is done to avoid an 'infinite loop' whereby temp continually evolves
+		  ! to the same point above zero, is reset, ad infinitum
+		  if (l_snow(m) .AND. k == 1) then
+		     if (Top_T_was_reset_last_time(m)) then
+			fcondtopn_reduction(i,j) = fcondtopn_reduction(i,j) + dqmat_sn(m,k)*hslyr(m) / dt
+			Top_T_was_reset_last_time(m) = .false.
+                        enum(m) = enum(m) + hslyr(m) * dqmat_sn(m,k)			
+		     else
+			Top_T_was_reset_last_time(m) = .true.
+		     endif
+		  endif
+		  
+	          zTsn(m,k) = min(zTsn(m,k), c0)
+		  
+               endif
+#else
                if (l_brine) zTsn(m,k) = min(zTsn(m,k), c0)
+#endif
 
       !-----------------------------------------------------------------
       ! If condition 1 or 2 failed, average new snow layer
@@ -695,6 +769,8 @@
 !ocl novrec      !Fujitsu
             do ij = 1, isolve
                m = indxij(ij)
+	       i = indxii(ij)
+	       j = indxjj(ij)
 
       !-----------------------------------------------------------------
       ! Reload zTin from matrix solution
@@ -706,6 +782,23 @@
                   dTmat(m,k) = zTin(m,k) - Tmlts(m,k)
                   dqmat(m,k) = rhoi * dTmat(m,k) &
                              * (cp_ice - Lfresh * Tmlts(m,k)/zTin(m,k)**2)
+#ifdef ACCESS
+		  ! Alex West: If this is the second time in succession that Tin(1) has been
+		  ! reset, tell the solver to reduce the forcing at the top, and
+		  ! pass the difference to the array enum where it will eventually
+		  ! go into the ocean
+		  ! This is done to avoid an 'infinite loop' whereby temp continually evolves
+		  ! to the same point above zero, is reset, ad infinitum
+		  if ((.NOT. (l_snow(m))) .AND. (k == 1)) then
+		     if (Top_T_was_reset_last_time(m)) then
+			fcondtopn_reduction(i,j) = fcondtopn_reduction(i,j) + dqmat(m,k)*hilyr(m) / dt
+			Top_T_was_reset_last_time(m) = .false.
+                        enum(m) = enum(m) + hilyr(m) * dqmat(m,k)
+		     else
+			Top_T_was_reset_last_time(m) = .true.
+		     endif
+		  endif
+#endif
 ! use this for the case that Tmlt changes by an amount dTmlt=Tmltnew-Tmlt(k)
 !                             + rhoi * dTmlt &
 !                             * (cp_ocn - cp_ice + Lfresh/zTin(m,k))
@@ -758,7 +851,6 @@
 
             enddo               ! ij
          enddo                  ! nilyr
-
          if (calc_Tsfc) then
 
 !DIR$ CONCURRENT !Cray
@@ -813,10 +905,20 @@
                           (zTin(m,nilyr) - Tbot(i,j))
 
             ! Flux extra energy out of the ice
-            fcondbot(m) = fcondbot(m) + einex(m)/dt 
+#ifdef ACCESS
+	    ! Alex West. Commenting this out for now - it's essentially what I'm doing with enum, so possibility of double-counting.
+            ! fcondbot(m) = fcondbot(m) + einex(m)/dt 
+
+            ! Alex West. Now including enum, the 'numeric energy' from limiting Tin1 and Tsn,
+	    ! in this conservation check
+            ferr(m) = abs( (enew(ij) - einit(m) + enum(m))/dt &
+                    - (fcondtopn(i,j) - fcondbot(m) + fswint(i,j)) )
+#else
+               fcondbot(m) = fcondbot(m) + einex(m)/dt 
 
             ferr(m) = abs( (enew(ij)-einit(m))/dt &
                     - (fcondtopn(i,j) - fcondbot(m) + fswint(i,j)) )
+#endif
 
             ! factor of 0.9 allows for roundoff errors later
             if (ferr(m) > 0.9_dbl_kind*ferrmax) then         ! condition (5)
@@ -825,18 +927,27 @@
                all_converged = .false.
 
                ! reduce conductivity for next iteration
+               ! Alex West: I think this maybe shouldn't be done for the top layer
+               ! if the forcing is the top conductive flux?
                do k = 1, nilyr
                   if (reduce_kh(m,k) .and. dqmat(m,k) > c0) then
                      frac = max(0.5*(c1-ferr(m)/abs(fcondtopn(i,j)-fcondbot(m))),p1)
-!                     frac = p1
                      kh(m,k+nslyr+1) = kh(m,k+nslyr+1) * frac
                      kh(m,k+nslyr)   = kh(m,k+nslyr+1)
                   endif
                enddo
 
             endif               ! ferr 
+#ifdef ACCESS
+	    if (converged(m)) then
+	       enew_icells(m) = enew(ij)
+	    endif
          enddo                  ! ij
 
+         enew_save(1:isolve) = enew
+#else
+         enddo
+#endif
          deallocate(sbdiag)
          deallocate(diag)
          deallocate(spdiag)
@@ -858,7 +969,16 @@
             i = indxi(ij)
             j = indxj(ij)
 
-      !-----------------------------------------------------------------
+
+	    do m = 1,isolve
+	       if (indxij(m)==ij) then
+	          ij_solve = m
+	       else
+	          ij_solve = 1
+	       endif
+	    enddo
+
+       !-----------------------------------------------------------------
       ! Check for convergence failures.
       !-----------------------------------------------------------------
             if (.not.converged(ij)) then
@@ -873,6 +993,13 @@
                write(nu_diag,*) 'fsurf:', fsurfn(i,j)
                write(nu_diag,*) 'fcondtop, fcondbot, fswint', &
                                  fcondtopn(i,j), fcondbot(ij), fswint(i,j)
+#ifdef ACCESS
+               write(nu_diag,*) '(enew_save - einit)/dt, enum/dt, (enew_save - einit + enum)/dt = ', &
+                                 (enew_save(ij_solve) - einit(ij))/dt, enum(ij)/dt, (enew_save(ij_solve) - einit(ij) + enum(ij))/dt
+               write(nu_diag,*) 'enew_save, einit = ', enew_save(ij_solve), einit(ij)
+               write(nu_diag,*) 'size(enew_save), size(einit) = ', size(enew_save), size(einit)
+               write(nu_diag,*) 'ij, m = ', ij, m
+#endif
                write(nu_diag,*) 'fswsfc', fswsfc(i,j)
                write(nu_diag,*) 'Iswabs',(Iswabs(i,j,k),k=1,nilyr)
                write(nu_diag,*) 'Flux conservation error =', ferr(ij)
@@ -992,6 +1119,16 @@
       enddo                     ! nslyr
 
       ! interior ice layers
+#ifdef ACCESS
+      do k = 1, nilyr
+!DIR$ CONCURRENT !Cray
+!cdir nodep      !NEC
+!ocl novrec      !Fujitsu
+         do ij = 1, icells
+            kilyr(ij,k) = calculate_ki_from_Tin(zTin(ij,k),zSin(ij,k))
+         enddo
+      enddo                     ! nilyr
+#else
       if (conduct == 'MU71') then
          ! Maykut and Untersteiner 1971 form (with Wettlaufer 1991 constants)
          do k = 1, nilyr
@@ -1017,6 +1154,7 @@
             enddo
          enddo                     ! nilyr
       endif ! conductivity
+#endif
 
       ! top snow interface, top and bottom ice interfaces
       do ij = 1, icells

@@ -4,17 +4,21 @@
 ! Shared thermo variables, subroutines
 !
 ! authors: Elizabeth C. Hunke, LANL
+! AEW (Feb 2014): Added extra function calculate_ki_from_Tin, after Alison
+! McLaren
 
       module ice_therm_shared
 
       use ice_kinds_mod
-      use ice_domain_size, only: ncat, nilyr, nslyr, max_ntrcr
+      use ice_domain_size, only: ncat, nilyr, nslyr, max_ntrcr, max_blocks
+      use ice_blocks, only: nx_block, ny_block
 
       implicit none
       save
 
       private
       public :: calculate_Tin_from_qin, &
+                calculate_ki_from_Tin, &
                 surface_heat_flux, dsurface_heat_flux_dTsf
 
       integer (kind=int_kind), public :: &
@@ -37,18 +41,28 @@
       character (char_len), public :: &
          conduct         ! 'MU71' or 'bubbly'
 
+      real (kind=dbl_kind), &
+         dimension(nx_block,ny_block,max_blocks), &
+         public :: &
+           Tsnic, Ti_bot
+
       logical (kind=log_kind), public :: &
          l_brine         ! if true, treat brine pocket effects
 
       logical (kind=log_kind), public :: &
          heat_capacity, &! if true, ice has nonzero heat capacity
                          ! if false, use zero-layer thermodynamics
-         calc_Tsfc       ! if true, calculate surface temperature
+         calc_Tsfc    , &! if true, calculate surface temperature
                          ! if false, Tsfc is computed elsewhere and
                          ! atmos-ice fluxes are provided to CICE
+         cap_fluxes      ! AEW: Logical for capping conductive flux
 
       real (kind=dbl_kind), parameter, public :: &
          hfrazilmin = 0.05_dbl_kind ! min thickness of new frazil ice (m)
+
+      real (kind=dbl_kind), parameter, public :: &
+         betak   = 0.13_dbl_kind, & ! constant in formula for k (W m-1 ppt-1)
+         kimin   = 0.10_dbl_kind    ! min conductivity of saline ice (W m-1 deg-1)
 
 !=======================================================================
 
@@ -155,6 +169,54 @@
       fsurfn = fswsfc + flwdabs + flwoutn + fsensn + flatn
 
       end subroutine surface_heat_flux
+
+!=======================================================================
+!BOP
+!
+! !ROUTINE: calculate_ki_from_Tin  - calculate ice thermal conductivity
+!
+! !DESCRIPTION:
+!
+!  Compute the ice thermal conductivity
+!
+! !REVISION HISTORY:
+!
+! !INTERFACE:
+!
+      function calculate_ki_from_Tin (Tink, salink) &
+               result(ki)
+
+      use ice_constants
+!
+! !USES:
+!
+! !INPUT PARAMETERS:
+!
+      real (kind=dbl_kind), intent(in) :: &
+         Tink   , &             ! ice layer temperature
+         salink                 ! salinity at one level
+!
+! !OUTPUT PARAMETERS
+!
+     real (kind=dbl_kind) :: &
+         ki                     ! ice conductivity
+	 
+!
+!EOP
+!
+      if (conduct == 'MU71') then
+         ! Maykut and Untersteiner 1971 form (with Wettlaufer 1991 constants)
+         ki = kice + betak*salink/min(-puny,Tink)
+      else
+         ! Pringle et al JGR 2007 'bubbly brine'
+         ki = (2.11_dbl_kind - 0.011_dbl_kind*Tink &
+             + 0.09_dbl_kind*salink/min(-puny,Tink)) &
+             * rhoi / 917._dbl_kind
+      endif
+
+      ki = max (ki, kimin) 
+           
+      end function calculate_ki_from_Tin
 
   !=======================================================================
   

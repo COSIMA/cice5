@@ -688,6 +688,10 @@
          cca,ccb,ab2,cc1,cc2,& ! intermediate variables
          taux, tauy            ! part of ocean stress term          
 
+#ifdef ACCESS
+      real :: vel_max = 5.0    !m/s. Dave: set velocity limit to uvel and vvel.  
+#endif
+
       !-----------------------------------------------------------------
       ! integrate the momentum equation
       !-----------------------------------------------------------------
@@ -735,6 +739,13 @@
 
          uvel(i,j) = (cca*cc1 + ccb*cc2) / ab2 ! m/s
          vvel(i,j) = (cca*cc2 - ccb*cc1) / ab2
+
+#ifdef ACCESS
+!20160624 -- Siobhan and Dave's idea to set ice velocity limit to avoid
+!transport remap "departure point error":
+         uvel(i,j) = sign(min(abs(uvel(i,j)),vel_max),uvel(i,j))
+         vvel(i,j) = sign(min(abs(vvel(i,j)),vel_max),vvel(i,j))
+#endif
 
       !-----------------------------------------------------------------
       ! ocean-ice stress for coupling

@@ -47,7 +47,14 @@
                          !   2 = WMO standard
 
       real (kind=dbl_kind), public :: &
-         hi_min          ! minimum ice thickness allowed (m)
+         hi_min      , & ! minimum ice thickness allowed (m)
+         hs_min          ! minimum snow thickness allowed (m)
+
+      real (kind=dbl_kind), public :: &
+         aicenmin   ! AEW: This variable will replace puny as the min ice conc to 
+                     ! allow when zap_small_areas is called.  Set equal to puny
+                     ! if zerolayers or standard coupling, set equal to 1e-5
+                     ! if multilayers AND UM-style coupling
 
       real (kind=dbl_kind), public :: &
          hin_max(0:ncat) ! category limits (m)
@@ -80,7 +87,15 @@
 ! authors: William H. Lipscomb and Elizabeth C. Hunke, LANL
 !          C. M. Bitz, UW
 
-      subroutine init_itd
+      subroutine init_itd (calc_Tsfc, heat_capacity)   ! Alex West: added these two arguments
+                                                       ! as per Alison's changes.  
+						       ! Needed to control setting of
+						       ! aicenmin for use in 
+						       ! zap_small_areas
+
+      logical (kind=log_kind), intent(in) :: &
+         calc_Tsfc,        &       ! If T, calculate surface temp
+         heat_capacity             ! If T, ice had nonzero heat capacity
 
       integer (kind=int_kind) :: &
            n    ! thickness category index
@@ -151,9 +166,7 @@
             hin_max(0) = c0     ! minimum ice thickness, m
          else
             ! delta function itd category limits
-#ifndef CCSMCOUPLED
             hi_min = p1    ! minimum ice thickness allowed (m) for thermo
-#endif
             cc1 = max(1.1_dbl_kind/rncat,c1*hi_min)
             cc2 = c25*cc1
             cc3 = 2.25_dbl_kind
@@ -215,6 +228,18 @@
        endif
 
       endif ! kcatbound
+
+      ! AEW: (based on Alison McLaren's vn4 modifications) Set a higher value
+      ! of aicenmin in ice_init if we're using multilayers with UM-style coupling.
+      ! Also allow higher values of hi_min, hs_min to be set (this is a 
+      ! bit ad-hoc).
+      !-----------------------------------------------------------------
+
+      if (heat_capacity) then
+        ! Set higher values to help with stability
+        hi_min   = p2     ! 0.2m
+        hs_min   = p1     ! 0.1m
+      endif
 
       if (my_task == master_task) then
          write (nu_diag,*) ' '
@@ -447,7 +472,7 @@
       call compute_tracers (nx_block,   ny_block,     &
                             icells, indxi,   indxj,   &
                             ntrcr,      trcr_depend,  &
-                            atrcr,      aice(:,:),    &
+                            atrcr(:,:), aice(:,:),    &
                             vice (:,:), vsno(:,:),    &
                             trcr(:,:,:))
 
@@ -1817,7 +1842,7 @@
          trcrn        ! ice tracers
 
       real (kind=dbl_kind), dimension (nx_block,ny_block), &
-         intent(out) :: &
+         intent(inout) :: &
          dfpond   , & ! zapped pond water flux (kg/m^2/s)
          dfresh   , & ! zapped fresh water flux (kg/m^2/s)
          dfsalt   , & ! zapped salt flux   (kg/m^2/s)
@@ -1887,7 +1912,7 @@
                jstop = j
                return
             elseif (abs(aicen(i,j,n)) /= c0 .and. &
-                    abs(aicen(i,j,n)) <= puny) then
+                    abs(aicen(i,j,n)) <= aicenmin) then
                icells = icells + 1
                indxi(icells) = i
                indxj(icells) = j

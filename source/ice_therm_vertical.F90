@@ -29,7 +29,8 @@
                            nt_Tsfc, nt_iage, nt_sice, nt_qice, nt_qsno, &
                            nt_apnd, nt_hpnd
       use ice_therm_shared, only: ktherm, ferrmax, heat_capacity, l_brine, &
-                                  calc_Tsfc, calculate_tin_from_qin, Tmin
+                                  calc_Tsfc, calculate_tin_from_qin, Tmin, &
+                                  cap_fluxes
       use ice_therm_bl99, only: temperature_changes
       use ice_therm_0layer, only: zerolayer_temperature
       use ice_flux, only: Tf
@@ -41,8 +42,11 @@
       private
       public :: init_thermo_vertical, frzmlt_bottom_lateral, thermo_vertical
 
+      real (kind=dbl_kind), public :: &
+         saltmax         ! max salinity at ice base for BL99 (ppt)
+                        ! Now set in namelist
+
       real (kind=dbl_kind), parameter, public :: &
-         saltmax = 3.2_dbl_kind,   & ! max salinity at ice base for BL99 (ppt)
          ! phi_init and dSin0_frazil are used for mushy thermo, ktherm=2
          phi_init = 0.75_dbl_kind, & ! initial liquid fraction of frazil
          dSin0_frazil = c3 ! bulk salinity reduction of newly formed frazil
@@ -84,8 +88,12 @@
                                   fswsfc,      fswint,    &
                                   Sswabs,      Iswabs,    &
                                   fsurfn,      fcondtopn, &
+                                  fcondbotn,              &
                                   fsensn,      flatn,     &
-                                  flwoutn,     evapn,     &
+                                  flwoutn,                & 
+                                  ice_freeboardn,         &
+                                  evapn,                  &
+                                  evapn_ice,   evapn_snow,&
                                   freshn,      fsaltn,    &
                                   fhocnn,      meltt,     &
                                   melts,       meltb,     &
@@ -157,14 +165,17 @@
       ! coupler fluxes to atmosphere
       real (kind=dbl_kind), dimension (nx_block,ny_block), intent(out):: &
          flwoutn , & ! outgoing longwave radiation (W/m^2) 
-         evapn       ! evaporative water flux (kg/m^2/s) 
+         evapn   , & ! evaporative water flux (kg/m^2/s) 
+         evapn_ice, &! evaporative water flux over ice (kg/m^2/s) 
+         evapn_snow  ! evaporative water flux over snow(kg/m^2/s) 
 
       ! Note: these are intent out if calc_Tsfc = T, otherwise intent in
       real (kind=dbl_kind), dimension (nx_block,ny_block), intent(inout):: &
          fsensn   , & ! sensible heat flux (W/m^2) 
          flatn    , & ! latent heat flux   (W/m^2) 
          fsurfn   , & ! net flux to top surface, excluding fcondtopn
-         fcondtopn    ! downward cond flux at top surface (W m-2)
+         fcondtopn, & ! downward cond flux at top surface (W m-2)
+         fcondbotn    ! downward cond flux at bottom surface (W m-2)
 
       ! coupler fluxes to ocean
       real (kind=dbl_kind), dimension (nx_block,ny_block), intent(out):: &
@@ -182,7 +193,10 @@
          snoice   , & ! snow-ice formation       (m/step-->cm/day) 
          dsnow    , & ! change in snow thickness (m/step-->cm/day) 
          mlt_onset, & ! day of year that sfc melting begins 
-         frz_onset    ! day of year that freezing begins (congel or frazil) 
+         frz_onset, & ! day of year that freezing begins (congel or frazil) 
+         ice_freeboardn  ! height of ice surface (i.e. not snow surface)
+                         ! above sea level in m
+
 
       real (kind=dbl_kind), intent(in) :: &
          yday      ! day of year
@@ -240,6 +254,14 @@
       real (kind=dbl_kind), dimension (nx_block,ny_block) :: &
          fadvocn ! advective heat flux to ocean
 
+      real (kind=dbl_kind), dimension (icells) :: &
+         enum            ! energy not used by the temperature solver (due to
+                         ! limiting) that should be returned to the ocean.
+
+      real (kind=dbl_kind) :: &
+         fcondtopn_extra(nx_block,ny_block), &
+         fcondtopn_solve(nx_block,ny_block)
+
       !-----------------------------------------------------------------
       ! Initialize
       !-----------------------------------------------------------------
@@ -248,8 +270,14 @@
       istop = 0
       jstop = 0
 
+      enum = c0
+
       do j=1, ny_block
       do i=1, nx_block
+
+         fcondtopn_solve(i,j) = c0
+         fcondtopn_extra(i,j) = c0
+
          flwoutn(i,j) = c0
          evapn  (i,j) = c0
 
@@ -257,7 +285,8 @@
          fsaltn (i,j) = c0
          fhocnn (i,j) = c0
          fadvocn(i,j) = c0
-
+         fcondbotn(i,j) = c0
+         ice_freeboardn(i,j) = c0
          meltt  (i,j) = c0
          meltb  (i,j) = c0
          melts  (i,j) = c0
@@ -340,6 +369,28 @@
 
          else ! ktherm
 
+         !------------------ Flux capping code -------------------------------
+      ! To be used with the UM-style coupling formulation (calc_Tsfc=.false.),
+      ! in which high fluxes can occasionally cause the thermo solver to crash.
+      ! Reduce fluxes either when ice is too thin, or when ice is getting too 
+      ! cold.
+
+         if (cap_fluxes) then
+            call cap_conductive_flux(nx_block,ny_block,my_task,icells,indxi,indxj,&
+               fcondtopn,fcondtopn_solve,fcondtopn_extra,hin,zTsn,zTin,hslyr)
+
+         else
+            do i = 1,nx_block
+               do j = 1,ny_block
+                  fcondtopn_solve(i,j) = fcondtopn(i,j)
+            fcondtopn_extra(i,j) = c0
+         enddo
+            enddo
+         endif
+
+
+         !------------------ End of new code-------------------------------
+
             call temperature_changes(nx_block,      ny_block, &
                                      my_task,       istep1,   &
                                      dt,            icells,   & 
@@ -356,12 +407,23 @@
                                      Tsf,           Tbot,     &
                                      fsensn,        flatn,    &
                                      flwoutn,       fsurfn,   &
-                                     fcondtopn,     fcondbot, &
+                                     fcondtopn_solve,fcondbot, &
                                      einit,         l_stop,   &
-                                     istop,         jstop)
+                                     istop,         jstop,    &
+                                     enum)
+
+            if (calc_Tsfc) then
+               ! Need to read fcondtopn_solve BACK INTO fcondtopn
+               ! during forced runs or we'll get nonsensical top melt...
+               do i = 1,nx_block
+                  do j = 1,ny_block
+                     fcondtopn(i,j) = fcondtopn_solve(i,j)
+                  end do
+               end do
+            end if
 
          endif ! ktherm
-            
+
       else
 
          if (calc_Tsfc) then       
@@ -399,6 +461,15 @@
 
       endif         ! heat_capacity
 
+      ! Alex West: Read 1D bottom conductive flux array into 2D array
+      ! for diagnostics (SIMIP)i
+      do ij = 1, icells
+         i = indxi(ij)
+         j = indxj(ij)
+         fcondbotn(i,j) = fcondbot(ij)
+      enddo
+
+
             ! intermediate energy for error check
             do ij = 1, icells
                einter(ij) = c0
@@ -429,14 +500,17 @@
                                 fbot,         Tbot,     &
                                 flatn,        fsurfn,   &
                                 fcondtopn,    fcondbot, &
+                                ice_freeboardn,         &
                                 fsnow,        hsn_new,  &
                                 fhocnn,       evapn,    &
+                                evapn_ice,    evapn_snow,&
                                 meltt,        melts,    &
                                 meltb,        iage,     &
                                 congel,       snoice,   &
                                 mlt_onset,    frz_onset,&
                                 zSin,         sss,      &
-                                dsnow)
+                                dsnow,        enum,     &
+                                fcondtopn_extra)
 
       !-----------------------------------------------------------------
       ! Check for energy conservation by comparing the change in energy
@@ -454,8 +528,9 @@
                                         fcondtopn,fcondbot, &
                                         fadvocn,            &
                                         fbot,     l_stop,   &
-                                        istop,    jstop)
-
+                                        istop,    jstop,    &
+                                        fcondtopn_solve,fcondtopn_extra, &
+                                        enum)
       if (l_stop) return
 
       !-----------------------------------------------------------------
@@ -687,7 +762,6 @@
          m2 = 1.36_dbl_kind           ! constant from Maykut & Perovich
                                       ! (unitless)
 
-!#if defined(AusCOM) || defined(ACCICE)
 #ifdef AusCOM
       cpchr = -cp_ocn*rhow*chio ! chio defaults to 0.006 ala McPhee and Maykut
 #else
@@ -857,6 +931,7 @@
                                        Tbot,     l_stop,   &
                                        istop,    jstop)
 
+      use ice_itd, only: hs_min
       use ice_therm_mushy, only: temperature_mush, &
                                  liquidus_temperature_mush, &
                                  enthalpy_of_melting
@@ -1042,7 +1117,16 @@
                   write(nu_diag,*) 'istep1, my_task, i, j:', &
                                     istep1, my_task, i, j
                   write(nu_diag,*) 'zqsn',zqsn(ij,k),-Lfresh*rhos,zqsn(ij,k)+Lfresh*rhos
+#ifdef ACCESS
+                  write(nu_diag,*) 'XX=>zTsn=',zTsn(ij,k),hslyr(ij),hin(ij),aicen(i,j)
+!BX: drag zTsn back ------
+                  zTsn(ij,k) = Tmax
+!
+!BX                  l_stop = .true.
+                  l_stop = .false.
+#else
                   l_stop = .true.
+#endif
                   istop = i
                   jstop = j
                   return
@@ -1069,7 +1153,15 @@
                   write(nu_diag,*) hin(ij)
                   write(nu_diag,*) hsn(ij)
                   write(nu_diag,*) 0, Tsf(ij)
+#ifdef ACCESS
+!BX: grad zTsn back ------
+                  zTsn(ij,k) = Tmin
+!
+!BX:                  l_stop = .true.
+                  l_stop = .false.
+#else
                   l_stop = .true.
+#endif
                   istop = i
                   jstop = j
                   return
@@ -1272,6 +1364,73 @@
 
       end subroutine init_vertical_profile
 
+
+!===============================================
+!
+! This routine is only called if UM-style coupling is being used, with top conductive flux as forcing.
+! Check top conductive flux, ice thickness and top layer temperature.
+! If the ratio of flux to thickness is too high, remove some of the flux and put it into fcondtopn_extra.
+! If the top layer temperature is getting too low, and the flux is negative, also put some into fcondtopn_extra.
+! The remainder, fcondtopn_solve, goes to the thermodynamic solver.  fcondtopn_extra is added to the energy balance
+! at the bottom of the ice in thickness_changes, and is thus used to grow / melt ice at the bottom.
+!
+! author Alex West, MOHC
+
+      subroutine cap_conductive_flux(nx_block,ny_block,my_task,icells,indxi,indxj,fcondtopn,fcondtopn_solve,fcondtopn_extra,hin,zTsn,zTin,hslyr)
+
+      use ice_itd, only: hs_min
+
+      integer (kind=int_kind), intent(in) :: nx_block, ny_block, my_task
+      integer (kind=int_kind), intent(in) :: icells
+      integer (kind=int_kind), intent(in) :: indxi(nx_block*ny_block), indxj(nx_block*ny_block)
+      real (kind=dbl_kind), intent(in)    :: fcondtopn(nx_block,ny_block)
+      real (kind=dbl_kind)                :: fcondtopn_solve(nx_block,ny_block), fcondtopn_extra(nx_block,ny_block)
+      real (kind=dbl_kind), intent(in)    :: hin(icells)
+      real (kind=dbl_kind), intent(in)    :: zTin(icells,nilyr)
+      real (kind=dbl_kind), intent(in)    :: zTsn(icells,nslyr)
+      real (kind=dbl_kind), intent(in)    :: hslyr(icells)
+
+      real (kind=dbl_kind), parameter :: ratio_Wm2_m = c1000, cold_temp_flag = c0 - c60
+
+      ! AEW: New variables for cold-ice flux capping
+      real (kind=dbl_kind) :: top_layer_temp,     &
+			      reduce_ratio,       &
+			      reduce_amount
+
+      integer (kind=int_kind) :: i, j, ij
+
+
+      do ij = 1,icells
+	 i = indxi(ij)
+	 j = indxj(ij)
+	 if (abs(fcondtopn(i,j)) > ratio_Wm2_m * hin(ij)) then
+	    fcondtopn_solve(i,j) = sign(ratio_Wm2_m * hin(ij),fcondtopn(i,j))
+	    fcondtopn_extra(i,j) = fcondtopn(i,j) - fcondtopn_solve(i,j)
+
+	 else
+	    fcondtopn_solve(i,j) = fcondtopn(i,j)
+	    fcondtopn_extra(i,j) = c0
+	 endif
+
+	 if (hslyr(ij)>hs_min) then
+	    top_layer_temp = zTsn(ij,1)
+	 else
+	    top_layer_temp = zTin(ij,1)
+	 endif
+
+	 if ((top_layer_temp < cold_temp_flag) .and. (fcondtopn_solve(i,j) < c0)) then
+	    reduce_ratio = (cold_temp_flag - top_layer_temp) / (c100 + cold_temp_flag)
+	    reduce_amount = reduce_ratio * fcondtopn_solve(i,j)
+	    fcondtopn_solve(i,j) = fcondtopn_solve(i,j) - reduce_amount
+	    fcondtopn_extra(i,j) = fcondtopn_extra(i,j) + reduce_amount
+
+	 endif
+
+
+      enddo
+
+      end subroutine cap_conductive_flux
+
 !=======================================================================
 !
 ! Compute growth and/or melting at the top and bottom surfaces.
@@ -1291,14 +1450,17 @@
                                     fbot,      Tbot,     &
                                     flatn,     fsurfn,   &
                                     fcondtopn, fcondbot, &
+                                    ice_freeboardn,      &
                                     fsnow,     hsn_new,  &
                                     fhocnn,    evapn,    &
+                                    evapn_ice, evapn_snow,&
                                     meltt,     melts,    &
                                     meltb,     iage,     &
                                     congel,    snoice,   &  
                                     mlt_onset, frz_onset,&
                                     zSin,      sss,      &
-                                    dsnow)
+                                    dsnow,     enum,     &
+                                    fcondtopn_extra)
 
       use ice_therm_mushy, only: enthalpy_mush, enthalpy_of_melting, &
                            phi_i_mushy, temperature_mush, &
@@ -1350,7 +1512,10 @@
          dsnow       , & ! snow  formation          (m/step-->cm/day)
          iage        , & ! ice age (s)
          mlt_onset   , & ! day of year that sfc melting begins
-         frz_onset       ! day of year that freezing begins (congel or frazil)
+         frz_onset   , & ! day of year that freezing begins (congel or frazil)
+         ice_freeboardn  ! height of ice surface (i.e. not snow surface)
+                         ! above sea level in m
+
 
       real (kind=dbl_kind), dimension (icells), &
          intent(inout) :: &
@@ -1362,8 +1527,9 @@
 
       real (kind=dbl_kind), dimension (nx_block,ny_block), intent(out):: &
          fhocnn      , & ! fbot, corrected for any surplus energy (W m-2)
-         evapn           ! ice/snow mass sublimated/condensed (kg m-2 s-1)
-
+         evapn       , & ! ice/snow mass sublimated/condensed (kg m-2 s-1)
+         evapn_ice   , & ! ice mass sublimated/condensed (kg m-2 s-1)
+         evapn_snow      ! snow mass sublimated/condensed (kg m-2 s-1)
       real (kind=dbl_kind), dimension (icells), intent(out):: &
          hsn_new         ! thickness of new snow (m)
 
@@ -1431,6 +1597,14 @@
          qbotm       , &
          qbotp       , &
          qbot0
+
+! Alex West: Extra conductive flux, that didn't go into the thermo solver.
+      real (kind=dbl_kind), intent(in), dimension (nx_block,ny_block) :: &
+         fcondtopn_extra
+
+      real (kind=dbl_kind), dimension (icells), intent(in) :: &
+         enum            ! energy not used by the temperature solver (due to
+                        ! limiting) that should be returned to the ocean.
 
       !-----------------------------------------------------------------
       ! Initialize
@@ -1516,8 +1690,14 @@
 
          wk1 = (fsurfn(i,j) - fcondtopn(i,j)) * dt
          etop_mlt(ij) = max(wk1, c0)           ! etop_mlt > 0
-         
+
+#ifdef ACCESS
+	 ! AEW: Add negative energy, thrown away, to the energy available for bottom growth	 
+         wk1 = (fcondbot(ij) - fbot(i,j) + fcondtopn_extra(i,j)) * dt
+#else
          wk1 = (fcondbot(ij) - fbot(i,j)) * dt
+#endif
+
          ebot_mlt(ij) = max(wk1, c0)           ! ebot_mlt > 0
          ebot_gro(ij) = min(wk1, c0)           ! ebot_gro < 0
 
@@ -1529,15 +1709,20 @@
          !--------------------------------------------------------------
 
          evapn   (i,j) = c0          ! initialize
+         evapn_ice(i,j) = c0          
+         evapn_snow(i,j) = c0          
 
          if (hsn(ij) > puny) then    ! add snow with enthalpy zqsn(ij,1)
             dhs = econ(ij) / (zqsn(ij,1) - rhos*Lvap) ! econ < 0, dhs > 0
             dzs(ij,1) = dzs(ij,1) + dhs
             evapn(i,j) = evapn(i,j) + dhs*rhos
+            evapn_snow(i,j) = evapn_snow(i,j) + dhs*rhos
          else                        ! add ice with enthalpy zqin(ij,1)
             dhi = econ(ij) / (qm(ij,1) - rhoi*Lvap) ! econ < 0, dhi > 0
             dzi(ij,1) = dzi(ij,1) + dhi
             evapn(i,j) = evapn(i,j) + dhi*rhoi
+            evapn_ice(i,j) = evapn_ice(i,j) + dhi*rhoi
+
             ! enthalpy of melt water
             emlt_atm(ij) = emlt_atm(ij) - qmlt(ij,1) * dhi 
          endif
@@ -1639,6 +1824,8 @@
             esub(ij) = esub(ij) - dhs*qsub
             esub(ij) = max(esub(ij), c0)   ! in case of roundoff error
             evapn(i,j) = evapn(i,j) + dhs*rhos
+            evapn_snow(i,j) = evapn_snow(i,j) + dhs*rhos
+
 
          !--------------------------------------------------------------
          ! Melt snow (top)
@@ -1675,6 +1862,8 @@
             esub(ij) = esub(ij) - dhi*qsub
             esub(ij) = max(esub(ij), c0)
             evapn(i,j) = evapn(i,j) + dhi*rhoi
+            evapn_ice(i,j) = evapn_ice(i,j) + dhi*rhoi
+
             emlt_ocn(ij) = emlt_ocn(ij) - qmlt(ij,k) * dhi 
 
          !--------------------------------------------------------------
@@ -1757,7 +1946,11 @@
          i = indxi(ij)
          j = indxj(ij)
          fhocnn(i,j) = fbot(i,j) &
+#ifdef ACCESS
+                     + (esub(ij) + etop_mlt(ij) + ebot_mlt(ij) + enum(ij))/dt
+#else
                      + (esub(ij) + etop_mlt(ij) + ebot_mlt(ij))/dt
+#endif
       enddo
 
 !---!-----------------------------------------------------------------
@@ -1836,7 +2029,7 @@
                       hin,      hsn,      &
                       zqin,     zqsn,     &
                       dzi,      dzs,      &
-                      dsnow)
+                      dsnow,    ice_freeboardn)
 
 !---!-------------------------------------------------------------------
 !---! Repartition the ice and snow into equal-thickness layers,
@@ -1982,6 +2175,8 @@
          j = indxj(ij)
          efinal(ij) = -evapn(i,j)*Lvap
          evapn(i,j) =  evapn(i,j)/dt
+         evapn_ice(i,j) =  evapn_ice(i,j)/dt
+         evapn_snow(i,j) =  evapn_snow(i,j)/dt
       enddo
 
       do k = 1, nslyr
@@ -2037,7 +2232,7 @@
                             hin,      hsn,      &
                             zqin,     zqsn,     &
                             dzi,      dzs,      &
-                            dsnow)
+                            dsnow,    ice_freeboardn)
 
       integer (kind=int_kind), intent(in) :: &
          nx_block, ny_block, & ! block dimensions
@@ -2055,6 +2250,12 @@
          snoice  , & ! snow-ice formation       (m/step-->cm/day)
          dsnow   , & ! change in snow thickness after snow-ice formation (m)
          iage        ! snow thickness (m)
+
+      real (kind=dbl_kind), dimension(nx_block,ny_block), &
+         intent(inout) :: &
+         ice_freeboardn  ! height of ice surface (i.e. not snow surface)
+                         ! above sea level in m
+
 
       real (kind=dbl_kind), dimension (icells), &
          intent(inout) :: &
@@ -2163,6 +2364,16 @@
             snoice(i,j) = snoice(i,j) + dhin(ij)
          endif               ! dhin > puny
       enddo                  ! ij
+
+      ! Calculate diagnostic sea ice freeboard after adjustments (SIMIP)
+      do ij = 1, icells
+         i = indxi(ij)
+         j = indxj(ij)
+
+         ice_freeboardn(i,j) = &
+            hin(ij) * (1 - rhoi / rhow)  -  hsn(ij) * (rhos / rhow)
+      enddo
+
 
       end subroutine freeboard
 
@@ -2292,7 +2503,9 @@
                                             fcondtopn,fcondbot, &
                                             fadvocn,            &
                                             fbot,     l_stop,   &
-                                            istop,    jstop)
+                                            istop,    jstop,    &
+					    fcondtopn_solve,fcondtopn_extra, &
+					    enum)
 
       integer (kind=int_kind), intent(in) :: &
          nx_block, ny_block, & ! block dimensions
@@ -2338,6 +2551,14 @@
       real (kind=dbl_kind) :: &
          einp        , & ! energy input during timestep (J m-2)
          ferr            ! energy conservation error (W m-2)
+	
+      real (kind=dbl_kind), intent(in) :: &
+         fcondtopn_extra(nx_block,ny_block), &
+         fcondtopn_solve(nx_block,ny_block)
+	 
+      real (kind=dbl_kind), dimension (icells), intent(in) :: &
+         enum            ! energy not used by the temperature solver (due to
+                        ! limiting) that should be returned to the ocean.
 
       !----------------------------------------------------------------
       ! If energy is not conserved, print diagnostics and exit.
@@ -2379,7 +2600,9 @@
          write(nu_diag,*) 'Input energy =', einp
          write(nu_diag,*) 'fbot(i,j),fcondbot(ij):'
          write(nu_diag,*) fbot(i,j),fcondbot(ij)
-
+         write(nu_diag,*) 'fcondtop_solve(i,j), fcondtopn_extra(i,j):'
+         write(nu_diag,*) fcondtopn_solve(i,j), fcondtopn_extra(i,j)
+         write(nu_diag,*) 'enum(ij):',  enum(ij)
 !         if (ktherm == 2) then
             write(nu_diag,*) 'Intermediate energy =', einter(ij)
             write(nu_diag,*) 'efinal - einter =', &

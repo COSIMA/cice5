@@ -1,0 +1,238 @@
+#! /bin/csh -f
+
+set echo on
+#setenv DEBUG   yes       # set to yes for debug
+
+if ( $1 == '') then
+  echo '*** Please issue the command like ***'
+  echo '     > ./comp_auscom_cice.RJ.nP #nproc    ' 
+  echo 'here #proc is the number of cpu to be used for CICE5 (e.g. 1, 2, 4, 6...)'
+  set nproc = 192
+  echo *** $nproc processors will be used to run CICE5... ***
+  sleep 3
+  #exit
+else
+  set nproc = $1
+  echo *** $nproc processors will be used to run CICE5... ***
+endif
+
+### Change these to your own site and user directory! 
+### You will need to create a Makefile Macro in bld
+### Platform and its architecture ($HOST = xe)
+setenv ARCH raijin-185
+
+# Set AusCOM home:
+setenv AusCOMHOME $cwd:h:h:h
+
+#----------------------------------------------------------------------
+
+### Specialty code
+setenv CAM_ICE  no        # set to yes for CAM runs (single column)
+setenv SHRDIR   csm_share # location of CCSM shared code
+setenv IO_TYPE  netcdf    # set to none if netcdf library is unavailable
+                          # set to pio for parallel netcdf
+setenv DITTO    no        # reproducible diagnostics
+setenv THRD     no        # set to yes for OpenMP threading
+if ( $THRD == 'yes') setenv OMP_NUM_THREADS 2 # positive integer 
+
+setenv ACCESS   yes       # set to yes for ACCESS
+setenv AusCOM   yes       # set to yes for AusCOM
+setenv OASIS3_MCT yes	  # oasis3-mct version
+setenv CHAN     MPI1	  # MPI1 or MPI2 (always MPI1!)
+setenv NICELYR    4       # number of vertical layers in the ice
+setenv NSNWLYR    1       # number of vertical layers in the snow
+setenv NICECAT    5       # number of ice thickness categories
+
+### Location of ACCESS system
+setenv SYSTEMDIR $AusCOMHOME
+echo SYSTEMDIR: $SYSTEMDIR
+
+### Location of this model (source)
+setenv SRCDIR $cwd:h  #$SYSTEMDIR/submodels/cice5.0.4
+echo SRCDIR: $SRCDIR
+ 
+source ${SRCDIR}/compile/environs.$ARCH  # environment variables and loadable modules
+
+### Location and names of coupling libraries and inclusions
+### Location and names of coupling libraries
+#setenv CPLLIBDIR ~access/access-cm2/prebuild/oasis3-mct/Linux-182/lib
+setenv CPLLIBDIR /short/p66/hxy599/ACCESS/submodels/oasis3-mct_local/Linux-185_r47/lib
+setenv CPLLIBS '-L$(CPLLIBDIR) -lpsmile.${CHAN} -lmct -lmpeu -lscrip'
+#echo CPLLIBS: ${CPLLIBS}
+
+### Location of coupling inclusions
+#setenv CPLINCDIR ~access/access-cm2/prebuild/oasis3-mct/Linux-182/build/lib
+setenv CPLINCDIR /short/p66/hxy599/ACCESS/submodels/oasis3-mct_local/Linux-185_r47/build/lib
+setenv CPL_INCS '-I$(CPLINCDIR)/psmile.$(CHAN) -I$(CPLINCDIR)/pio -I$(CPLINCDIR)/mct'
+#echo CPL_INCS: $CPL_INCS
+ 
+### For multi-Layer ice (standard) configuration
+setenv N_ILYR 1                # 4 for standard multi-layer ice. for ktherm=0, zero-layer thermodynamics
+
+### Location and name of the generated exectuable
+setenv DATESTR `date +%Y%m%d`
+setenv BINDIR $SYSTEMDIR/bin
+setenv EXE cice_GC3GA7-cm1440-185.${DATESTR}_${nproc}p_${NICELYR}lyr
+
+### Where this model is compiled
+setenv OBJDIR $SRCDIR/compile/build_${CHAN}_{$nproc}p-mct-185
+if !(-d $OBJDIR) mkdir -p $OBJDIR
+#/bin/rm $OBJDIR/*
+#
+
+### Grid resolution
+#setenv GRID gx3 ; setenv RES 100x116
+#setenv GRID gx1 ; setenv RES 320x384
+#setenv GRID tx1 ; setenv RES 360x240
+#setenv GRID tp1 ; setenv RES 360x300
+setenv GRID tp1 ; setenv RES 1440x1080
+                                                                                
+set NXGLOB = `echo $RES | sed s/x.\*//`
+set NYGLOB = `echo $RES | sed s/.\*x//`
+echo NXGLOB: $NXGLOB
+echo NYGLOB: $NYGLOB
+
+# Recommendations:
+#   NTASK equals nprocs in ice_in
+#   use processor_shape = slenderX1 or slenderX2 in ice_in
+#   one per processor with distribution_type='cartesian' or
+#   squarish blocks with distribution_type='rake'
+# If BLCKX (BLCKY) does not divide NXGLOB (NYGLOB) evenly, padding
+# will be used on the right (top) of the grid.
+setenv NTASK      $nproc
+#setenv BLCKX     45       # x-dimension of blocks ( not including )
+#setenv BLCKY     38       # y-dimension of blocks (  ghost cells  )
+setenv BLCKX     `expr $NXGLOB / $nproc`
+setenv BLCKY     `expr $NYGLOB` 
+echo BLCKX: $BLCKX
+echo BLCKY: $BLCKY
+
+echo
+#24 : 12x2 
+setenv BLCKX     120 
+setenv BLCKY     540 
+#144 : 16x9
+setenv BLCKX     90
+setenv BLCKY     120
+#16 : 8x2 
+setenv BLCKX     180 
+setenv BLCKY     540 
+#16 : 4x4 
+setenv BLCKX     360 
+setenv BLCKY     270 
+##216 : 24x9 
+#setenv BLCKX     60 
+#setenv BLCKY     120 
+#192 : 16x12 -->square-ice 
+setenv BLCKX     90 
+setenv BLCKY     90 
+#192 : 96x2 
+setenv BLCKX     15 
+setenv BLCKY     540 
+
+# may need to increase MXBLCKS with rake distribution or padding
+@ a = $NXGLOB * $NYGLOB ; @ b = $BLCKX * $BLCKY * $NTASK
+@ m = $a / $b ; setenv MXBLCKS $m ; if ($MXBLCKS == 0) setenv MXBLCKS 1
+echo Autimatically generated: MXBLCKS = $MXBLCKS
+##setenv MXBLCKS 8 # if necessary (code will print proper value)
+#20110830: increase it to 12 as required by code:
+#          (but no clue why it never happened before!)
+#setenv MXBLCKS 12 # if necessary (code will print proper value)
+
+###########################################
+# ars599: 24032014
+#	copy from /short/p66/ars599/CICE.v5.0/accice.v504_csiro
+#	solo_ice_comp
+###########################################
+### Tracers               # match ice_in tracer_nml to conserve memory
+setenv TRAGE   1          # set to 1 for ice age tracer
+setenv TRFY    0          # set to 1 for first-year ice area tracer
+setenv TRLVL   0          # set to 1 for level and deformed ice tracers
+setenv TRPND   1          # set to 1 for melt pond tracers
+setenv NTRAERO 0          # number of aerosol tracers 
+                          # (up to max_aero in ice_domain_size.F90) 
+                          # CESM uses 3 aerosol tracers
+setenv TRBRI   0          # set to 1 for brine height tracer
+setenv NBGCLYR 0          # number of zbgc layers
+setenv TRBGCS  0          # number of skeletal layer bgc tracers 
+                          # TRBGCS=0 or 2<=TRBGCS<=9)
+
+### File unit numbers
+setenv NUMIN 11           # minimum file unit number
+setenv NUMAX 99           # maximum file unit number
+
+if ($IO_TYPE == 'netcdf') then
+  setenv IODIR io_netcdf
+else if ($IO_TYPE == 'pio') then
+  setenv IODIR io_pio
+else
+  setenv IODIR io_binary
+endif
+
+###########################################
+                                                                                
+setenv CBLD   $SRCDIR/bld
+                                                                                
+if ( $ARCH == 'UNICOS/mp') setenv ARCH UNICOS
+if ( $ARCH == 'UNICOS') then
+   cp -f $CBLD/Makefile.$ARCH $CBLD/Makefile
+else
+   cp -f $CBLD/Makefile.std $CBLD/Makefile
+endif
+
+if ($NTASK == 1) then
+   setenv COMMDIR serial
+else
+   setenv COMMDIR mpi
+endif
+echo COMMDIR: $COMMDIR
+                                                                                
+if ($ACCESS == 'yes') then
+  setenv DRVDIR access
+else  
+  setenv DRVDIR cice
+endif
+echo DRVDIR: $DRVDIR
+                                                                                
+cd $OBJDIR
+                                                                                
+### List of source code directories (in order of importance).
+cat >! Filepath << EOF
+$SRCDIR/drivers/$DRVDIR
+$SRCDIR/source
+$SRCDIR/$COMMDIR
+$SRCDIR/$IODIR
+$SRCDIR/$SHRDIR
+EOF
+                                                                                
+if ( $ARCH == 'UNICOS.ORNL.phoenix' ) then
+   ### use -h command for phoenix
+   cc -o makdep -h command $CBLD/makdep.c           || exit 2
+else if ( $ARCH == 'Linux.ORNL.jaguar' ) then
+   gcc -g -o makdep $CBLD/makdep.c                  || exit 2
+else
+   cc -o makdep $CBLD/makdep.c                      || exit 2
+endif
+
+setenv MACFILE $CBLD/Macros.Linux.${ARCH}
+
+gmake VPFILE=Filepath EXEC=$BINDIR/$EXE \
+           NXGLOB=$NXGLOB NYGLOB=$NYGLOB \
+           BLCKX=$BLCKX BLCKY=$BLCKY MXBLCKS=$MXBLCKS \
+      -f  $CBLD/Makefile MACFILE=$MACFILE || exit 2
+                                                                                
+cd ..
+pwd
+echo NTASK = $NTASK
+echo "global N, block_size" 
+echo "x    $NXGLOB,    $BLCKX"
+echo "y    $NYGLOB,    $BLCKY"
+echo max_blocks = $MXBLCKS
+echo $TRAGE   = TRAGE,   iage tracer
+echo $TRFY    = TRFY,    first-year ice tracer
+echo $TRLVL   = TRLVL,   level-ice tracers
+echo $TRPND   = TRPND,   melt pond tracers
+echo $NTRAERO = NTRAERO, number of aerosol tracers
+echo $TRBRI   = TRBRI,   brine height tracer
+echo $NBGCLYR = NBGCLYR, number of bio grid layers
+echo $TRBGCS  = TRBGCS,  number of BGC tracers

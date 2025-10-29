@@ -23,8 +23,15 @@
       implicit none
       private
       public :: init_coupler_flux, init_history_therm, init_history_dyn, &
+#ifdef ACCESS
+                init_flux_ocn, init_flux_atm, scale_fluxes, merge_fluxes!, &
+!ars599: 06042016: something wrong with set_sfcflux can't recon. so
+!        markout from ice_flux
+!          set_sfcflux
+#else
                 init_flux_ocn, init_flux_atm, scale_fluxes, merge_fluxes, &
                 set_sfcflux
+#endif
       save
 
       !-----------------------------------------------------------------
@@ -67,11 +74,15 @@
          strinty , & ! divergence of internal ice stress, y (N/m^2)
          daidtd  , & ! ice area tendency due to transport   (1/s)
          dvidtd  , & ! ice volume tendency due to transport (m/s)
+         dvsdtd  , & ! snow volume tendency due to transport (m/s)
          dagedtd , & ! ice age tendency due to transport (s/s)
          dardg1dt, & ! rate of area loss by ridging ice (1/s)
          dardg2dt, & ! rate of area gain by new ridges (1/s)
          dvirdgdt, & ! rate of ice volume ridged (m/s)
-         opening     ! rate of opening due to divergence/shear (1/s)
+         opening , & ! rate of opening due to divergence/shear (1/s)
+         ice_freeboard ! height of ice surface (i.e. not snow surface)
+                       ! above sea level (m)
+
 
       real (kind=dbl_kind), & 
          dimension (nx_block,ny_block,ncat,max_blocks), public :: &
@@ -86,7 +97,10 @@
          araftn,    & ! rafting ice area
          vraftn,    & ! rafting ice volume 
          aredistn,  & ! redistribution function: fraction of new ridge area
-         vredistn     ! redistribution function: fraction of new ridge volume
+         vredistn , & ! redistribution function: fraction of new ridge volume
+         ice_freeboardn ! category height of ice surface (i.e. not snow
+                        ! surface) above sea level (m)
+
 
        ! restart
 
@@ -174,7 +188,10 @@
          Tref    , & ! 2m atm reference temperature (K)
          Qref    , & ! 2m atm reference spec humidity (kg/kg)
          Uref    , & ! 10m atm reference wind speed (m/s)
-         evap        ! evaporative water flux (kg/m^2/s)
+         evap    , & ! evaporative water flux (kg/m^2/s)
+         evap_ice, & ! evaporative water flux over ice only (kg/m^2/s)
+         evap_snow   ! evaporative water flux over snow only (kg/m^2/s)
+
 
        ! albedos aggregated over categories (if calc_Tsfc)
       real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks), public :: &
@@ -232,8 +249,8 @@
          snoicen         ! snow-ice formation in category n (m)
 
       real (kind=dbl_kind), dimension (nx_block,ny_block,ncat,max_blocks), public :: &
-         keffn_top       ! effective thermal conductivity of the top ice layer 
-                         ! on categories (W/m^2/K)
+         keffn_top   , & ! effective thermal conductivity of the top ice layer 
+         Tn_top          ! on categories (W/m^2/K)
 
       ! for biogeochemistry
       real (kind=dbl_kind), dimension (nx_block,ny_block,ncat,max_blocks), public :: &
@@ -266,6 +283,7 @@
       real (kind=dbl_kind), dimension (nx_block,ny_block,max_blocks), public :: &
          fsurf , & ! net surface heat flux (excluding fcondtop)(W/m^2)
          fcondtop,&! top surface conductive flux        (W/m^2)
+         fcondbot,&! bottom surface conductive flux     (W/m^2)
          congel, & ! basal ice growth         (m/step-->cm/day)
          frazil, & ! frazil ice growth        (m/step-->cm/day)
          snoice, & ! snow-ice formation       (m/step-->cm/day)
@@ -276,6 +294,7 @@
          dsnow,  & ! change in snow thickness (m/step-->cm/day)
          daidtt, & ! ice area tendency thermo.   (s^-1)
          dvidtt, & ! ice volume tendency thermo. (m/s)
+         dvsdtt, & ! snow volume tendency thermo. (m/s)
          dagedtt,& ! ice age tendency thermo.    (s/s)
          mlt_onset, &! day of year that sfc melting begins
          frz_onset   ! day of year that freezing begins (congel or frazil)
@@ -284,8 +303,13 @@
          dimension (nx_block,ny_block,ncat,max_blocks), public :: &
          fsurfn,   & ! category fsurf
          fcondtopn,& ! category fcondtop
+         fcondbotn,& ! category fcondbot
          fsensn,   & ! category sensible heat flux
          flatn       ! category latent heat flux
+
+      real (kind=dbl_kind), &
+         dimension (nx_block,ny_block,ncat,max_blocks), public :: &
+         snowfracn
 
       ! As above but these remain grid box mean values i.e. they are not
       ! divided by aice at end of ice_dynamics.  These are used in
@@ -439,9 +463,7 @@
       else
          Tf (:,:,:) = -depressT*sss(:,:,:)
       endif
-#ifndef CICE_IN_NEMO
       sst   (:,:,:) = Tf(:,:,:)       ! sea surface temp (C)
-#endif
       qdp   (:,:,:) = c0              ! deep ocean heat flux (W/m^2)
       hmix  (:,:,:) = c20             ! ocean mixed layer depth
       daice_da(:,:,:) = c0            ! data assimilation increment rate
@@ -466,6 +488,8 @@
       alidr   (:,:,:) = c0
       alvdf   (:,:,:) = c0
       alidf   (:,:,:) = c0
+      keffn_top(:,:,:,:) = c0
+      Tn_top   (:,:,:,:) = c0
 
       !-----------------------------------------------------------------
       ! fluxes sent to ocean
@@ -566,12 +590,18 @@
                           dkeel, lfloe, dfloe, Cdn_atm, Cdn_atm_rdg, &
                           Cdn_atm_floe, Cdn_atm_pond, Cdn_atm_skin, &
                           Cdn_atm_ratio, Cdn_ocn, Cdn_ocn_keel, &
-                          Cdn_ocn_floe, Cdn_ocn_skin, formdrag, iceruf
-      use ice_state, only: aice, vice, trcr, tr_iage, nt_iage
-      use ice_constants, only: vonkar,zref !,iceruf
+                          Cdn_ocn_floe, Cdn_ocn_skin, formdrag
+      use ice_constants, only: vonkar,zref
+#ifdef ACCESS
+      use ice_constants, only: iceruf
+#else
+      use ice_atmo, only: iceruf
+#endif
+      use ice_state, only: aice, vice, vsno, trcr, tr_iage, nt_iage
 
       fsurf  (:,:,:) = c0
       fcondtop(:,:,:)= c0
+      fcondbot(:,:,:)= c0
       congel (:,:,:) = c0
       frazil (:,:,:) = c0
       snoice (:,:,:) = c0
@@ -580,8 +610,10 @@
       melts  (:,:,:) = c0
       meltb  (:,:,:) = c0
       meltl  (:,:,:) = c0
+      ice_freeboard (:,:,:) = c0
       daidtt (:,:,:) = aice(:,:,:) ! temporary initial area
       dvidtt (:,:,:) = vice(:,:,:) ! temporary initial volume
+      dvsdtt (:,:,:) = vsno(:,:,:) ! temporary initial volume
       if (tr_iage) then
          dagedtt(:,:,:) = trcr(:,:,nt_iage,:) ! temporary initial age
       else
@@ -589,6 +621,7 @@
       endif
       fsurfn    (:,:,:,:) = c0
       fcondtopn (:,:,:,:) = c0
+      fcondbotn (:,:,:,:) = c0
       flatn     (:,:,:,:) = c0
       fsensn    (:,:,:,:) = c0
       fpond     (:,:,:) = c0
@@ -600,6 +633,7 @@
       albsno (:,:,:) = c0
       albpnd (:,:,:) = c0
       apeff_ai (:,:,:) = c0
+      snowfracn (:,:,:,:) = c0
       snowfrac (:,:,:) = c0
 
       ! drag coefficients are computed prior to the atmo_boundary call, 
@@ -638,7 +672,7 @@
 
       subroutine init_history_dyn
 
-      use ice_state, only: aice, vice, trcr, tr_iage, nt_iage
+      use ice_state, only: aice, vice, vsno, trcr, tr_iage, nt_iage
 
       sig1    (:,:,:) = c0
       sig2    (:,:,:) = c0
@@ -656,6 +690,7 @@
       opening (:,:,:) = c0
       daidtd  (:,:,:) = aice(:,:,:) ! temporary initial area
       dvidtd  (:,:,:) = vice(:,:,:) ! temporary initial volume
+      dvsdtd  (:,:,:) = vsno(:,:,:) ! temporary initial volume
       if (tr_iage) &
          dagedtd (:,:,:) = trcr(:,:,nt_iage,:) ! temporary initial age
       fm      (:,:,:) = c0
@@ -686,18 +721,24 @@
                                strairxn, strairyn,   &
                                Cdn_atm_ratio_n,      &
                                fsurfn,   fcondtopn,  &  
+                               fcondbotn,            &
                                fsensn,   flatn,      & 
                                fswabsn,  flwoutn,    &
                                evapn,                &
+                               evapn_ice,evapn_snow, &
+                               ice_freeboardn,       &
                                Trefn,    Qrefn,      &
                                freshn,   fsaltn,     &
                                fhocnn,   fswthrun,   &
                                strairxT, strairyT,   &  
                                Cdn_atm_ratio,        &
                                fsurf,    fcondtop,   &
+                               fcondbot,             &
                                fsens,    flat,       & 
                                fswabs,   flwout,     &
                                evap,                 & 
+                               evap_ice, evap_snow,  &
+                               ice_freeboard,        &
                                Tref,     Qref,       &
                                fresh,    fsalt,      & 
                                fhocn,    fswthru,    &
@@ -725,6 +766,7 @@
           Cdn_atm_ratio_n, & ! ratio of total drag over neutral drag (atm)
           fsurfn  , & ! net heat flux to top surface    (W/m**2)
           fcondtopn,& ! downward cond flux at top sfc   (W/m**2)
+          fcondbotn,& ! downward cond flux at bottom sfc   (W/m**2)
           fsensn  , & ! sensible heat flx               (W/m**2)
           flatn   , & ! latent   heat flx               (W/m**2)
           fswabsn , & ! shortwave absorbed heat flx     (W/m**2)
@@ -740,8 +782,11 @@
           meltbn  , & ! bottom ice melt                 (m)
           meltsn  , & ! snow melt                       (m)
           congeln , & ! congelation ice growth          (m)
-          snoicen     ! snow-ice growth                 (m)
-           
+          snoicen , & ! snow-ice growth                 (m)
+          ice_freeboardn , & ! ice freeboard                (m)
+          evapn_ice, & ! evaporation over ice only (kg/m2/s)
+          evapn_snow   ! evaporation over snow only (kg/m2/s)
+
       real (kind=dbl_kind), dimension(nx_block,ny_block), optional, intent(in):: &
           Urefn       ! air speed reference level       (m/s)
 
@@ -753,6 +798,7 @@
           Cdn_atm_ratio, & ! ratio of total drag over neutral drag (atm)
           fsurf   , & ! net heat flux to top surface    (W/m**2)
           fcondtop, & ! downward cond flux at top sfc   (W/m**2)
+          fcondbot, & ! downward cond flux at bottom sfc   (W/m**2)
           fsens   , & ! sensible heat flx               (W/m**2)
           flat    , & ! latent   heat flx               (W/m**2)
           fswabs  , & ! shortwave absorbed heat flx     (W/m**2)
@@ -768,7 +814,11 @@
           meltb   , & ! bottom ice melt                 (m)
           melts   , & ! snow melt                       (m)
           congel  , & ! congelation ice growth          (m)
-          snoice      ! snow-ice growth                 (m)
+          snoice  , & ! snow-ice growth                 (m)
+          ice_freeboard, & ! ice freeboard
+          evap_ice, & ! evaporation over ice only
+          evap_snow   ! evaporation over snow only
+
 
       real (kind=dbl_kind), dimension(nx_block,ny_block), optional, &
           intent(inout):: &
@@ -799,12 +849,17 @@
                                    Cdn_atm_ratio_n (i,j)*aicen(i,j)
          fsurf    (i,j)  = fsurf   (i,j) + fsurfn  (i,j)*aicen(i,j)
          fcondtop (i,j)  = fcondtop(i,j) + fcondtopn(i,j)*aicen(i,j) 
+         fcondbot (i,j)  = fcondbot(i,j) + fcondbotn(i,j)*aicen(i,j) 
          fsens    (i,j)  = fsens   (i,j) + fsensn  (i,j)*aicen(i,j)
          flat     (i,j)  = flat    (i,j) + flatn   (i,j)*aicen(i,j)
          fswabs   (i,j)  = fswabs  (i,j) + fswabsn (i,j)*aicen(i,j)
          flwout   (i,j)  = flwout  (i,j) &
              + (flwoutn(i,j) - (c1-emissivity)*flw(i,j))*aicen(i,j)
          evap     (i,j)  = evap    (i,j) + evapn   (i,j)*aicen(i,j)
+         evap_ice  (i,j)  = evap_ice(i,j) + evapn_ice(i,j)*aicen(i,j)
+         evap_snow (i,j)  = evap_snow(i,j) + evapn_snow(i,j)*aicen(i,j)
+         ice_freeboard (i,j)  = ice_freeboard(i,j) + &
+                                ice_freeboardn(i,j)*aicen(i,j)
          Tref     (i,j)  = Tref    (i,j) + Trefn   (i,j)*aicen(i,j)
          Qref     (i,j)  = Qref    (i,j) + Qrefn   (i,j)*aicen(i,j)
          if (present(Urefn) .and. present(Uref)) then
@@ -845,6 +900,7 @@
                                fsens,    flat,     &
                                fswabs,   flwout,   &
                                evap,               &
+                               evap_ice, evap_snow,&
                                Tref,     Qref,     &
                                fresh,    fsalt,    &
                                fhocn,    fswthru,  &
@@ -884,6 +940,8 @@
           fswabs  , & ! shortwave absorbed heat flx     (W/m**2)
           flwout  , & ! upwd lw emitted heat flx        (W/m**2)
           evap    , & ! evaporation                     (kg/m2/s)
+          evap_ice, & ! evaporation over ice only       (kg/m2/s)
+          evap_snow,& ! evaporation over snow only     (kg/m2/s)
           Tref    , & ! air tmp reference level         (K)
           Qref    , & ! air sp hum reference level      (kg/kg)
           fresh   , & ! fresh water flux to ocean       (kg/m2/s)
@@ -934,6 +992,8 @@
             fswabs  (i,j) = fswabs  (i,j) * ar
             flwout  (i,j) = flwout  (i,j) * ar
             evap    (i,j) = evap    (i,j) * ar
+            evap_ice(i,j) = evap_ice(i,j) * ar
+            evap_snow(i,j) = evap_snow(i,j) * ar
             Tref    (i,j) = Tref    (i,j) * ar
             Qref    (i,j) = Qref    (i,j) * ar
             if (present(Uref)) then
@@ -1002,6 +1062,7 @@
 
 !=======================================================================
 
+#ifndef ACCESS
 ! If model is not calculating surface temperature, set the surface
 ! flux values using values read in from forcing data or supplied via
 ! coupling (stored in ice_flux).
@@ -1155,7 +1216,7 @@
          endif     ! extreme_test    
 
       end subroutine set_sfcflux 
-
+#endif
 !=======================================================================
 
       end module ice_flux

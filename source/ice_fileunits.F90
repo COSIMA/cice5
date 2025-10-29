@@ -105,7 +105,12 @@
 
       subroutine init_fileunits
 
-         nu_diag = ice_stderr  ! default
+#ifndef ACCESS
+         nu_diag = ice_stdout  ! default
+#else
+         nu_diag = 111
+         open(nu_diag,file='ice_diag_out',form='formatted')  ! status='new')
+#endif
 
          ice_IOUnitsInUse = .false.
          ice_IOUnitsInUse(ice_stdin)  = .true. ! reserve unit 5
@@ -217,7 +222,7 @@
          call release_fileunit(nu_rst_pointer)
          call release_fileunit(nu_history)
          call release_fileunit(nu_hdr)
-#ifndef AusCOM
+#if !defined(AusCOM) || defined(ACCESS)
          if (nu_diag /= ice_stdout) call release_fileunit(nu_diag)
 #else
          close(nu_diag)
@@ -242,7 +247,12 @@
 #else
 !  check for proper unit number
    if (iunit < 1 .or. iunit > ice_IOUnitsMaxUnit) then
+#ifdef ACCESS
+      write (*,*) 'XXX Warning -- bad unit: iunit = ', iunit 
+      !stop 'release_fileunit: bad unit'
+#else
       stop 'release_fileunit: bad unit'
+#endif
    endif
 
 !  mark the unit as not in use

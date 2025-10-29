@@ -7,6 +7,7 @@ module ice_therm_mushy
   use ice_kinds_mod
   use ice_constants
   use ice_domain_size, only: nilyr, nslyr
+  use ice_itd, only: hs_min
   use ice_therm_shared, only: ferrmax
 
   implicit none

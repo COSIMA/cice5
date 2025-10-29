@@ -36,15 +36,19 @@
 !
 ! author Elizabeth C. Hunke, LANL
 
+#ifdef AusCOM && !defined(ACCESS)
       subroutine input_data(forcing_start_date, cur_exp_date, &
                             seconds_since_start_year, &
                             total_runtime_in_seconds, timestep, calendar_type)
+#else
+      subroutine input_data
+#endif
 
       use ice_age, only: restart_age
       use ice_broadcast, only: broadcast_scalar, broadcast_array
 !ars599: 24042015 for the namelist variables
       use ice_constants, only: c0, c1, puny, dragio, &
-          awtvdr, awtidr, awtvdf, awtidf, Tocnfrz
+          awtvdr, awtidr, awtvdf, awtidf, Tocnfrz, ice_ref_salinity, ksno
       use ice_diagnostics, only: diag_file, print_global, print_points, latpnt, lonpnt
       use ice_domain_size, only: max_nstrm, nilyr, nslyr, max_ntrcr, ncat, n_aero
       use ice_fileunits, only: nu_nml, nu_diag, nml_filename, diag_type, &
@@ -53,16 +57,16 @@
       use ice_calendar, only: year_init, istep0, histfreq, histfreq_n, &
                               dumpfreq, dumpfreq_n, diagfreq, nstreams, &
                               npt, dt, ndtd, days_per_year, use_leap_years, &
-                              write_ic, dump_last
+                              write_ic, dump_last, hist_file_freq
       use ice_restart_shared, only: &
-           restart, restart_ext, input_dir, input_dir, restart_dir, restart_file, &
-           pointer_file, runid, runtype, use_restart_time, restart_format
+          restart, restart_ext, restart_dir, restart_file, pointer_file, &
+          runid, runtype, use_restart_time, restart_format
       use ice_history_shared, only: hist_avg, history_dir, history_file, &
                              history_deflate_level, history_parallel_io, &
                              history_chunksize_x, history_chunksize_y,   &
                              incond_dir, incond_file
       use ice_exit, only: abort_ice
-      use ice_itd, only: kitd, kcatbound
+      use ice_itd, only: kitd, kcatbound, aicenmin
       use ice_ocean, only: oceanmixed_ice, tfrz_option
       use ice_firstyear, only: restart_FY
       use ice_flux, only: update_ocn_f, l_mpond_fresh
@@ -100,8 +104,8 @@
       use ice_meltpond_lvl, only: restart_pond_lvl, dpscale, frzpnd, &
                                   rfracmin, rfracmax, pndaspect, hs1
       use ice_aerosol, only: restart_aero
-      use ice_therm_shared, only: ktherm, calc_Tsfc, conduct
-      use ice_therm_vertical, only: ustar_min, fbot_xfer_type
+      use ice_therm_shared, only: ktherm, calc_Tsfc, conduct, cap_fluxes
+      use ice_therm_vertical, only: ustar_min, fbot_xfer_type, saltmax
       use ice_therm_mushy, only: a_rapid_mode, Rac_rapid_mode, aspect_rapid_mode, &
                                  dSdt_slow_mode, phi_c_slow_mode, &
                                  phi_i_mushy
@@ -109,11 +113,13 @@
 #ifdef CCSMCOUPLED
       use shr_file_mod, only: shr_file_setIO
 #endif
+#ifdef AusCOM && !defined(ACCESS)
       integer, dimension(6), optional, intent(in) :: forcing_start_date
       integer, dimension(6), optional, intent(in) :: cur_exp_date
       integer, optional, intent(in) :: seconds_since_start_year
       integer, optional, intent(in) :: total_runtime_in_seconds, timestep
       character(len=9), optional, intent(in) :: calendar_type
+#endif
 
       ! local variables
 
@@ -142,6 +148,7 @@
         diagfreq,       diag_type,      diag_file,                      &
         print_global,   print_points,   latpnt,          lonpnt,        &
         dbug,           histfreq,       histfreq_n,      hist_avg,      &
+        hist_file_freq,                                                 &
         history_dir,    history_file,   history_deflate_level,          &
         history_parallel_io, history_chunksize_x, history_chunksize_y,  &
         write_ic,       incond_dir,     incond_file
@@ -153,11 +160,10 @@
       namelist /thermo_nml/ &
         kitd,           ktherm,          conduct,                       &
         a_rapid_mode,   Rac_rapid_mode,  aspect_rapid_mode,             &
-!ars599: 24092014 (CODE: petteri)
 #ifdef AusCOM
-	chio,                                                           &
+        chio, ice_ref_salinity, ksno, aicenmin,                         &
 #endif
-        dSdt_slow_mode, phi_c_slow_mode, phi_i_mushy
+        saltmax, dSdt_slow_mode, phi_c_slow_mode, phi_i_mushy
 
       namelist /dynamics_nml/ &
         kdyn,           ndte,           revised_evp,    yield_curve,    &
@@ -194,7 +200,7 @@
         oceanmixed_ice, ocn_data_format, sss_data_type, sst_data_type,  &
         ocn_data_dir,   oceanmixed_file, restore_sst,   trestore,       &
         restore_ice,    formdrag,        highfreq,      natmiter,       &
-        tfrz_option
+        tfrz_option,    cap_fluxes
 
       namelist /tracer_nml/   &
         tr_iage, restart_age, &
@@ -230,6 +236,7 @@
       histfreq(4) = 'm'      ! output frequency option for different streams
       histfreq(5) = 'y'      ! output frequency option for different streams
       histfreq_n(:) = 1      ! output frequency 
+      hist_file_freq(:) = 'x' ! default to histfreq (below)
       hist_avg = .true.      ! if true, write time-averages (not snapshots)
       history_dir  = './'    ! write to executable dir for default
       history_file = 'iceh'  ! history file name prefix
@@ -255,7 +262,7 @@
       restart_ext  = .false. ! if true, read/write ghost cells
       use_restart_time = .true.     ! if true, use time info written in file
       pointer_file = 'ice.restart_file'
-      restart_format = 'pio'  ! file format ('bin'=binary or 'nc'=netcdf or 'pio')
+      restart_format = 'nc'  ! file format ('bin'=binary or 'nc'=netcdf or 'pio')
       ice_ic       = 'default'      ! latitude and sst-dependent
       grid_format  = 'bin'          ! file format ('bin'=binary or 'nc'=netcdf)
       grid_type    = 'rectangular'  ! define rectangular grid internally
@@ -279,8 +286,14 @@
       shortwave = 'default'  ! 'default' or 'dEdd' (delta-Eddington)
       albedo_type = 'default'! or 'constant'
       ktherm = 1             ! 0 = 0-layer, 1 = BL99, 2 = mushy thermo
+      saltmax = 3.2_dbl_kind ! maximum salinity at ice base (Weeks & Ackley 1986)
       conduct = 'bubbly'     ! 'MU71' or 'bubbly' (Pringle et al 2007)
       calc_Tsfc = .true.     ! calculate surface temperature
+      cap_fluxes = .false.   ! Check top conductive flux before sending it to the
+                             ! thermo solver, and send some of the energy straight
+                             ! to the bottom of the ice if it's likely to crash
+                             ! the solver.
+                             ! Only relevant if calc_Tsfc = .false.
       update_ocn_f = .false. ! include fresh water and salt fluxes for frazil
       ustar_min = 0.005      ! minimum friction velocity for ocean heat flux (m/s)
       l_mpond_fresh = .false.     ! logical switch for including meltpond freshwater
@@ -330,6 +343,12 @@
                                  ! used as Tsfcn for open water
       chio     = 0.006_dbl_kind  ! unitless param for basal heat flx ala McPhee and Maykut
       iceruf   = 0.0005_dbl_kind ! ice surface roughness (m)
+      ice_ref_salinity = 5._dbl_kind ! (ppt)
+      ksno   = 0.30_dbl_kind     ! thermal conductivity of snow (W/m/deg) 
+                                 ! (use 0.2 for cm2)
+      aicenmin = 99              ! maximum ice concentration to zap
+                                 ! we set a sensible default after namelist read
+
 #endif
       atmbndy   = 'default'       ! or 'constant'
 
@@ -401,7 +420,7 @@
       call get_fileunit(nu_nml)
 
       if (my_task == master_task) then
-         open (nu_nml, file=nml_filename, status='old',iostat=nml_error)
+         open (nu_nml, file=trim(nml_filename), status='old',iostat=nml_error)
          if (nml_error /= 0) then
             nml_error = -1
          else
@@ -442,8 +461,8 @@
          end do
          if (nml_error == 0) close(nu_nml)
 
+#ifdef AusCOM && !defined(ACCESS)
          ! Overwrite some run details passed in as arguments
-
          if (use_restart_time) then
              ! the initial year is set by the forcing start, the current
              ! experiment date is calculated using this and values in the
@@ -476,12 +495,22 @@
               use_leap_years = .true.
            endif
          endif
-      endif
+#endif
+      endif ! my_task == master_task
       call broadcast_scalar(nml_error, master_task)
       if (nml_error /= 0) then
          call abort_ice('ice: error reading namelist')
       endif
       call release_fileunit(nu_nml)
+
+#ifdef ACCESS
+      if (ktherm == 1 .and. aicenmin == 99) then
+         !Set a higher value
+         ! of aicenmin if we're using multilayers with UM-style coupling for stability.
+         aicenmin = 0.00001_dbl_kind
+      endif
+#endif
+      if (aicenmin == 99) aicenmin = puny
 
       !-----------------------------------------------------------------
       ! set up diagnostics output and resolve conflicts
@@ -682,6 +711,25 @@
          calc_Tsfc = .true.
       endif
 
+      if (cap_fluxes .and. calc_Tsfc) then
+         if (my_task == master_task) then
+            write (nu_diag,*) 'WARNING: cap_fluxes = T and calc_Tsfc = T'
+	    write (nu_diag,*) 'WARNING: cap_fluxes only valid when using UM-style coupling, i.e. calc_Tsfc=F'
+            write (nu_diag,*) 'WARNING: Setting cap_fluxes = F'
+         endif
+         cap_fluxes = .false.
+      endif
+
+!20250214: add ktherm == 0 case:
+      if (ktherm == 0 .and. trim(tfrz_option) /= 'linear_salt') then
+         if (my_task == master_task) then
+         write (nu_diag,*) &
+         'WARNING: ktherm = 0 and tfrz_option = ',trim(tfrz_option)
+         write (nu_diag,*) &
+         'WARNING: For consistency, set tfrz_option = linear_salt'
+         endif
+      endif
+
       if (ktherm == 1 .and. trim(tfrz_option) /= 'linear_salt') then
          if (my_task == master_task) then
          write (nu_diag,*) &
@@ -750,6 +798,21 @@
          fbot_xfer_type = 'constant'
       endif
 
+#ifdef ACCESS
+      if (trim(runtype) == 'continue' .and. .not. use_restart_time) then
+        if (my_task == master_task) then
+            write (nu_diag,*) 'ERROR: ACCESS ESM continue runs require use_restart_time=.true.'
+            call abort_ice('ice_init: "use_restart_time" must be .true. when "runtype = continue"')
+        endif
+      endif
+#endif
+
+      !if hist_file_freq not set, default to histfreq
+      if (my_task == master_task) then
+         do n = 1, max_nstrm
+            if (hist_file_freq(n)=='x' .or. hist_file_freq(n) == 'X') hist_file_freq(n) = histfreq(n)
+         enddo
+      endif
 
       call broadcast_scalar(days_per_year,      master_task)
       call broadcast_scalar(use_leap_years,     master_task)
@@ -765,7 +828,10 @@
       call broadcast_scalar(diag_file,          master_task)
       do n = 1, max_nstrm
          call broadcast_scalar(histfreq(n),     master_task)
-      enddo  
+      enddo
+      do n = 1, max_nstrm
+         call broadcast_scalar(hist_file_freq(n),     master_task)
+      enddo
       call broadcast_array(histfreq_n,          master_task)
       call broadcast_scalar(hist_avg,           master_task)
       call broadcast_scalar(history_dir,        master_task)
@@ -782,7 +848,6 @@
       call broadcast_scalar(dump_last,          master_task)
       call broadcast_scalar(restart_file,       master_task)
       call broadcast_scalar(restart,            master_task)
-      call broadcast_scalar(input_dir,          master_task)
       call broadcast_scalar(restart_dir,        master_task)
       call broadcast_scalar(restart_ext,        master_task)
       call broadcast_scalar(use_restart_time,   master_task)
@@ -809,6 +874,7 @@
       call broadcast_scalar(advection,          master_task)
       call broadcast_scalar(shortwave,          master_task)
       call broadcast_scalar(albedo_type,        master_task)
+      call broadcast_scalar(saltmax,            master_task)
       call broadcast_scalar(ktherm,             master_task)
       call broadcast_scalar(conduct,            master_task)
       call broadcast_scalar(R_ice,              master_task)
@@ -844,6 +910,9 @@
       call broadcast_scalar(sinw,               master_task)
       call broadcast_scalar(dragio,             master_task)
       call broadcast_scalar(chio,               master_task)
+      call broadcast_scalar(ice_ref_salinity,   master_task)
+      call broadcast_scalar(ksno,               master_task)
+      call broadcast_scalar(aicenmin,           master_task)
       call broadcast_scalar(Tocnfrz,            master_task)
       call broadcast_scalar(iceruf,             master_task)
 #endif
@@ -855,6 +924,7 @@
       call broadcast_scalar(atm_data_dir,       master_task)
       call broadcast_scalar(calc_strair,        master_task)
       call broadcast_scalar(calc_Tsfc,          master_task)
+      call broadcast_scalar(cap_fluxes,         master_task)
       call broadcast_scalar(formdrag,           master_task)
       call broadcast_scalar(highfreq,           master_task)
       call broadcast_scalar(natmiter,           master_task)
@@ -934,6 +1004,7 @@
          write(nu_diag,1010) ' print_points              = ', print_points
          write(nu_diag,1010) ' bfbflag                   = ', bfbflag
          write(nu_diag,1050) ' histfreq                  = ', histfreq(:)
+         write(nu_diag,1050) ' hist_file_freq            = ', hist_file_freq(:)
          write(nu_diag,1040) ' histfreq_n                = ', histfreq_n(:)
          write(nu_diag,1010) ' hist_avg                  = ', hist_avg
          if (.not. hist_avg) write (nu_diag,*) 'History data will be snapshots'
@@ -941,8 +1012,10 @@
                                trim(history_dir)
          write(nu_diag,*)    ' history_file              = ', &
                                trim(history_file)
-         write(nu_diag,*)    ' history_deflate_level     = ', &
+         write(nu_diag,1020) ' history_deflate_level     = ', &
                                history_deflate_level
+         write(nu_diag,1010) ' history_parallel_io       = ', &
+                               history_parallel_io
          if (write_ic) then
             write (nu_diag,*) 'Initial condition will be written in ', &
                                trim(incond_dir)
@@ -952,8 +1025,6 @@
          write(nu_diag,1020) ' dumpfreq_n                = ', dumpfreq_n
          write(nu_diag,1010) ' dump_last                 = ', dump_last
          write(nu_diag,1010) ' restart                   = ', restart
-         write(nu_diag,*)    ' input_dir                 = ', &
-                               trim(input_dir)
          write(nu_diag,*)    ' restart_dir               = ', &
                                trim(restart_dir)
          write(nu_diag,*)    ' restart_ext               = ', restart_ext
@@ -1044,6 +1115,7 @@
          write(nu_diag,1000) ' pndaspect                 = ', pndaspect
 
          write(nu_diag,1020) ' ktherm                    = ', ktherm
+         write(nu_diag,1005) ' saltmax                   = ', saltmax
          if (ktherm == 1) &
          write(nu_diag,1030) ' conduct                   = ', conduct
          if (ktherm == 2) then
@@ -1062,6 +1134,7 @@
          write(nu_diag,1020) ' natmiter                  = ', natmiter
          write(nu_diag,1010) ' calc_strair               = ', calc_strair
          write(nu_diag,1010) ' calc_Tsfc                 = ', calc_Tsfc
+         write(nu_diag,1010) ' cap_fluxes                = ', cap_fluxes
 
          write(nu_diag,1020) ' fyear_init                = ', &
                                fyear_init
@@ -1085,6 +1158,9 @@
          write(nu_diag,1005) ' sinw                      = ', sinw
          write(nu_diag,1005) ' dragio                    = ', dragio
          write(nu_diag,1005) ' chio                      = ', chio
+         write(nu_diag,1005) ' ice_ref_salinity          = ', ice_ref_salinity
+         write(nu_diag,1005) ' ksno                      = ', ksno
+         write(nu_diag,1006) ' aicenmin                  = ', aicenmin
 #endif
          write(nu_diag,1005) ' ustar_min                 = ', ustar_min
          write(nu_diag, *)   ' fbot_xfer_type            = ', &
@@ -1223,6 +1299,7 @@
 
  1000    format (a30,2x,f9.2)  ! a30 to align formatted, unformatted statements
  1005    format (a30,2x,f9.6)  ! float
+ 1006    format (a30,2x,f16.12)! double 
  1010    format (a30,2x,l6)    ! logical
  1020    format (a30,2x,i6)    ! integer
  1030    format (a30,   a8)    ! character

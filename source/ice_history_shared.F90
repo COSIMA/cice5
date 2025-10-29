@@ -33,7 +33,7 @@
 
       private
       public :: define_hist_field, accum_hist_field, icefields_nml, construct_filename
-      
+
       logical (kind=log_kind), public :: &
          hist_avg  ! if true, write averaged data instead of snapshots
 
@@ -221,6 +221,7 @@
            f_fsens     = 'm', f_fsens_ai   = 'm', &
            f_flwup     = 'm', f_flwup_ai   = 'm', &
            f_evap      = 'm', f_evap_ai    = 'm', &
+           f_evap_ice_ai = 'm', f_evap_snow_ai = 'm', &
            f_Tair      = 'm', &
            f_Tref      = 'm', f_Qref       = 'm', &
            f_congel    = 'm', f_frazil     = 'm', &
@@ -240,21 +241,63 @@
            f_divu      = 'm', f_shear      = 'm', &
            f_sig1      = 'm', f_sig2       = 'm', &
            f_dvidtt    = 'm', f_dvidtd     = 'm', &
+           f_dvsdtt    = 'm', f_dvsdtd     = 'm', &
            f_daidtt    = 'm', f_daidtd     = 'm', &
            f_dagedtt   = 'm', f_dagedtd    = 'm', &
            f_mlt_onset = 'm', f_frz_onset  = 'm', &
            f_iage      = 'm', f_FY         = 'm', &
            f_hisnap    = 'm', f_aisnap     = 'm', &
+           f_sithick   = 'x', f_sisnthick  = 'x', &
+           f_sisnconc  = 'x', f_siage      = 'x', &
+           f_sitemptop = 'x', f_sitempsnic = 'x', &
+           f_sitempbot = 'x', f_sispeed    = 'x', &
+           f_siu       = 'x', f_siv        = 'x', &
+           f_sidmasstranx = 'x', f_sidmasstrany = 'x', &
+           f_sistrxdtop = 'x', f_sistrydtop = 'x', &
+           f_sistrxubot = 'x', f_sistryubot = 'x', &
+           f_siforcetiltx = 'x', f_siforcetilty = 'x', &
+           f_siforcecoriolx = 'x', f_siforcecorioly = 'x', &
+           f_siforceintstrx = 'x', f_siforceintstry = 'x', &
+           f_sicompstren = 'x', &
+           f_sialb     = 'x', &
+           f_sihc      = 'x', f_sisnhc     = 'x', &
+           f_sidconcth = 'x', f_sidconcdyn = 'x', &
+           f_sifb      = 'x', &
+           f_sidmassth = 'x', f_sidmassdyn = 'x', &
+           f_sidmassgrowthwat = 'x', &
+           f_sidmassgrowthbot = 'x', &
+           f_sidmasssi = 'x', &
+           f_sidmassevapsubl = 'x', &
+           f_sidmassmelttop = 'x', &
+           f_sidmassmeltbot = 'x', &
+           f_sidmasslat = 'x', &
+           f_sndmasssnf = 'x', &
+           f_sndmassmelt = 'x', &
+           f_sidivvel = 'x', &
+           f_siflswdtop = 'x', &
+           f_siflswutop = 'x', &
+           f_siflswdbot = 'x', &
+           f_sifllwdtop = 'x', &
+           f_sifllwutop = 'x', &
+           f_siflsenstop = 'x', &
+           f_siflsensupbot = 'x', &
+           f_sifllatstop = 'x', &
+           f_siflcondtop = 'x', &
+           f_siflcondbot = 'x', &
+           f_sipr = 'x', &
+           f_siflsaltbot = 'x', &
+           f_siflfwbot = 'x', &
+           f_sisaltmass = 'x', &
            f_aicen     = 'x', f_vicen      = 'x', &
-           f_vsnon     = 'x', &
+           f_vsnon     = 'x',                     &
            f_trsig     = 'm', f_icepresent = 'm', &
            f_fsurf_ai  = 'm', f_fcondtop_ai= 'm', &
            f_fmeltt_ai = 'm',                     &
            f_fsurfn_ai = 'x' ,f_fcondtopn_ai='x', &
            f_fmelttn_ai= 'x', f_flatn_ai   = 'x', &
-           f_fsensn_ai = 'x', &
-!          f_field3dz  = 'x', &
-           f_keffn_top = 'x', &
+           f_fsensn_ai = 'x',                     &
+!          f_field3dz  = 'x',                     &
+           f_Tn_top    = 'm', f_keffn_top  = 'm', &
            f_Tinz      = 'x', f_Sinz       = 'x', &
            f_Tsnz      = 'x', &
            f_a11       = 'x', f_a12        = 'x', & 
@@ -306,7 +349,8 @@
            f_fsens,     f_fsens_ai , &
            f_flwup,     f_flwup_ai , &
            f_evap,      f_evap_ai  , &
-           f_Tair,      &
+           f_evap_ice_ai, f_evap_snow_ai, &
+           f_Tair                  , &
            f_Tref,      f_Qref     , &
            f_congel,    f_frazil   , &
            f_snoice,    f_dsnow    , &
@@ -325,30 +369,72 @@
            f_divu,      f_shear    , &
            f_sig1,      f_sig2     , &
            f_dvidtt,    f_dvidtd   , &
+           f_dvsdtt,    f_dvsdtd   , &
            f_daidtt,    f_daidtd   , &
            f_dagedtt,   f_dagedtd  , &
            f_mlt_onset, f_frz_onset, &
            f_iage,      f_FY       , &
            f_hisnap,    f_aisnap   , &
+           f_sithick,   f_sisnthick, &
+           f_sisnconc,  f_siage,     &
+           f_sifb,                   &
+           f_sitemptop, f_sitempsnic,&
+           f_sitempbot, f_sispeed,   &
+           f_siu,       f_siv,       &
+           f_sidmasstranx, f_sidmasstrany, &
+           f_sistrxdtop, f_sistrydtop, &
+           f_sistrxubot, f_sistryubot, &
+           f_siforcetiltx, f_siforcetilty, &
+           f_siforcecoriolx, f_siforcecorioly, &
+           f_siforceintstrx, f_siforceintstry, &
+           f_sicompstren, &
+           f_sialb, &
+           f_sidivvel, &
+           f_sihc,      f_sisnhc,    &
+           f_sidconcth, f_sidconcdyn,&
+           f_sidmassth, f_sidmassdyn,&
+           f_sidmassgrowthwat, &
+           f_sidmassgrowthbot, &
+           f_sidmasssi, &
+           f_sidmassevapsubl, &
+           f_sidmassmelttop, &
+           f_sidmassmeltbot, &
+           f_sidmasslat, &
+           f_sndmasssnf, &
+           f_sndmassmelt, &
+           f_siflswdtop, &
+           f_siflswutop, &
+           f_siflswdbot, &
+           f_sifllwdtop, &
+           f_sifllwutop, &
+           f_siflsenstop, &
+           f_siflsensupbot, &
+           f_sifllatstop, &
+           f_siflcondtop, &
+           f_siflcondbot, &
+           f_sipr, &
+           f_siflsaltbot, &
+           f_siflfwbot, &
+           f_sisaltmass, &
            f_aicen,     f_vicen    , &
-           f_vsnon,     &
+           f_vsnon,                  &
            f_trsig,     f_icepresent,&
            f_fsurf_ai,  f_fcondtop_ai,&
            f_fmeltt_ai, &
            f_fsurfn_ai,f_fcondtopn_ai,&
            f_fmelttn_ai,f_flatn_ai,  &
-           f_fsensn_ai, &
+           f_fsensn_ai,              &
 !          f_field3dz,  &
-           f_keffn_top, &
+           f_Tn_top,    f_keffn_top, &
            f_Tinz,      f_Sinz,      &
-           f_Tsnz,      &
-           f_a11,       f_a12,       &
-           f_e11,       f_e12,       &
-           f_e22,       &
-           f_s11,       f_s12,       &
-           f_s22,       &
-           f_yieldstress11, &	
-           f_yieldstress12, &
+           f_Tsnz,  &
+           f_a11, 	f_a12 	   , &
+           f_e11, 	f_e12	   , &
+           f_e22                   , &
+           f_s11, 	f_s12	   , &
+           f_s22                   , &
+           f_yieldstress11         , &	
+           f_yieldstress12	   , &
            f_yieldstress22
 
       !---------------------------------------------------------------
@@ -407,6 +493,7 @@
            n_fsens      , n_fsens_ai   , &
            n_flwup      , n_flwup_ai   , &
            n_evap       , n_evap_ai    , &
+           n_evap_ice_ai, n_evap_snow_ai , &
            n_Tair       , &
            n_Tref       , n_Qref       , &
            n_congel     , n_frazil     , &
@@ -415,7 +502,48 @@
            n_meltb      , n_meltl      , &
            n_fresh      , n_fresh_ai   , &
            n_fsalt      , n_fsalt_ai   , &
-           n_vsnon      , &
+           n_sidivvel,                   &
+           n_sithick    , n_sisnthick  , &
+           n_sisnconc,    n_siage,       &
+           n_sifb,                       &
+           n_sitemptop  , n_sitempsnic , &
+           n_sitempbot  , n_sispeed,     &
+           n_siu,         n_siv,         &
+           n_sidmasstranx, n_sidmasstrany, &
+           n_sistrxdtop,  n_sistrydtop,  &
+           n_sistrxubot,  n_sistryubot,  &
+           n_siforcetiltx, n_siforcetilty, &
+           n_siforcecoriolx, n_siforcecorioly, &
+           n_siforceintstrx, n_siforceintstry, &
+           n_sicompstren, &
+           n_sialb, &
+           n_sihc       , n_sisnhc,      &
+           n_sidconcth  , n_sidconcdyn,  &
+           n_sidmassth  , n_sidmassdyn,  &
+           n_sidmassgrowthwat, &
+           n_sidmassgrowthbot,  &
+           n_sidmasssi,  &
+           n_sidmassevapsubl,  &
+           n_sidmassmelttop,  &
+           n_sidmassmeltbot,  &
+           n_sidmasslat,  &
+           n_sndmasssnf,  &
+           n_sndmassmelt,  &
+           n_siflswdtop,  &
+           n_siflswutop,  &
+           n_siflswdbot,  &
+           n_sifllwdtop,  &
+           n_sifllwutop,  &
+           n_siflsenstop,  &
+           n_siflsensupbot,  &
+           n_sifllatstop,  &
+           n_siflcondtop,  &
+           n_siflcondbot,  &
+           n_sipr,  &
+           n_siflsaltbot,  &
+           n_siflfwbot,  &
+           n_sisaltmass, &
+           n_vsnon,                        &
            n_fhocn      , n_fhocn_ai   , &
            n_fswthru    , n_fswthru_ai , &
            n_strairx    , n_strairy    , &
@@ -427,6 +555,7 @@
            n_divu       , n_shear      , &
            n_sig1       , n_sig2       , &
            n_dvidtt     , n_dvidtd     , &
+           n_dvsdtt     , n_dvsdtd     , &
            n_daidtt     , n_daidtd     , &
            n_dagedtt    , n_dagedtd    , &
            n_mlt_onset  , n_frz_onset  , &
@@ -442,15 +571,16 @@
            n_flatn_ai    , &
            n_fsensn_ai   , &
 !          n_field3dz    , &
+           n_Tn_top      , &
            n_keffn_top   , &
            n_Tinz        , n_Sinz      , &
-           n_Tsnz        , &
-	   n_a11         , n_a12       , &
-	   n_e11         , n_e12       , &
-	   n_e22         , &
-	   n_s11         , n_s12       , &
-	   n_s22         , &
-	   n_yieldstress11, n_yieldstress12, &
+           n_Tsnz, &
+	   n_a11	 , n_a12	, &
+	   n_e11	 , n_e12 	, &
+	   n_e22	 , &
+	   n_s11	 , n_s12	, &
+	   n_s22	 , &
+	   n_yieldstress11, n_yieldstress12,  &
 	   n_yieldstress22
 
       interface accum_hist_field ! generic interface
@@ -465,20 +595,25 @@
 
 !=======================================================================
 
-      subroutine construct_filename(ncfile,suffix,ns)
+      subroutine construct_filename(ncfile,suffix,ns,time_string)
+
+      ! construct filenames for history output
+      ! we follow cosima convention:
+      ! e.g. ice-1daily-mean_0001-01.nc for daily data in january 0001
 
       use ice_calendar, only: time, sec, nyr, month, daymo,  &
-                              mday, write_ic, histfreq, histfreq_n, &
+                              mday, write_ic, histfreq, hist_file_freq, histfreq_n, &
                               year_init, new_year, new_month, new_day, &
                               dt
       use ice_restart_shared, only: lenstr
 
-      character (len=*), intent(inout) :: ncfile
+      character (char_len_long), intent(inout) :: ncfile
+      character (char_len), intent(out), optional :: time_string
+      character (char_len) :: ldate_string
       character (len=2), intent(in) :: suffix
       integer (kind=int_kind), intent(in) :: ns
 
       integer (kind=int_kind) :: iyear, imonth, iday, isec
-      character (len=1) :: cstream
 
         iyear = nyr + year_init - 1 ! set year_init=1 in ice_in to get iyear=nyr
         imonth = month
@@ -490,9 +625,9 @@
 #endif
         ! construct filename
         if (write_ic) then
-           write(ncfile,'(a,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
-              incond_file(1:lenstr(incond_file)),'.',iyear,'-', &
-              imonth,'-',iday,'-',isec,'.',suffix
+            ncfile=incond_file(1:lenstr(incond_file))
+            write(ldate_string,'(i4.4,a,i2.2,a,i2.2,a,i5.5)')  &
+               iyear,'-',imonth,'-',iday,'-',sec
         else
 
          if (hist_avg .and. histfreq(ns) /= '1') then
@@ -510,41 +645,56 @@
           endif
          endif
 
-         cstream = ''
-!echmod ! this was implemented for CESM but it breaks post-processing software
-!echmod ! of other groups (including RASM which uses CCSMCOUPLED)
-!echmod         if (ns > 1) write(cstream,'(i1.1)') ns-1
+         ncfile=history_file(1:lenstr(history_file))
 
-         if (histfreq(ns) == '1') then ! instantaneous, write every dt
-           write(ncfile,'(a,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
-            history_file(1:lenstr(history_file))//trim(cstream),'_inst.', &
-             iyear,'-',imonth,'-',iday,'-',sec,'.',suffix
-
-         elseif (hist_avg) then    ! write averaged data
-
-          if (histfreq(ns) == 'd'.or.histfreq(ns) == 'D') then     ! daily
-           write(ncfile,'(a,a,i4.4,a,i2.2,a,i2.2,a,a)')  &
-            history_file(1:lenstr(history_file))//trim(cstream), &
-             '.',iyear,'-',imonth,'-',iday,'.',suffix
-          elseif (histfreq(ns) == 'h'.or.histfreq(ns) == 'H') then ! hourly
-           write(ncfile,'(a,a,i2.2,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
-            history_file(1:lenstr(history_file))//trim(cstream),'_', &
-             histfreq_n(ns),'h.',iyear,'-',imonth,'-',iday,'-',sec,'.',suffix
-          elseif (histfreq(ns) == 'm'.or.histfreq(ns) == 'M') then ! monthly
-           write(ncfile,'(a,a,i4.4,a,i2.2,a,a)')  &
-            history_file(1:lenstr(history_file))//trim(cstream),'.', &
-             iyear,'-',imonth,'.',suffix
-          elseif (histfreq(ns) == 'y'.or.histfreq(ns) == 'Y') then ! yearly
-           write(ncfile,'(a,a,i4.4,a,a)') &
-            history_file(1:lenstr(history_file))//trim(cstream),'.', &
-             iyear,'.',suffix
-          endif
-
-         else                     ! instantaneous with histfreq > dt
-           write(ncfile,'(a,a,i4.4,a,i2.2,a,i2.2,a,i5.5,a,a)')  &
-            history_file(1:lenstr(history_file)),'_inst.', &
-             iyear,'-',imonth,'-',iday,'-',sec,'.',suffix
+         ! frequency of history ouput (typically 1)
+         if (histfreq_n(ns)>9) then
+            write(ldate_string,'(i2)') histfreq_n(ns)  
+         else
+            write(ldate_string,'(i1)') histfreq_n(ns)  
          endif
+
+         ncfile=ncfile(1:lenstr(ncfile))//'-'//trim(ldate_string)
+
+         ! name file based on history frequency (e.g. "daily-mean")
+         if (histfreq(ns) == 'd'.or.histfreq(ns) == 'D') then     ! daily
+            ncfile=ncfile(1:lenstr(ncfile))//'daily'
+         elseif (histfreq(ns) == 'h'.or.histfreq(ns) == 'H') then ! hourly
+            ncfile=ncfile(1:lenstr(ncfile))//'hourly'
+         elseif (histfreq(ns) == 'm'.or.histfreq(ns) == 'M') then ! monthly
+            ncfile=ncfile(1:lenstr(ncfile))//'monthly'
+         elseif (histfreq(ns) == 'y'.or.histfreq(ns) == 'Y') then ! yearly
+            ncfile=ncfile(1:lenstr(ncfile))//'yearly'
+         endif
+
+         if (hist_avg) then
+            ncfile=ncfile(1:lenstr(ncfile))//'-mean'
+         else
+            ncfile=ncfile(1:lenstr(ncfile))//'-snap'
+         endif
+
+         ! date in filename is based on history file output frequency (e.g. "0001-01" for one file per month)
+         if (hist_file_freq(ns) == 'd'.or.hist_file_freq(ns) == 'D') then     ! daily
+            write(ldate_string,'(i4.4,a,i2.2,a,i2.2)') iyear,'-',imonth,'-',iday
+         elseif (hist_file_freq(ns) == 'h'.or.hist_file_freq(ns) == 'H') then ! hourly
+            write(ldate_string,'(i4.4,a,i2.2,a,i2.2,a,i5.5)') iyear,'-',imonth,'-',iday,'-',sec
+         elseif (hist_file_freq(ns) == 'm'.or.hist_file_freq(ns) == 'M') then ! monthly
+            write(ldate_string,'(i4.4,a,i2.2)') iyear,'-',imonth
+         elseif (hist_file_freq(ns) == 'y'.or.hist_file_freq(ns) == 'Y') then ! yearly
+            write(ldate_string,'(i4.4)') iyear
+         else !instantaneous
+            write(ldate_string,'(i4.4,a,i2.2,a,i2.2,a,i5.5)') iyear,'-',imonth,'-',iday,'-',sec
+         endif
+
+        endif
+
+        ! join the pieces, typically iceh-1daily-mean_0001-01.nc
+        ncfile=ncfile(1:lenstr(ncfile))//'_'//ldate_string(1:lenstr(ldate_string))//'.'//suffix
+
+        ! create a string of current time for debugging
+        if ( present(time_string) ) then
+            write(time_string,'(i4.4,a,i2.2,a,i2.2,a,i5.5)')  &
+                 iyear,'-',imonth,'-',iday,'-',sec
         endif
 
       end subroutine construct_filename
@@ -630,16 +780,15 @@
                 num_avail_hist_fields_3Db + &
                 num_avail_hist_fields_4Di + &
                 num_avail_hist_fields_4Ds + &
-                num_avail_hist_fields_4Db)  then
-
+                num_avail_hist_fields_4Db)  &
                call abort_ice("num_avail_hist_fields error")
-            endif
 
             id(ns) = num_avail_hist_fields_tot
 
             stmp = vname
-            if (ns > 1) &
-               write(stmp,'(a,a1,a1)') trim(stmp),'_',vhistfreq(ns1:ns1)
+!            if (ns > 1) &
+!               write(stmp,'(a,a1,a1)') trim(stmp),'_',vhistfreq(ns1:ns1)
+! This was disabled in Met office version by ABK.
 
             avail_hist_fields(id(ns))%vname = trim(stmp)
             avail_hist_fields(id(ns))%vunit = trim(vunit)
@@ -783,7 +932,7 @@
        do k = 1, ndim
        do j = jlo, jhi
        do i = ilo, ihi
-          if (tmask(i,j,iblk)) then
+         if (tmask(i,j,iblk) .and. abs(field_accum(i,j,k)) < 1.0e+10_dbl_kind) then
              field(i,j,k,idns,iblk) = field(i,j,k,idns,iblk) + field_accum(i,j,k)
           endif
        enddo
@@ -849,9 +998,11 @@
        do n = 1, ndim3
        do j = jlo, jhi
        do i = ilo, ihi
-          if (tmask(i,j,iblk)) then
+         if (tmask(i,j,iblk)) then
+         if (tmask(i,j,iblk) .and. abs(field_accum(i,j,n,k)) < 1.0e+10_dbl_kind) then
              field(i,j,n,k,idns,iblk) = field(i,j,n,k,idns,iblk) + field_accum(i,j,n,k)
           endif
+         endif
        enddo
        enddo
        enddo

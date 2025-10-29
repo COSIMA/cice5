@@ -113,11 +113,11 @@ $(EXEC): $(OBJS)
 	cc $(CFLAGS) $(CPPDEFS) $(INCS) $(INCLDIR) $<
 
 .F.o:
-	$(CPP) $(CPPFLAGS) $(CPPDEFS) $(INCS) $(INCLDIR) $< > $*.f 
+	$(FC) -P $(CPPFLAGS) $(CPPDEFS) $(INCS) $(INCLDIR) $< -o $*.f
 	$(FC) -c $(FFLAGS) $(FIXEDFLAGS) $(INCS) $(INCLDIR) $*.f  
 
 .F90.o:
-	$(CPP) $(CPPFLAGS) $(CPPDEFS) $(INCS) $(INCLDIR) $< > $*.f90
+	$(FC) -P $(CPPFLAGS) $(CPPDEFS) $(INCS) $(INCLDIR) $< -o $*.f90
 	$(FC) -c $(FFLAGS) $(FREEFLAGS) $(INCS) $(INCLDIR) $*.f90  
 
 mostlyclean:

@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_constants.F90 726 2013-09-17 14:58:52Z eclare $
+!  SVN:$Id: ice_constants.F90 700 2013-08-15 19:17:39Z eclare $
 !=======================================================================
 !
 ! This module defines a variety of physical and numerical constants
@@ -21,15 +21,20 @@
       real (kind=dbl_kind), parameter, public :: &
          rhos      = 330.0_dbl_kind   ,&! density of snow (kg/m^3)
          rhoi      = 917.0_dbl_kind   ,&! density of ice (kg/m^3)
+!#ifdef AusCOM
+!         rhow      = 1035.0_dbl_kind  ,&! density of seawater (kg/m^3)
+!                     !mom uses this value---arguable for sea ice---
+!#else
          rhow      = 1026.0_dbl_kind  ,&! density of seawater (kg/m^3)
+!#endif
          cp_air    = 1005.0_dbl_kind  ,&! specific heat of air (J/kg/K)
          ! (Briegleb JGR 97 11475-11485  July 1992)
          emissivity= 0.95_dbl_kind    ,&! emissivity of snow and ice
          cp_ice    = 2106._dbl_kind   ,&! specific heat of fresh ice (J/kg/K)
 !ars599: 11042014: add AusCOM
 #ifdef AusCOM
-         cp_ocn    = 3989._dbl_kind   ,&! specific heat of ocn    (J/kg/K)
-                                        ! freshwater value needed for enthalpy
+         cp_ocn    = 3989.24495292815_dbl_kind, & ! mom5 constant
+         ! cp_ocn    = 3992.10322329649_dbl_kind,& ! used for cm2
 #else
          cp_ocn    = 4218._dbl_kind   ,&! specific heat of ocn    (J/kg/K)
                                         ! freshwater value needed for enthalpy
@@ -38,23 +43,17 @@
 
 !ars599: 26032014 new code (CODE: dragio)
 !	use new code, mark out #ifndef AusCOM
-#ifndef AusCOM
-         dragio    = 0.00536_dbl_kind ,&! ice-ocn drag coefficient
-#endif
+
          albocn    = 0.06_dbl_kind      ! ocean albedo
 
       real (kind=dbl_kind), parameter, public :: &
-         gravit    = 9.80616_dbl_kind    ,&! gravitational acceleration (m/s^2)
-         omega     = 7.292e-5_dbl_kind   ,&! angular velocity of earth (rad/sec)
-         radius    = 6.371e6_dbl_kind       ! earth radius (m)
+         gravit    = 9.80665_dbl_kind    ,&! gravitational acceleration (m/s^2)
+         omega     = 7.292116e-5_dbl_kind,&! angular velocity of earth (rad/sec)
+         radius    = 6.371229e6_dbl_kind   ! earth radius (m)
 
       real (kind=dbl_kind), parameter, public :: &
          secday    = 86400.0_dbl_kind ,&! seconds in calendar day
          viscosity_dyn = 1.79e-3_dbl_kind, & ! dynamic viscosity of brine (kg/m/s)
-#ifndef AusCOM
-         Tocnfrz   = -1.8_dbl_kind    ,&! freezing temp of seawater (C),
-                                        ! used as Tsfcn for open water
-#endif
          rhofresh  = 1000.0_dbl_kind  ,&! density of fresh water (kg/m^3)
          zvir      = 0.606_dbl_kind   ,&! rh2o/rair - 1.0
          vonkar    = 0.4_dbl_kind     ,&! von Karman constant
@@ -66,7 +65,6 @@
          Lfresh    = Lsub-Lvap        ,&! latent heat of melting of fresh ice (J/kg)
          Timelt    = 0.0_dbl_kind     ,&! melting temperature, ice top surface  (C)
          Tsmelt    = 0.0_dbl_kind     ,&! melting temperature, snow top surface (C)
-         ice_ref_salinity = 4._dbl_kind ,&! (ppt)
 !        ocn_ref_salinity = 34.7_dbl_kind,&! (ppt)
          spval_dbl = 1.0e30_dbl_kind    ! special value (double precision)
 
@@ -74,35 +72,37 @@
          spval     = 1.0e30_real_kind   ! special value for netCDF output
 
       real (kind=dbl_kind), parameter, public :: &
-#ifndef AusCOM
-         iceruf   = 0.0005_dbl_kind   ,&! ice surface roughness (m)
-#endif
-
          ! (Ebert, Schramm and Curry JGR 100 15965-15975 Aug 1995)
          kappav = 1.4_dbl_kind ,&! vis extnctn coef in ice, wvlngth<700nm (1/m)
          !kappan = 17.6_dbl_kind,&! vis extnctn coef in ice, wvlngth<700nm (1/m)
 
          ! kice is not used for mushy thermo
          kice   = 2.03_dbl_kind  ,&! thermal conductivity of fresh ice(W/m/deg)
+         !!!kice   = 2.63_dbl_kind  ,&!!! !20170922: spo suggests to test new kice and ksno
          ! kseaice is used only for zero-layer thermo
          kseaice= 2.00_dbl_kind  ,&! thermal conductivity of sea ice (W/m/deg)
                                    ! (used in zero layer thermodynamics option)
-         ksno   = 0.30_dbl_kind  ,&! thermal conductivity of snow  (W/m/deg)
-         hs_min = 1.e-4_dbl_kind ,&! min snow thickness for computing zTsn (m)
 #ifndef AusCOM
-         snowpatch = 0.02_dbl_kind,&! parameter for fractional snow area (m)
+         snowpatch = 0.02_dbl_kind, & ! parameter for fractional snow area (m)
 #endif
-         zref   = 10._dbl_kind     ! reference height for stability (m)
-                    
-#ifdef AusCOM
-      ! in namelist therefore not parameter, which is counterintuitive,
-      ! since this modules name is ice_constants
-!ars599: 26032014: change to public
-!ars599: 24042015: remove dragio!!
+         zref   = 10._dbl_kind        ! reference height for stability (m)
+#ifndef AusCOM
+      real (kind=dbl_kind), parameter, public :: &
+         !!! dragio    = 0.00536_dbl_kind ,&! ice-ocn drag coefficient
+         dragio    = 0.01_dbl_kind ,&!!! 20170922 test new value as per spo 
+         Tocnfrz   = -1.8_dbl_kind    ,&! freezing temp of seawater (C),
+                                        ! used as Tsfcn for open water
+         ice_ref_salinity = 5._dbl_kind, & ! reference salinity for ice–ocean exchanges (ppt)
+                                        ! n.b. CICE6 uses 4 ppt
+         ksno   = 0.3_dbl_kind          ! thermal conductivity of snow  (W/m/deg)
+#else
+      ! get these in ice_init from namelist
       real (kind=dbl_kind), public :: &
-         dragio   , & ! ice-ocn drag coefficient
-         Tocnfrz ! freezing temp of seawater (C),
-                 ! used as Tsfcn for open water
+         dragio   ,  & ! ice-ocn drag coefficient
+         Tocnfrz ,   & ! freezing temp of seawater (C),
+                       ! used as Tsfcn for open water
+         ice_ref_salinity, & ! reference salinity for ice–ocean exchanges (ppt)
+         ksno          ! thermal conductivity of snow  (W/m/deg)
 #endif
 
       ! weights for albedos 
@@ -158,6 +158,7 @@
         c20  = 20.0_dbl_kind, &
         c25  = 25.0_dbl_kind, &
 	c30  = 30.0_dbl_kind, &
+	c60  = 60.0_dbl_kind, &
         c100 = 100.0_dbl_kind, &
         c180 = 180.0_dbl_kind, &
         c360 = 360.0_dbl_kind, &

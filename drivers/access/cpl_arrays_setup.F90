@@ -25,8 +25,8 @@ module cpl_arrays_setup
 ! (22) long wave radiation (net down)			um_lwflx
 ! (23) sensible heat flux				um_shflx
 ! (24) surface pressure					um_press
-! (25) co2                                             um_co2
-! (26) wind speed                                      um_wnd
+! (25) co2                                              um_co2
+! (26) wind speed                                       um_wnd
 !
 ! B> ocn (MOM4) ==> ice (CICE) [* at T or U cell center *]
 !                          
@@ -37,8 +37,8 @@ module cpl_arrays_setup
 ! (5) sea surface gradient (zonal)     (m/m)   	 	ocn_sslx
 ! (6) sea surface gradient (meridional)(m/m)    	ocn_ssly
 ! (7) potential ice frm/mlt heatflux (W/m^2)    	ocn_pfmice
-! (8) co2 ()                                           ocn_co2
-! (9) co2 flux ()                                      ocn_co2fx
+! (8) co2 ()                                            ocn_co2
+! (9) co2 flux ()                                       ocn_co2fx
 !
 ! C> ice (CICE) ==> atm (UM) [* all from T to T, U or V cell center *]
 !                          
@@ -48,8 +48,8 @@ module cpl_arrays_setup
 ! (12 - 16) ice thickness	(m ?)			ia_thikn(,,1:5)
 ! (17) ice/ocn velocity 'zonal'				ia_uvel
 ! (18) ice/ocn velocity 'meridional'			ia_vvel
-! (19) co2                                             ia_co2
-! (20) co2 flux                                        ia_co2fx
+! (19) co2                                              ia_co2
+! (20) co2 flux                                         ia_co2fx
 !
 ! D> ice (CICE) ==> ocn (MOM4) [* at T or U cell center *]
 !             
@@ -73,19 +73,25 @@ module cpl_arrays_setup
 !(12) pressure                                    	io_press
 !(13) ice concentration (fraction)                      io_aice
 !
-! Seperate ice melting/forcation associated water fluxes from the rainfall field:
+! Seperate ice melting/formation associated water fluxes from the rainfall field:
 !
 !(14) ice melt waterflux                                io_melt
 !(15) ice form waterflux                                io_form
 !(16) co2                                               io_co2
 !(17) wind speed                                        io_wnd
 !
+! 2 more added for "iceberg melt" (induced from land ice change):
+!
+!(18) iceberg melt waterflux                            io_licefw
+!(19) iceberg melt heatflux                             io_liceht 
+!
 ! Therefore, currently we have 
 ! 
-! 31 in, 33 out => thus we set jpfldout=33, jpfldin=31 in cpl_parameters.
-!
-!----------------------------------------------------------------------------
-! This module will be largely modified/'simplifed after ACCESS works !
+! *for ACCESS-ESM1.x, (26 + 9) in, (20 + 19) out => thus jpfldout=39, jpfldin=35 in cpl_parameters.
+! for ACCESS-CM2, 47 in, 63 out => thus jpfldout=63, jpfldin=47 in cpl_parameters. 
+! now (20171024)  47 in, 65 out                  65          47
+!----------------------------------------------------------------------------------
+! This module will be largely modified/'simplifed' after ACCESS works !
 !============================================================================
 
 !cice stuff
@@ -99,10 +105,11 @@ real(kind=dbl_kind), dimension(:,:,:), allocatable :: &   !from atm (UM)
     um_thflx, um_pswflx, um_runoff, um_wme, um_snow, um_rain, &
     um_evap,  um_lhflx,  um_taux,   um_tauy, &
     um_swflx, um_lwflx,  um_shflx,  um_press,um_co2, um_wnd
+
 real(kind=dbl_kind), dimension(:,:,:,:), allocatable :: &   
     um_tmlt, um_bmlt
 
-! CORE runoff remapped onto the AusCOM grid (prepared by S.Marsland)
+! CORE runoff remapped onto the AusCOM grid (optional)
 real(kind=dbl_kind), dimension(:,:,:), allocatable :: & 
     core_runoff
 
@@ -118,14 +125,15 @@ real(kind=dbl_kind), dimension(:,:,:), allocatable :: vwork
 ! Fields out:
 !============
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to atm (timeaveraged)
-    ia_sst, ia_uvel, ia_vvel, ia_co2, ia_co2fx
+    ia_sst, ia_uvel, ia_vvel, ia_co2, ia_co2fx !!!, ia_sstfz
 real(kind=dbl_kind), dimension(:,:,:,:), allocatable :: &
     ia_aicen, ia_snown, ia_thikn
 
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     !to ocn (time averaged)
     io_strsu, io_strsv, io_rain,  io_snow,  io_stflx, io_htflx, io_swflx, &
     io_qflux, io_shflx, io_lwflx, io_runof, io_press, io_aice, &
-    io_melt, io_form, io_co2, io_wnd
+    io_melt, io_form, io_co2, io_wnd, &
+    io_licefw, io_liceht         !2 more added 20171024
 
 ! Temporary arrays
 !==================
@@ -135,10 +143,15 @@ real(kind=dbl_kind),dimension(:,:,:), allocatable :: &
     maiu, muvel, mvvel
 real(kind=dbl_kind), dimension(:,:,:,:), allocatable :: &
     maicen, msnown, mthikn
+real(kind=dbl_kind), dimension(:,:,:,:), allocatable :: &       !BX: just in case......
+    maicen_saved
 
 ! 2. ice fields averaged over IO cpl interval:
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &     
     maice, mstrocnxT, mstrocnyT, mfresh, mfsalt, mfhocn, mfswthru, msicemass
+!BX---extra one: (maybe better save the IA interval one......anyway:)
+!real(kind=dbl_kind),dimension(:,:,:), allocatable :: &
+!    maice_saved
 
 ! 3. ocn fields averaged over IA cpl interval:
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: &
@@ -149,6 +162,15 @@ real(kind=dbl_kind),dimension(:,:,:), allocatable :: &
 !============
 real(kind=dbl_kind),dimension(:,:,:), allocatable :: & 
     sicemass   !ice mass
+
+real(kind=dbl_kind),dimension(:,:,:), allocatable :: &
+    gicebergfw     !monthly iceberg flux on global domain
+real(kind=dbl_kind),dimension(:,:), allocatable :: &
+    gtarea,     &  !tarea on global domain
+    grunoff        !runoff on global domain
+
+real(kind=dbl_kind),dimension(:), allocatable :: &
+    ticeberg_s, ticeberg_n  !monthly land ice off Anrarctica and Greenland (NH)
 
 !===========================================================================
 end module cpl_arrays_setup

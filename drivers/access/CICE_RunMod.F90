@@ -17,12 +17,7 @@
 
       use ice_kinds_mod
 
-#ifdef AusCOM 
-      !For stuff in this AusCOM's own driver the "#ifdef AusCOM" is NOT needed!
-      !but for consistency with the code in other places, we keep it anyway ...
-      !...to "indentify" the modification to the original code, easier 
-      !...to locate future code update                              Aug. 2008  
-      
+#ifdef ACCESS
       use cpl_parameters
       use cpl_arrays_setup
       use cpl_interface
@@ -52,12 +47,10 @@
       use ice_algae, only: get_forcing_bgc
       use ice_calendar, only: istep, istep1, time, dt, stop_now, calendar
       use ice_forcing, only: get_forcing_atmo, get_forcing_ocn
-#ifdef AusCOM
-!ars599: 27032014 add in
-      use ice_calendar, only: month, mday, istep, istep1, &
-	  time, dt, stop_now, calendar
-      use ice_forcing, only: get_forcing_atmo, get_forcing_ocn, &
-          get_forcing_atmo_ready
+#ifdef ACCESS
+      use ice_calendar, only: month, mday, istep, istep1, time, dt, stop_now, calendar, &
+          write_restart, dump_last
+      use ice_restart_driver, only: dumpfile     !temporary debug
 #endif
       use ice_flux, only: init_flux_atm, init_flux_ocn
       use ice_state, only: tr_aero
@@ -65,22 +58,18 @@
           timer_couple, timer_step
       use ice_zbgc_shared, only: skl_bgc
 
-#ifdef AusCOM 
-!ars599: 27032014 add in
-      use ice_timers, only: timer_from_ocn, timer_into_ocn, &
-          timer_from_atm, timer_into_atm, ice_timer_start, &
-          ice_timer_stop, timer_couple, timer_step
+#ifdef ACCESS 
+      use ice_timers, only: ice_timer_start, &
+          ice_timer_stop, timer_couple, timer_step, &
+          timer_from_atm, timer_into_atm, timer_from_ocn, timer_into_ocn
       use ice_grid, only: t2ugrid_vector, u2tgrid_vector
-
-
-      integer (kind=int_kind) :: time_sec, itap, icpl_ai, icpl_io, tmp_time
+      integer (kind=int_kind) :: time_sec, itap, icpl_ai, tmp_time
       integer (kind=int_kind) :: rtimestamp_ai, stimestamp_ai
       integer (kind=int_kind) :: rtimestamp_io, stimestamp_io
       !receive and send timestamps (seconds)
       integer (kind=int_kind) :: imon 
-!ars: 08052014 according to dhb599 fm changed, and mark out the one from OM
-!      logical :: first_step = .true.  !1st time step of experiment or not
-      logical :: need_i2o = .true.
+
+        logical ::  write_tmp_dump = .true.
 #endif
 
    !--------------------------------------------------------------------
@@ -93,207 +82,131 @@
    ! timestep loop
    !--------------------------------------------------------------------
 
-#ifdef AusCOM
-      write(il_out,*)'A <==> I coupling num_cpl_ai= ',num_cpl_ai
-      write(il_out,*)' to/from ocean num_cpl_io= ',num_cpl_io
-      write(il_out,*)' ice steps num_ice_io = ',   num_ice_io
-      write(il_out,*)'runtime, runtime0=', runtime, runtime0 
+#ifdef ACCESS
+      write(il_out,*)'A <==> I coupling num_cpl_ai =          ',num_cpl_ai
+      write(il_out,*)' ice steps per ai interval num_ice_ai = ',num_ice_ai
+      write(il_out,*)' runtime, runtime0 =                    ',runtime, runtime0
 
       time_sec = 0
-      ! get from atm once at time 0
-!      rtimestamp_ai = time_sec
-!      call ice_timer_start(timer_from_atm)  ! atm/ocn coupling
-!      call from_atm(rtimestamp_ai)
-!      call ice_timer_stop(timer_from_atm)  ! atm/ocn coupling
-!
-!      !set time averaged ice and ocn variables back to 0
-!      call initialize_mice_fields_4_i2a
-!      call initialize_mocn_fields_4_i2a
       
       DO icpl_ai = 1, num_cpl_ai   !begin A <==> I coupling iterations
 
-      Do icpl_io = 1, num_cpl_io   !begin I <==> O coupling iterations
+        !receive a2i fields 
+        rtimestamp_ai = time_sec
+        !call ice_timer_start(timer_from_atm)  ! atm/ice coupling
+        write(il_out,*)' calling from_atm at icpl_ai, time_sec = ', icpl_ai, time_sec
+        !===========================
+        call from_atm(rtimestamp_ai)
+        !===========================
+        !call ice_timer_stop(timer_from_atm)  ! atm/ice coupling
 
-      if(icpl_ai <= num_cpl_ai  .and. mod(time_sec, dt_cpl_ai ) == 0) then ! atm ice coupling time except last step 
-      rtimestamp_ai = time_sec
-      call ice_timer_start(timer_from_atm)  ! atm/ice coupling
-      call from_atm(rtimestamp_ai)
-      call ice_timer_stop(timer_from_atm)  ! atm/ice coupling
-   
-!!      !set time averaged ice and ocn variables back to 0
-      write(il_out,*)' calling init_mice_fields_4_i2a at time_sec = ',time_sec
-      call initialize_mice_fields_4_i2a
-!      call initialize_mocn_fields_4_i2a
-      end if
+        !"TTI" approach ice fluxes converted to GBM units 
+        !call atm_icefluxes_back2GBM  (CM2 requires)
 
 
-        stimestamp_io = time_sec
-
-        !at the beginning of the run, cice (CICE_init) reads in the required ice fields 
-        !(time averaged over the last coupling interval of previous run), which include
-        !strocnx/yT, aice, fresh_gbm, fsalt_gbm, fhocn_gbm, fswthru_gbm, sicemass etc.
-        !(named as mstrocnx/yT, maice, mfresh, mfsalt, mfhocn, mfswthru, msicemass ...)
-
-        !together with the a2i fields (sent from um at the end of previous run) received 
-        !above, the time0 i2o fields can be obtained here
-
-        !if (runtime0 == 0 .and. need_i2o) then
-        !  write(6,*)'*** CICE: initial run calls get_restart_i2o *** '
-        !  write(6,*)'*** CICE: time_sec = ', time_sec
-        !  write(il_out,*)' calling get_restart_i2o at time_sec = ',time_sec
-        !  call get_restart_i2o('i2o.nc')
-        !  need_i2o = .false.         
-        !else
-        !  write(6,*)'*** CICE: calling get_i2o_fields... '    
-        !  write(6,*)'*** CICE: time_sec = ', time_sec
-        !  write(6,*)'*** CICE: calling get_i2o_fields... '
-        !  write(il_out,*)' calling get_i2o_fields at time_sec = ',time_sec
-          call get_i2o_fields
-        !endif
-
-        !shift stresses from T onto U grid before sending into ocn
-        write(il_out,*)' calling t2ugrid_vector - u/v at time_sec = ', time_sec
-        call t2ugrid_vector(io_strsu)
-        call t2ugrid_vector(io_strsv)
-
-        write(il_out,*)' calling into_ocn at time_sec = ', time_sec
-        call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
-        call into_ocn(stimestamp_io)
-        call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
-
-        !at the beginning of the run, cice (CICE_init) reads in the required o2i fields
-        !(saved from the last timestep of ocean).
-
-        !together with the a2i fields (sent from um at the end of previous run) received 
-        !above, the time0 boundary condition for ice 'internal time loop' is set here
-
-        !--------------------------------------------------------------------------------
-        !* This needs be investigated: calling set_sbc_ice outside the itap loop causes 
-        ! cice to crash ('departure error') due probably to "aice" "mismatch?" for each 
-        ! time step in the set_sbc_ice calculation.... (?)
-        ! We therefore still call "get_sbc_ice" inside the ice time loop (below)
-        !
-        !write(il_out,*)' calling set_sbc_ice at time_sec = ',time_sec
-        !call set_sbc_ice
-        !-------------------------------------------------------------------------------- 
-
-        !set time averaged ice variables back to 0
-        write(il_out,*)' calling init_mice_fields_4_i2o at time_sec = ',time_sec
-        call initialize_mice_fields_4_i2o
-
-        do itap = 1, num_ice_io   ! cice time loop within each i<=>o cpl interval 
-
-           !------------------------------------------------------------------------------
-           !* see comments above
-           call get_sbc_ice
-           !set boundary condition (forcing) for ice time step
-           !------------------------------------------------------------------------------
-
-           call ice_step
-        write(il_out,*)' calling ave_ice_fields_4_i2a at time_sec = ',time_sec
-
-!=======================================
-      tmp_time = time_sec + dt
-      if ( mod(tmp_time, dt_cpl_ai) == 0  ) then  !put to atm i step before coupling
-      write(il_out,*)' calling get_i2a_fields at time_sec = ',time_sec
-      call ice_timer_start(timer_into_atm)  ! atm/ocn coupling
-      call get_i2a_fields           ! i2a fields ready to be sent for next IA cpl int in atm.
-
-!        if(tmp_time < runtime ) then
-      ! * because of using lag=+dt_ice, we must take one step off the time_sec
-      ! * to make the sending happen at right time:
-      stimestamp_ai = time_sec ! - dt
-      write(il_out,*)' calling into_atm at time_sec = ',time_sec
-      call into_atm(stimestamp_ai)
-
-!      !set time averaged ice and ocn variables back to 0
-      write(il_out,*)' calling init_mocn_fields_4_i2a at time_sec = ',time_sec
-      !call initialize_mice_fields_4_i2a
-      call initialize_mocn_fields_4_i2a
-!        end if
-      call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling
-      end if
-!======================================
-
-           ! note ice_step makes call to time_average_fields_4_i2o  
-           !      and                    time_average_fields_4_i2a
-           ! to get time-averaged ice variables required for setting up i2o and i2a cpl fields 
-
-           istep  = istep  + 1    ! update time step counters
-           istep1 = istep1 + 1
-           time = time + dt       ! determine the time and date
+        do itap = 1, num_ice_ai   ! cice time loop 
+                                ! Note I <==> O coupling happens at each time step
  
-           time_sec = time_sec + dt
+          stimestamp_io = time_sec
 
-           call calendar(time-runtime0) 
+          !"combine" a2i fields and ice fields to get i2o fields 
+          call get_i2o_fields
 
-           !initialize fluxes sent to coupler (WHY should still need do this? CH: NOT needed!)
-           call init_flux_atm
-           call init_flux_ocn
+          !shift stresses from T onto U grid before sending into ocn
+          call t2ugrid_vector(io_strsu)
+          call t2ugrid_vector(io_strsv)
 
-           !CH: should be doing things here
-           !get_i2o_fields
-           !get_i2a_fields 
+          write(il_out,'(a,3i10)') &
+                ' calling into_ocn at icpl_ai, itap, time_sec = ', icpl_ai, itap, time_sec
+          !call ice_timer_start(timer_into_ocn)  ! atm/ocn coupling
+          !===========================
+          !call check_iceberg_fields('chk_iceberg_i2o.nc')
+          call into_ocn(stimestamp_io)
+          !===========================
+          !call ice_timer_stop(timer_into_ocn)  ! atm/ocn coupling
 
-        end do    !itap
+          !set boundary condition (forcing) 
+          call get_sbc_ice
 
-        !!write(il_out,*)' calling get_i2o_fields at time_sec = ',time_sec
-        !!call get_i2o_fields                 !i2o fields ready to be sent for next IO cpl int in ocn. 
-        rtimestamp_io = time_sec
-        if (rtimestamp_io < runtime) then  !get coupling from ocean except the last time step
-        write(il_out,*)' calling from_ocn at time_sec = ',time_sec
-        call ice_timer_start(timer_from_ocn)  ! atm/ocn coupling
-        call from_ocn(rtimestamp_io)        !get o2i fields for next IO cpl int
-        call ice_timer_stop(timer_from_ocn)  ! atm/ocn coupling
+          !Debug: 20170825 -- check sbc_ice variables from "get_sbc_ice"
+          !call check_ice_sbc_fields('chk_ice_sbc.nc')
 
-        write(il_out,*)' calling ave_ocn_fields_4_i2a at time_sec = ',time_sec
-        call time_average_ocn_fields_4_i2a  !accumulate/average ocn fields needed for IA coupling        
-        end if
+          !Debug: 20170927 -- check the restart fields at the beginning of day 3
+          !if (icpl_ai == 17 .and. itap == 1) then
+          !  write(il_out,'(a,4i10)') &
+          !      ' calling dumpfile at icpl_ai, itap, time_sec, idate = ', icpl_ai, itap, time_sec, idate
+          !  call dumpfile
+          !endif
 
-        !CH: maybe--
-        ! call get_i2a_fields 
-#ifdef WRONG_INTO_ATM
-      tmp_time = time_sec + dt
-      if ( mod(tmp_time, dt_cpl_ai) == 0  ) then  !put to atm i step before coupling
-      write(il_out,*)' calling get_i2a_fields at time_sec = ',time_sec
-      call ice_timer_start(timer_into_atm)  ! atm/ocn coupling
-      call get_i2a_fields           ! i2a fields ready to be sent for next IA cpl int in atm.
+          ! Write restart on final timestep
+          if (dump_last .and. (itap == num_ice_ai) .and. (icpl_ai == num_cpl_ai)) then
+            write_restart = 1
+          endif
+ 
+          !*** ice "update" ***!
+          call ice_step
 
-!        if(tmp_time < runtime ) then
-      ! * because of using lag=+dt_ice, we must take one step off the time_sec
-      ! * to make the sending happen at right time:
-      stimestamp_ai = time_sec ! - dt
-      write(il_out,*)' calling into_atm at time_sec = ',time_sec
-      call into_atm(stimestamp_ai)
+          !Debug: 20170827 -- check updated ice varables after ice_step
+          !call check_ice_fields('chk_ice_fields.nc')
 
-!      !set time averaged ice and ocn variables back to 0
-      write(il_out,*)' calling init_mocn_fields_4_i2a at time_sec = ',time_sec
-      !call initialize_mice_fields_4_i2a
-      call initialize_mocn_fields_4_i2a
-!        end if
-      call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling
-      end if
-#endif
-      End Do      !icpl_io
+          !time-average ice variables required for setting up i2o and i2a cpl fields 
+          call time_average_fields_4_i2o        !actually "instant" ice vairables
+          call time_average_fields_4_i2a        !time averaging over ia cpl interval
 
-!      write(il_out,*)' calling get_i2a_fields at time_sec = ',time_sec
-!      call ice_timer_start(timer_into_atm)  ! atm/ocn coupling
-!      call get_i2a_fields           ! i2a fields ready to be sent for next IA cpl int in atm.
-!
-!      ! * because of using lag=+dt_ice, we must take one step off the time_sec 
-!      ! * to make the sending happen at right time:
-!      stimestamp_ai = time_sec - dt
-!      write(il_out,*)' calling into_atm at time_sec = ',time_sec
-!      call into_atm(stimestamp_ai)
-!      call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling
+          tmp_time = time_sec + dt
+          if ( mod(tmp_time, dt_cpl_ai) == 0  ) then  !this happens at itap = num_ice_ai 
+            !call ice_timer_start(timer_into_atm)  
+            !i2a fields ready to be sent for next IA cpl int in atm.
+            call get_i2a_fields
+
+            stimestamp_ai = time_sec 
+
+            write(il_out,'(a,3i10)') &
+                ' calling into_atm at icpl_ai, itap, time_sec = ',icpl_ai, itap, time_sec
+            !===========================
+            call into_atm(stimestamp_ai)
+            !===========================
+
+            !set time averaged ice and ocn variables back to 0
+            call initialize_mocn_fields_4_i2a
+            call initialize_mice_fields_4_i2a  
+            !call ice_timer_stop(timer_into_atm)  ! atm/ocn coupling
+          endif 
+
+          istep  = istep  + 1    ! update time step counters
+          istep1 = istep1 + 1
+          time = time + dt       ! determine the time and date
+ 
+          time_sec = time_sec + dt
+          call calendar(time-runtime0) 
+
+          !initialize fluxes sent to coupler 
+          !WHY should still need this? CH: NOT needed! ==> but model crashes if NOT! 
+          call init_flux_atm
+          call init_flux_ocn
+
+          rtimestamp_io = time_sec
+          if (rtimestamp_io < runtime) then 
+            !get o2i fields for next time step ice update 
+            write(il_out,'(a,3i10)') &
+                ' calling from_ocn at icpl_ai, itap, time_sec = ',icpl_ai, itap, time_sec
+            !call ice_timer_start(timer_from_ocn)
+            !===========================
+            call from_ocn(rtimestamp_io)
+            !===========================
+            !call ice_timer_stop(timer_from_ocn)
+            !accumulate/average ocn fields needed for IA coupling        
+            call time_average_ocn_fields_4_i2a  
+          end if
+
+        end do      !itap
+
+        newstep_ai = .true.
 
       END DO      !icpl_ai
 
       ! final update of the stimestamp_io, ie., put back the last dt_cice:
       stimestamp_io = stimestamp_io + dt
-
-      ! *** need save o2i fields here instead of in mom4 ***
-      !call save_restart_o2i('o2i.nc', stimestamp_io) !it is done in mom4
 
       ! *** need save the last IO cpl int (time-averaged) ice variables used to get i2o fields ***
       ! *** 				at the beginning of next run			       ***
@@ -466,16 +379,6 @@
          call ice_timer_stop(timer_thermo) ! thermodynamics
          call ice_timer_stop(timer_column) ! column physics
 
-!ars599: 04092014: add in
-!	not sure should add inside the loop or not?
-!ars599: 09052014: move from after line 458 "enddo ! iblk" to here
-#ifdef AusCOM
-         !need some time-mean ice fields 
-         !(so as to get i2o and i2a fields for next coupling interval) 
-         call time_average_fields_4_i2o
-         call time_average_fields_4_i2a 
-#endif
-
       !-----------------------------------------------------------------
       ! write data
       !-----------------------------------------------------------------
@@ -523,6 +426,7 @@
       use ice_blocks, only: block, nx_block, ny_block
       use ice_calendar, only: dt, nstreams
       use ice_constants, only: c0, c1, puny, rhofresh
+      use ice_coupling, only: top_layer_Tandk_run, sfcflux_to_ocn
       use ice_domain_size, only: ncat
       use ice_flux, only: alvdf, alidf, alvdr, alidr, albice, albsno, &
           albpnd, albcnt, apeff_ai, coszen, fpond, fresh, &
@@ -531,13 +435,14 @@
           fswthru_ai, fhocn, fswthru, scale_factor, &
           swvdr, swidr, swvdf, swidf, Tf, Tair, Qa, strairxT, strairyt, &
           fsens, flat, fswabs, flwout, evap, Tref, Qref, faero_ocn, &
-          fsurfn_f, flatn_f, scale_fluxes, frzmlt_init, frzmlt
+          fsurfn_f, flatn_f, scale_fluxes, frzmlt_init, frzmlt, &
+          snowfrac, snowfracn, evap_ice, evap_snow
       use ice_grid, only: tmask
       use ice_ocean, only: oceanmixed_ice, ocean_mixed_layer
       use ice_shortwave, only: alvdfn, alidfn, alvdrn, alidrn, &
                                albicen, albsnon, albpndn, apeffn
       use ice_state, only: aicen, aice, aice_init, nbtrcr
-      use ice_therm_shared, only: calc_Tsfc
+      use ice_therm_shared, only: calc_Tsfc, heat_capacity
       use ice_timers, only: timer_couple, ice_timer_start, ice_timer_stop
       use ice_zbgc_shared, only: flux_bio, flux_bio_ai
 
@@ -589,6 +494,7 @@
             albsno(i,j,iblk) = c0
             albpnd(i,j,iblk) = c0
             apeff_ai(i,j,iblk) = c0
+            snowfrac(i,j,iblk) = c0
 
             ! for history averaging
             cszn = c0
@@ -621,6 +527,8 @@
 
             apeff_ai(i,j,iblk) = apeff_ai(i,j,iblk) &       ! for history
                + apeffn(i,j,n,iblk)*aicen(i,j,n,iblk)
+            snowfrac(i,j,iblk) = snowfrac(i,j,iblk) &       ! for history
+               + snowfracn(i,j,n,iblk)*aicen(i,j,n,iblk)
          enddo
          enddo
          enddo
@@ -684,6 +592,7 @@
                             fsens    (:,:,iblk), flat    (:,:,iblk), &
                             fswabs   (:,:,iblk), flwout  (:,:,iblk), &
                             evap     (:,:,iblk),                     &
+                            evap_ice (:,:,iblk), evap_snow(:,:,iblk),&
                             Tref     (:,:,iblk), Qref    (:,:,iblk), &
                             fresh    (:,:,iblk), fsalt   (:,:,iblk), &
                             fhocn    (:,:,iblk), fswthru (:,:,iblk), &
@@ -713,76 +622,18 @@
 
          call ice_timer_stop(timer_couple)   ! atm/ocn coupling
 
+! AEW: Calculate new top layer temp and effective cond after each
+! timestep
+         if (.not. calc_Tsfc .and. heat_capacity) then
+            !----------------------------------------
+            ! Get top layer temperature and effective conductivity
+            ! for passing to atmos
+        
+            call top_layer_Tandk_run (iblk)
+         endif
+
       end subroutine coupling_prep
 
-!=======================================================================
-!
-! If surface heat fluxes are provided to CICE instead of CICE calculating
-! them internally (i.e. .not. calc_Tsfc), then these heat fluxes can 
-! be provided at points which do not have ice.  (This is could be due to
-! the heat fluxes being calculated on a lower resolution grid or the
-! heat fluxes not recalculated at every CICE timestep.)  At ice free points, 
-! conserve energy and water by passing these fluxes to the ocean.
-!
-! author: A. McLaren, Met Office
-
-      subroutine sfcflux_to_ocn(nx_block,   ny_block,     &
-                                tmask,      aice,         &
-                                fsurfn_f,   flatn_f,      &
-                                fresh,      fhocn)
-
-      use ice_domain_size, only: ncat
-
-      integer (kind=int_kind), intent(in) :: &
-          nx_block, ny_block  ! block dimensions
-
-      logical (kind=log_kind), dimension (nx_block,ny_block), &
-          intent(in) :: &
-          tmask       ! land/boundary mask, thickness (T-cell)
-
-      real (kind=dbl_kind), dimension(nx_block,ny_block), &
-          intent(in):: &
-          aice        ! initial ice concentration
-
-      real (kind=dbl_kind), dimension(nx_block,ny_block,ncat), &
-          intent(in) :: &
-          fsurfn_f, & ! net surface heat flux (provided as forcing)
-          flatn_f     ! latent heat flux (provided as forcing)
-
-      real (kind=dbl_kind), dimension(nx_block,ny_block), &
-          intent(inout):: &
-          fresh        , & ! fresh water flux to ocean         (kg/m2/s)
-          fhocn            ! actual ocn/ice heat flx           (W/m**2)
-
-!ars599: 08052014 not sure but add auscom to try, copy from dhb599 fm
-!#ifdef CICE_IN_NEMO
-#ifdef AusCOM
-
-      ! local variables
-      integer (kind=int_kind) :: &
-          i, j, n    ! horizontal indices
-      
-      real (kind=dbl_kind)    :: &
-          rLsub            ! 1/Lsub
-
-      rLsub = c1 / Lsub
-
-      do n = 1, ncat
-         do j = 1, ny_block
-         do i = 1, nx_block
-            if (tmask(i,j) .and. aice(i,j) <= puny) then
-               fhocn(i,j)      = fhocn(i,j)              &
-                            + fsurfn_f(i,j,n) + flatn_f(i,j,n)
-               fresh(i,j)      = fresh(i,j)              &
-                                 + flatn_f(i,j,n) * rLsub
-            endif
-         enddo   ! i
-         enddo   ! j
-      enddo      ! n
-
-#endif 
-
-      end subroutine sfcflux_to_ocn
 
 !=======================================================================
 

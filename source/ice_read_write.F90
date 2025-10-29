@@ -1222,7 +1222,7 @@
            nrec              ! record number 
 
 #ifndef AusCOM
-     character (char_len) :: &
+      character (len=*), intent(in) :: & 
 #else
      character*(*), intent(in) :: &
 #endif
@@ -1929,7 +1929,6 @@
 #endif
       end subroutine ice_read_global_nc
 
-#ifdef AusCOM
 !=======================================================================
 !BOP
 !
@@ -2034,8 +2033,6 @@
       endif
 
       end subroutine ice_read_global_nc_3D
-
-#endif
 
 !=======================================================================
 
